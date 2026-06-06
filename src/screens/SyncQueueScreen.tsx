@@ -10,10 +10,12 @@ import {
   Alert,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import { RootState, navigateTo, clearQueueItem, clearAllCompleted } from '../store';
+import { useNavigation } from '@react-navigation/native';
+import { RootState, clearQueueItem, clearAllCompleted } from '../store';
 import Theme from '../theme';
 
 export default function SyncQueueScreen() {
+  const navigation = useNavigation<any>();
   const dispatch = useDispatch();
   const queue = useSelector((state: RootState) => state.survey.syncQueue);
 
@@ -100,7 +102,7 @@ export default function SyncQueueScreen() {
         </View>
         <TouchableOpacity 
           style={styles.backBtn} 
-          onPress={() => !syncing && dispatch(navigateTo('DASHBOARD'))}
+          onPress={() => !syncing && navigation.navigate('MainTabs')}
           disabled={syncing}
         >
           <Text style={[styles.backText, syncing && { opacity: 0.5 }]}>DASHBOARD</Text>

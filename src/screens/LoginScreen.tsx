@@ -12,16 +12,29 @@ import {
   ScrollView,
 } from 'react-native';
 import Theme from '../theme';
+import { useForm, Controller } from 'react-hook-form';
 
 interface LoginScreenProps {
   onLogin: (username: string, surveyorId: string, division: string) => void;
 }
 
+interface LoginFormInputs {
+  username: string;
+  surveyorId: string;
+  division: string;
+}
+
 export default function LoginScreen({ onLogin }: LoginScreenProps) {
-  // Input states
-  const [username, setUsername] = useState('');
-  const [surveyorId, setSurveyorId] = useState('');
-  const [division, setDivision] = useState('Central Division');
+  // react-hook-form configuration
+  const { control, handleSubmit, setValue, watch, formState: { errors } } = useForm<LoginFormInputs>({
+    defaultValues: {
+      username: '',
+      surveyorId: '',
+      division: 'Central Division',
+    }
+  });
+
+  const division = watch('division');
   
   // Interactive UI states
   const [loading, setLoading] = useState(false);
@@ -68,13 +81,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     ]).start();
   };
 
-  const handleLogin = () => {
-    if (!username.trim() || !surveyorId.trim()) {
-      setLogText('ERROR: CREDENTIALS CANNOT BE BLANK');
-      triggerShake();
-      return;
-    }
-
+  const onSubmit = (data: LoginFormInputs) => {
     setLoading(true);
     setLogText('INITIALIZING HANDSHAKE...');
 
@@ -85,10 +92,15 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         setLogText('ESTABLISHING SECURE OFFLINE SESSION...');
         setTimeout(() => {
           setLoading(false);
-          onLogin(username.trim(), surveyorId.trim(), division);
+          onLogin(data.username.trim(), data.surveyorId.trim(), data.division);
         }, 800);
       }, 800);
     }, 800);
+  };
+
+  const onInvalid = () => {
+    setLogText('ERROR: CREDENTIALS VALIDATION FAILED');
+    triggerShake();
   };
 
   return (
@@ -123,93 +135,129 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
             {/* Surveyor Name */}
             <View style={styles.inputContainer}>
               <Text style={styles.label}>SURVEYOR FULL NAME</Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  focusedInput === 'username' && styles.inputFocused,
-                ]}
-                placeholder="Enter full name"
-                placeholderTextColor="rgba(255, 255, 255, 0.3)"
-                value={username}
-                onChangeText={(text) => {
-                  setUsername(text);
-                  setLogText('WRITING NAME DATA...');
-                }}
-                onFocus={() => setFocusedInput('username')}
-                onBlur={() => setFocusedInput(null)}
-                autoCorrect={false}
+              <Controller
+                control={control}
+                name="username"
+                rules={{ required: 'Full name is required' }}
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={[
+                      styles.input,
+                      focusedInput === 'username' && styles.inputFocused,
+                      errors.username && styles.inputError,
+                    ]}
+                    placeholder="Enter full name"
+                    placeholderTextColor="rgba(255, 255, 255, 0.3)"
+                    value={value}
+                    onChangeText={(text) => {
+                      onChange(text);
+                      setLogText('WRITING NAME DATA...');
+                    }}
+                    onFocus={() => setFocusedInput('username')}
+                    onBlur={() => {
+                      onBlur();
+                      setFocusedInput(null);
+                    }}
+                    autoCorrect={false}
+                  />
+                )}
               />
+              {errors.username && (
+                <Text style={styles.errorFeedback}>{errors.username.message}</Text>
+              )}
             </View>
 
             {/* Surveyor ID */}
             <View style={styles.inputContainer}>
               <Text style={styles.label}>SURVEYOR ID / CERTIFICATE NO</Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  focusedInput === 'surveyorId' && styles.inputFocused,
-                ]}
-                placeholder="e.g. SRV-2026-889"
-                placeholderTextColor="rgba(255, 255, 255, 0.3)"
-                value={surveyorId}
-                onChangeText={(text) => {
-                  setSurveyorId(text);
-                  setLogText('WRITING ID DATA...');
-                }}
-                onFocus={() => setFocusedInput('surveyorId')}
-                onBlur={() => setFocusedInput(null)}
-                autoCapitalize="characters"
-                autoCorrect={false}
+              <Controller
+                control={control}
+                name="surveyorId"
+                rules={{ required: 'Surveyor ID is required' }}
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={[
+                      styles.input,
+                      focusedInput === 'surveyorId' && styles.inputFocused,
+                      errors.surveyorId && styles.inputError,
+                    ]}
+                    placeholder="e.g. SRV-2026-889"
+                    placeholderTextColor="rgba(255, 255, 255, 0.3)"
+                    value={value}
+                    onChangeText={(text) => {
+                      onChange(text);
+                      setLogText('WRITING ID DATA...');
+                    }}
+                    onFocus={() => setFocusedInput('surveyorId')}
+                    onBlur={() => {
+                      onBlur();
+                      setFocusedInput(null);
+                    }}
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                  />
+                )}
               />
+              {errors.surveyorId && (
+                <Text style={styles.errorFeedback}>{errors.surveyorId.message}</Text>
+              )}
             </View>
 
             {/* Division dropdown selector */}
             <View style={styles.inputContainer}>
               <Text style={styles.label}>ASSIGNED GRID DIVISION</Text>
-              <TouchableOpacity
-                style={[
-                  styles.dropdownButton,
-                  showDropdown && styles.dropdownButtonActive,
-                ]}
-                onPress={() => setShowDropdown(!showDropdown)}
-              >
-                <Text style={styles.dropdownButtonText}>{division}</Text>
-                <Text style={styles.dropdownArrow}>{showDropdown ? '▲' : '▼'}</Text>
-              </TouchableOpacity>
-
-              {showDropdown && (
-                <View style={styles.dropdownList}>
-                  {divisions.map((div, idx) => (
+              <Controller
+                control={control}
+                name="division"
+                render={({ field: { value } }) => (
+                  <>
                     <TouchableOpacity
-                      key={idx}
                       style={[
-                        styles.dropdownItem,
-                        division === div && styles.dropdownItemActive,
+                        styles.dropdownButton,
+                        showDropdown && styles.dropdownButtonActive,
                       ]}
-                      onPress={() => {
-                        setDivision(div);
-                        setShowDropdown(false);
-                        setLogText(`GRID SWAPPED TO: ${div.toUpperCase()}`);
-                      }}
+                      onPress={() => setShowDropdown(!showDropdown)}
                     >
-                      <Text
-                        style={[
-                          styles.dropdownItemText,
-                          division === div && styles.dropdownItemTextActive,
-                        ]}
-                      >
-                        {div}
-                      </Text>
+                      <Text style={styles.dropdownButtonText}>{value}</Text>
+                      <Text style={styles.dropdownArrow}>{showDropdown ? '▲' : '▼'}</Text>
                     </TouchableOpacity>
-                  ))}
-                </View>
-              )}
+
+                    {showDropdown && (
+                      <View style={styles.dropdownList}>
+                        {divisions.map((div, idx) => (
+                          <TouchableOpacity
+                            key={idx}
+                            style={[
+                              styles.dropdownItem,
+                              value === div && styles.dropdownItemActive,
+                            ]}
+                            onPress={() => {
+                              setValue('division', div);
+                              setShowDropdown(false);
+                              setLogText(`GRID SWAPPED TO: ${div.toUpperCase()}`);
+                            }}
+                          >
+                            <Text
+                              style={[
+                                styles.dropdownItemText,
+                                value === div && styles.dropdownItemTextActive,
+                              ]}
+                            >
+                              {div}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+                  </>
+                )}
+              />
             </View>
 
             {/* Auth Action Button */}
             <TouchableOpacity
               style={[styles.loginButton, loading && styles.loginButtonDisabled]}
-              onPress={handleLogin}
+              onPress={handleSubmit(onSubmit, onInvalid)}
               disabled={loading}
               activeOpacity={0.8}
             >
@@ -456,5 +504,14 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontFamily: 'System',
     letterSpacing: 1,
+  },
+  inputError: {
+    borderColor: Theme.colors.error,
+  },
+  errorFeedback: {
+    color: Theme.colors.error,
+    fontSize: 9.5,
+    marginTop: 4,
+    fontWeight: 'bold',
   },
 });

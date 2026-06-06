@@ -1,220 +1,164 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   StyleSheet,
   View,
   Text,
   TouchableOpacity,
-  TextInput,
   ScrollView,
-  Alert,
+  Image,
 } from 'react-native';
-import { useDispatch, useSelector } from 'react-redux';
-import { RootState, navigateTo, startSurvey } from '../store';
+import { useSelector } from 'react-redux';
+import { useNavigation } from '@react-navigation/native';
+import { RootState } from '../store';
 import Theme from '../theme';
 
 export default function DashboardScreen() {
-  const dispatch = useDispatch();
+  const navigation = useNavigation<any>();
   const auth = useSelector((state: RootState) => state.auth);
   const survey = useSelector((state: RootState) => state.survey);
 
-  // New Survey inputs
-  const [contractor, setContractor] = useState('');
-  const [lineType, setLineType] = useState<'HT_11KV' | 'HT_33KV' | 'LT_440V'>('HT_11KV');
-  const [remarks, setRemarks] = useState('');
-
-  const handleStartSurvey = () => {
-    if (!contractor.trim()) {
-      Alert.alert('Missing Field', 'Please specify the contractor executing the grid erection.');
-      return;
-    }
-
-    const uniqueId = `srv-${Date.now().toString(36)}`;
-    dispatch(
-      startSurvey({
-        id: uniqueId,
-        lineType,
-        contractorName: contractor.trim(),
-        remarks: remarks.trim(),
-      })
-    );
-    // Reset inputs
-    setContractor('');
-    setRemarks('');
-    dispatch(navigateTo('SURVEY'));
-  };
-
-  // Helper colors based on selection
-  const getLineAccent = () => {
-    switch (lineType) {
-      case 'HT_11KV': return Theme.colors.neon11KV;
-      case 'HT_33KV': return Theme.colors.neon33KV;
-      case 'LT_440V': return Theme.colors.neon440V;
-    }
-  };
-
-  const getLineLabel = () => {
-    switch (lineType) {
-      case 'HT_11KV': return '11KV HT GRID';
-      case 'HT_33KV': return '33KV HT GRID';
-      case 'LT_440V': return '440V LT DISTRIBUTION';
-    }
-  };
+  // Constants
+  const dailyTarget = 5; // e.g. target 5 line surveys logged
+  const totalCompleted = survey.completedCount;
+  const progressPercent = Math.min(100, Math.round((totalCompleted / dailyTarget) * 100));
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-      {/* Top Banner Status */}
+      {/* Top Header Row with Hamburger & Profile Widget */}
       <View style={styles.header}>
-        <View>
-          <Text style={styles.srvLabel}>SURVEYOR ID: {auth.surveyorId}</Text>
-          <Text style={styles.srvName}>{auth.surveyorName}</Text>
-          <Text style={styles.srvDiv}>📍 {auth.division}</Text>
+        <View style={styles.brandingWrapper}>
+          <Text style={styles.brandingIcon}>⚡</Text>
+          <Text style={styles.brandingText}>GIS GRID</Text>
         </View>
-        <TouchableOpacity style={styles.logoutBtn} onPress={() => dispatch(navigateTo('LOGIN'))}>
-          <Text style={styles.logoutText}>EXIT</Text>
+        
+        <TouchableOpacity 
+          style={styles.profileBadge} 
+          onPress={() => navigation.navigate('Profile')}
+          activeOpacity={0.8}
+        >
+          <View style={styles.profileTextWrapper}>
+            <Text style={styles.badgeSrvName}>{auth.surveyorName.split(' ')[0]}</Text>
+            <Text style={styles.badgeSrvId}>{auth.surveyorId}</Text>
+          </View>
+          {auth.profileImage ? (
+            <Image source={{ uri: auth.profileImage }} style={styles.headerAvatar} />
+          ) : (
+            <View style={styles.headerAvatarFallback}>
+              <Text style={styles.avatarLetter}>{auth.surveyorName.charAt(0).toUpperCase()}</Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
-      {/* Grid Stats HUD Row */}
+      {/* Cyber Grid HUD Status Display */}
+      <View style={styles.hudHeader}>
+        <Text style={styles.hudSub}>GIS GRID CONSOLE</Text>
+        <Text style={styles.hudTitle}>SYSTEM DASHBOARD</Text>
+      </View>
+
+      {/* Stats Cards Row */}
       <View style={styles.statsRow}>
-        <View style={[styles.statBox, styles.statBoxActive]}>
-          <Text style={styles.statVal}>{survey.syncQueue.length}</Text>
-          <Text style={styles.statLabel}>PENDING SYNC</Text>
-          {survey.syncQueue.length > 0 && <View style={styles.syncAlertDot} />}
-        </View>
+        <TouchableOpacity 
+          style={[styles.statBox, survey.syncQueue.length > 0 && styles.statBoxAlert]} 
+          onPress={() => navigation.navigate('SyncQueue')}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.statVal, survey.syncQueue.length > 0 && { color: Theme.colors.warning }]}>
+            {survey.syncQueue.length}
+          </Text>
+          <Text style={styles.statLabel}>LOCAL QUEUE</Text>
+        </TouchableOpacity>
 
         <TouchableOpacity 
           style={styles.statBox} 
-          onPress={() => dispatch(navigateTo('QUEUE'))}
+          onPress={() => navigation.navigate('SurveyList')}
           activeOpacity={0.7}
         >
-          <Text style={[styles.statVal, { color: Theme.colors.success }]}>{survey.completedCount}</Text>
-          <Text style={styles.statLabel}>SYNCED LINES</Text>
+          <Text style={[styles.statVal, { color: Theme.colors.success }]}>{totalCompleted}</Text>
+          <Text style={styles.statLabel}>COMPLETED RUNS</Text>
         </TouchableOpacity>
 
         <View style={styles.statBox}>
           <Text style={[styles.statVal, { color: Theme.colors.glowCyan }]}>1.8m</Text>
-          <Text style={styles.statLabel}>GPS LOCK</Text>
+          <Text style={styles.statLabel}>GPS ACCURACY</Text>
         </View>
       </View>
 
-      {/* Form: Start a new survey */}
+      {/* Daily Progress Tracker Panel */}
       <View style={styles.panel}>
         <View style={styles.panelHeader}>
-          <Text style={styles.panelTitle}>NEW SURVEY SESSION</Text>
-          <View style={styles.activePill}>
-            <Text style={styles.activePillText}>STANDBY</Text>
-          </View>
+          <Text style={styles.panelTitle}>DAILY TARGET PROGRESSION</Text>
+          <Text style={styles.progressText}>{totalCompleted}/{dailyTarget} LINES</Text>
+        </View>
+        
+        {/* Progression Bar */}
+        <View style={styles.progressBarBg}>
+          <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
         </View>
 
-        <Text style={styles.label}>CONTRACTOR FIRM NAME</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. Tata Power / L&T Transmission"
-          placeholderTextColor="rgba(255, 255, 255, 0.25)"
-          value={contractor}
-          onChangeText={setContractor}
-        />
-
-        {/* Line Type selection pills */}
-        <Text style={styles.label}>CABLE/VOLTAGE CLASS</Text>
-        <View style={styles.pillsRow}>
-          <TouchableOpacity
-            style={[
-              styles.pill,
-              lineType === 'HT_11KV' && { borderColor: Theme.colors.neon11KV, backgroundColor: 'rgba(245, 158, 11, 0.12)' },
-            ]}
-            onPress={() => setLineType('HT_11KV')}
-          >
-            <Text style={[styles.pillText, lineType === 'HT_11KV' && { color: Theme.colors.neon11KV, fontWeight: 'bold' }]}>
-              11KV HT
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.pill,
-              lineType === 'HT_33KV' && { borderColor: Theme.colors.neon33KV, backgroundColor: 'rgba(239, 68, 68, 0.12)' },
-            ]}
-            onPress={() => setLineType('HT_33KV')}
-          >
-            <Text style={[styles.pillText, lineType === 'HT_33KV' && { color: Theme.colors.neon33KV, fontWeight: 'bold' }]}>
-              33KV HT
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.pill,
-              lineType === 'LT_440V' && { borderColor: Theme.colors.neon440V, backgroundColor: 'rgba(6, 182, 212, 0.12)' },
-            ]}
-            onPress={() => setLineType('LT_440V')}
-          >
-            <Text style={[styles.pillText, lineType === 'LT_440V' && { color: Theme.colors.neon440V, fontWeight: 'bold' }]}>
-              440V LT
-            </Text>
-          </TouchableOpacity>
+        <View style={styles.progressFooter}>
+          <Text style={styles.progressSubtext}>GRID TARGET: {progressPercent}% COMPLETED</Text>
+          <Text style={styles.statusText}>STATUS: {progressPercent >= 100 ? 'SUCCESS' : 'ACTIVE'}</Text>
         </View>
-
-        <Text style={styles.label}>NOTES & SITE REMARKS (OPTIONAL)</Text>
-        <TextInput
-          style={[styles.input, styles.textArea]}
-          placeholder="Include span description, terrain specifics or weather details..."
-          placeholderTextColor="rgba(255, 255, 255, 0.25)"
-          value={remarks}
-          onChangeText={setRemarks}
-          multiline
-          numberOfLines={3}
-        />
-
-        {/* Launch button */}
-        <TouchableOpacity
-          style={[styles.launchBtn, { borderColor: getLineAccent() }]}
-          onPress={handleStartSurvey}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.launchBtnText, { color: getLineAccent() }]}>
-            BEGIN {getLineLabel()}
-          </Text>
-        </TouchableOpacity>
       </View>
 
-      {/* Sync Queue quick access */}
-      <View style={styles.panel}>
-        <View style={styles.panelHeader}>
-          <Text style={styles.panelTitle}>LOCAL DATABASE QUEUE</Text>
-          <TouchableOpacity onPress={() => dispatch(navigateTo('QUEUE'))}>
-            <Text style={styles.viewAllText}>VIEW ALL &gt;</Text>
-          </TouchableOpacity>
-        </View>
+      {/* Quick Navigation Cards */}
+      <Text style={styles.sectionTitle}>FIELD RUN COMMANDS</Text>
 
-        {survey.syncQueue.length === 0 ? (
-          <Text style={styles.emptyQueueText}>
-            No offline items waiting in queue. All data synchronized.
+      {/* Card 1: Surveys List */}
+      <TouchableOpacity 
+        style={styles.navCard}
+        onPress={() => navigation.navigate('SurveyList')}
+        activeOpacity={0.75}
+      >
+        <View style={styles.navCardIconBox}>
+          <Text style={styles.navCardIcon}>🗺️</Text>
+        </View>
+        <View style={styles.navCardContent}>
+          <Text style={styles.navCardTitle}>SURVEY LOGS & FAB</Text>
+          <Text style={styles.navCardDesc}>
+            Manage ongoing grid runs, filter by voltage class, or launch new surveys via floating icon.
           </Text>
-        ) : (
-          survey.syncQueue.slice(0, 2).map((item, idx) => (
-            <View key={item.id} style={styles.queueItem}>
-              <View>
-                <Text style={styles.queueItemTitle}>
-                  {item.lineType.replace('_', ' ')} line // {item.nodes.length} Nodes
-                </Text>
-                <Text style={styles.queueItemSub}>
-                  {item.contractorName} // {new Date(item.startedAt).toLocaleTimeString()}
-                </Text>
-              </View>
-              <View style={[styles.badge, { 
-                borderColor: item.lineType === 'HT_33KV' ? Theme.colors.neon33KV : item.lineType === 'HT_11KV' ? Theme.colors.neon11KV : Theme.colors.neon440V 
-              }]}>
-                <Text style={[styles.badgeText, { 
-                  color: item.lineType === 'HT_33KV' ? Theme.colors.neon33KV : item.lineType === 'HT_11KV' ? Theme.colors.neon11KV : Theme.colors.neon440V 
-                }]}>
-                  QUEUE
-                </Text>
-              </View>
-            </View>
-          ))
-        )}
-      </View>
+        </View>
+        <Text style={styles.navArrow}>&gt;</Text>
+      </TouchableOpacity>
+
+      {/* Card 2: Offline Sync Queue */}
+      <TouchableOpacity 
+        style={styles.navCard}
+        onPress={() => navigation.navigate('SyncQueue')}
+        activeOpacity={0.75}
+      >
+        <View style={[styles.navCardIconBox, { borderColor: Theme.colors.glowPurple }]}>
+          <Text style={styles.navCardIcon}>📡</Text>
+        </View>
+        <View style={styles.navCardContent}>
+          <Text style={styles.navCardTitle}>OFFLINE SYNC TERMINAL</Text>
+          <Text style={styles.navCardDesc}>
+            Synchronize cached coordinates, sag details, and compliance photos to PostGIS database.
+          </Text>
+        </View>
+        <Text style={styles.navArrow}>&gt;</Text>
+      </TouchableOpacity>
+
+      {/* Card 3: Profile Screen */}
+      <TouchableOpacity 
+        style={styles.navCard}
+        onPress={() => navigation.navigate('Profile')}
+        activeOpacity={0.75}
+      >
+        <View style={[styles.navCardIconBox, { borderColor: Theme.colors.success }]}>
+          <Text style={styles.navCardIcon}>👤</Text>
+        </View>
+        <View style={styles.navCardContent}>
+          <Text style={styles.navCardTitle}>SURVEYOR SAFETY GATE</Text>
+          <Text style={styles.navCardDesc}>
+            View safety certification, division assignment, or capture front compliance avatar picture.
+          </Text>
+        </View>
+        <Text style={styles.navArrow}>&gt;</Text>
+      </TouchableOpacity>
+
     </ScrollView>
   );
 }
@@ -236,42 +180,97 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.05)',
     borderBottomWidth: 1,
     paddingBottom: 16,
-    marginBottom: 24,
+    marginBottom: 20,
   },
-  srvLabel: {
-    color: Theme.colors.glowCyan,
-    fontSize: 9,
-    fontWeight: 'bold',
-    letterSpacing: 1.5,
-  },
-  srvName: {
-    color: Theme.colors.textPrimary,
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginTop: 2,
-  },
-  srvDiv: {
-    color: Theme.colors.textSecondary,
-    fontSize: 12,
-    marginTop: 2,
-  },
-  logoutBtn: {
-    borderColor: 'rgba(239, 68, 68, 0.4)',
+  brandingWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(6, 182, 212, 0.06)',
+    borderColor: 'rgba(6, 182, 212, 0.2)',
     borderWidth: 1,
-    borderRadius: 4,
+    borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
-  logoutText: {
-    color: '#EF4444',
-    fontSize: 10,
+  brandingIcon: {
+    fontSize: 14,
+    marginRight: 6,
+  },
+  brandingText: {
+    color: Theme.colors.glowCyan,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+  },
+  profileBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(6, 182, 212, 0.06)',
+    borderColor: 'rgba(6, 182, 212, 0.25)',
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingLeft: 12,
+    paddingRight: 4,
+    paddingVertical: 4,
+  },
+  profileTextWrapper: {
+    marginRight: 10,
+    alignItems: 'flex-end',
+  },
+  badgeSrvName: {
+    color: Theme.colors.textPrimary,
+    fontSize: 11,
     fontWeight: 'bold',
-    letterSpacing: 1,
+  },
+  badgeSrvId: {
+    color: Theme.colors.glowCyan,
+    fontSize: 8,
+    fontFamily: 'System',
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  headerAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderColor: Theme.colors.glowCyan,
+    borderWidth: 1,
+  },
+  headerAvatarFallback: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(6, 182, 212, 0.15)',
+    borderColor: Theme.colors.glowCyan,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarLetter: {
+    color: Theme.colors.glowCyan,
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  hudHeader: {
+    marginBottom: 20,
+  },
+  hudSub: {
+    color: Theme.colors.glowCyan,
+    fontSize: 9,
+    fontWeight: 'bold',
+    letterSpacing: 2,
+  },
+  hudTitle: {
+    color: Theme.colors.textPrimary,
+    fontSize: 22,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+    marginTop: 2,
   },
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 24,
+    marginBottom: 20,
   },
   statBox: {
     ...Theme.glassmorphic.container,
@@ -279,14 +278,13 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
     alignItems: 'center',
     padding: 12,
-    position: 'relative',
   },
-  statBoxActive: {
-    borderColor: 'rgba(6, 182, 212, 0.3)',
+  statBoxAlert: {
+    borderColor: 'rgba(245, 158, 11, 0.35)',
   },
   statVal: {
     color: Theme.colors.textPrimary,
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
   },
   statLabel: {
@@ -296,139 +294,99 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginTop: 4,
   },
-  syncAlertDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: Theme.colors.neon33KV,
-    position: 'absolute',
-    top: 8,
-    right: 8,
-  },
   panel: {
     ...Theme.glassmorphic.container,
     marginBottom: 24,
-    padding: 20,
+    padding: 16,
   },
   panelHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderColor: 'rgba(255, 255, 255, 0.05)',
-    borderBottomWidth: 1,
-    paddingBottom: 12,
-    marginBottom: 16,
+    marginBottom: 10,
   },
   panelTitle: {
     color: Theme.colors.textPrimary,
-    fontSize: 13,
+    fontSize: 10.5,
     fontWeight: '800',
-    letterSpacing: 2,
-  },
-  activePill: {
-    backgroundColor: 'rgba(6, 182, 212, 0.1)',
-    borderColor: 'rgba(6, 182, 212, 0.3)',
-    borderWidth: 1,
-    borderRadius: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  activePillText: {
-    color: Theme.colors.glowCyan,
-    fontSize: 8,
-    fontWeight: 'bold',
-  },
-  label: {
-    color: Theme.colors.textSecondary,
-    fontSize: 9,
-    fontWeight: 'bold',
     letterSpacing: 1.5,
-    marginBottom: 6,
-    marginTop: 14,
   },
-  input: {
-    backgroundColor: 'rgba(8, 11, 17, 0.6)',
-    borderColor: 'rgba(6, 182, 212, 0.15)',
-    borderWidth: 1,
-    borderRadius: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    color: Theme.colors.textPrimary,
-    fontSize: 13,
-  },
-  pillsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 4,
-  },
-  pill: {
-    flex: 1,
-    marginHorizontal: 3,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    borderWidth: 1,
-    borderRadius: 6,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  pillText: {
-    color: Theme.colors.textSecondary,
-    fontSize: 11,
-    letterSpacing: 0.5,
-  },
-  textArea: {
-    height: 60,
-    textAlignVertical: 'top',
-  },
-  launchBtn: {
-    ...Theme.glassmorphic.button,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginTop: 20,
-    backgroundColor: 'rgba(17, 24, 39, 0.3)',
-  },
-  launchBtnText: {
-    fontWeight: 'bold',
-    fontSize: 12,
-    letterSpacing: 2,
-  },
-  viewAllText: {
+  progressText: {
     color: Theme.colors.glowCyan,
-    fontSize: 10,
+    fontSize: 10.5,
     fontWeight: 'bold',
-    letterSpacing: 1,
   },
-  emptyQueueText: {
-    color: Theme.colors.textSecondary,
-    fontSize: 12,
-    textAlign: 'center',
-    paddingVertical: 14,
+  progressBarBg: {
+    height: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 2,
+    overflow: 'hidden',
   },
-  queueItem: {
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: Theme.colors.glowCyan,
+    borderRadius: 2,
+  },
+  progressFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    borderColor: 'rgba(255, 255, 255, 0.05)',
-    borderBottomWidth: 1,
-    paddingVertical: 12,
+    marginTop: 8,
   },
-  queueItemTitle: {
+  progressSubtext: {
+    color: Theme.colors.textSecondary,
+    fontSize: 8.5,
+  },
+  statusText: {
+    color: Theme.colors.glowCyan,
+    fontSize: 8.5,
+    fontWeight: 'bold',
+  },
+  sectionTitle: {
+    color: Theme.colors.glowCyan,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    marginBottom: 12,
+  },
+  navCard: {
+    ...Theme.glassmorphic.container,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    padding: 14,
+    backgroundColor: 'rgba(17, 24, 39, 0.65)',
+  },
+  navCardIconBox: {
+    width: 42,
+    height: 42,
+    borderRadius: 6,
+    borderColor: 'rgba(6, 182, 212, 0.25)',
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+  },
+  navCardIcon: {
+    fontSize: 18,
+  },
+  navCardContent: {
+    flex: 1,
+    paddingHorizontal: 14,
+  },
+  navCardTitle: {
     color: Theme.colors.textPrimary,
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
-  queueItemSub: {
+  navCardDesc: {
     color: Theme.colors.textSecondary,
-    fontSize: 10,
+    fontSize: 9.5,
     marginTop: 2,
+    lineHeight: 13,
   },
-  badge: {
-    borderWidth: 1,
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  badgeText: {
-    fontSize: 8,
+  navArrow: {
+    color: Theme.colors.textSecondary,
+    fontSize: 14,
     fontWeight: 'bold',
   },
 });

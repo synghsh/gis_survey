@@ -12,24 +12,39 @@ import {
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { useNavigation } from '@react-navigation/native';
+import { useForm, Controller } from 'react-hook-form';
 import * as Location from 'expo-location';
-import { RootState, addNode, finishSurvey, cancelSurvey, navigateTo, SurveyNode } from '../store';
+import { RootState, addNode, finishSurvey, cancelSurvey, SurveyNode } from '../store';
 import Theme from '../theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
+interface SurveyNodeFormInputs {
+  nameLabel: string;
+  cableSize: string;
+  remarks: string;
+}
+
 export default function ActiveSurveyScreen() {
+  const navigation = useNavigation<any>();
   const dispatch = useDispatch();
   const activeLine = useSelector((state: RootState) => state.survey.activeLine);
 
-  // Active inputs for current node
+  // react-hook-form configuration
+  const { control, handleSubmit, setValue, formState: { errors } } = useForm<SurveyNodeFormInputs>({
+    defaultValues: {
+      nameLabel: '',
+      cableSize: '',
+      remarks: '',
+    }
+  });
+
+  // Survey Step State: CAPTURE -> DETAILS
+  const [surveyStep, setSurveyStep] = useState<'CAPTURE' | 'DETAILS'>('CAPTURE');
+
+  // Input states for current node details
   const [nodeType, setNodeType] = useState<'DTR' | 'POLE'>('POLE');
-  const [nameLabel, setNameLabel] = useState('');
-  const [poleType, setPoleType] = useState('Concrete');
-  const [cableSize, setCableSize] = useState('100 sqmm ACSR');
-  const [height, setHeight] = useState('9m');
-  const [tilt, setTilt] = useState('0°');
-  const [sag, setSag] = useState('0.4m');
 
   // GPS coordinates state
   const [lat, setLat] = useState<number | null>(null);
@@ -37,36 +52,47 @@ export default function ActiveSurveyScreen() {
   const [gpsAccuracy, setGpsAccuracy] = useState('WAITING...');
   const [acquiringGps, setAcquiringGps] = useState(false);
 
-  // Custom HUD Camera Modal state
-  const [showCamera, setShowCamera] = useState(false);
+  // Camera state
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
   const [cameraFlash, setCameraFlash] = useState(false);
-
-  // Camera Permissions and Ref
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
 
   // Current sequence calculation
   const currentSeq = activeLine ? activeLine.nodes.length : 0;
 
-  // Auto-fill values on sequence change
+  // Auto-fill values on sequence change or step change
   useEffect(() => {
     if (activeLine) {
       if (currentSeq === 0) {
         setNodeType('DTR');
-        setNameLabel('DTR-TRANS-01');
+        setValue('nameLabel', 'DTR-TRANS-01');
+        setValue('cableSize', 'Conductor Grid Lead');
+        setValue('remarks', '');
       } else {
         setNodeType('POLE');
-        setNameLabel(`P-${currentSeq}`);
+        setValue('nameLabel', `P-${currentSeq}`);
+        setValue('cableSize', '100 sqmm ACSR');
+        setValue('remarks', '');
       }
     }
-  }, [currentSeq, activeLine]);
+  }, [currentSeq, activeLine, surveyStep]);
+
+  // Request permissions immediately when screen mounts
+  useEffect(() => {
+    (async () => {
+      if (!cameraPermission || !cameraPermission.granted) {
+        await requestCameraPermission();
+      }
+      await Location.requestForegroundPermissionsAsync();
+    })();
+  }, []);
 
   if (!activeLine) {
     return (
       <View style={styles.errorContainer}>
         <Text style={styles.errorText}>No active survey line found.</Text>
-        <TouchableOpacity style={styles.backBtn} onPress={() => dispatch(navigateTo('DASHBOARD'))}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.navigate('MainTabs')}>
           <Text style={styles.backBtnText}>RETURN TO DASHBOARD</Text>
         </TouchableOpacity>
       </View>
@@ -80,9 +106,10 @@ export default function ActiveSurveyScreen() {
     const offsetLng = (Math.random() - 0.5) * 0.003;
     setLat(parseFloat((baseLat + offsetLat).toFixed(6)));
     setLng(parseFloat((baseLng + offsetLng).toFixed(6)));
+    setGpsAccuracy('1.8m (MOCK LOCK)');
   };
 
-  // Acquire coordinates with real GPS
+  // Acquire coordinates
   const acquireGps = async () => {
     setAcquiringGps(true);
     setGpsAccuracy('ACQUIRING SIGNAL...');
@@ -112,18 +139,11 @@ export default function ActiveSurveyScreen() {
     }
   };
 
-  const handleCapturePhoto = async () => {
-    if (!cameraPermission || !cameraPermission.granted) {
-      const result = await requestCameraPermission();
-      if (!result.granted) {
-        Alert.alert('Permission Denied', 'Camera permission is required to capture node verification photographs.');
-        return;
-      }
-    }
-    setShowCamera(true);
-  };
+  // Trigger capture photo
+  const takePhoto = async () => {
+    // Acquire GPS instantly at the moment of photo capture
+    acquireGps();
 
-  const savePhoto = async () => {
     if (cameraRef.current) {
       try {
         setCameraFlash(true);
@@ -136,88 +156,88 @@ export default function ActiveSurveyScreen() {
         
         if (photo && photo.uri) {
           setCapturedPhoto(photo.uri);
-          setShowCamera(false);
+          setSurveyStep('DETAILS');
         }
       } catch (err) {
-        console.log('Capture error, falling back to mock:', err);
+        console.log('Camera capture error, falling back to mock:', err);
         setCapturedPhoto('https://images.unsplash.com/photo-1548676924-48e71ceac151?w=400');
-        setShowCamera(false);
+        setSurveyStep('DETAILS');
       }
     } else {
+      // Emulator or fallback mock
+      setCameraFlash(true);
+      setTimeout(() => setCameraFlash(false), 150);
       setCapturedPhoto('https://images.unsplash.com/photo-1548676924-48e71ceac151?w=400');
-      setShowCamera(false);
+      setSurveyStep('DETAILS');
     }
   };
 
-  const handleSaveNode = () => {
+  // Commit current node details to Redux
+  const commitCurrentNode = (data: SurveyNodeFormInputs): boolean => {
+    // Ensure coordinates are locked
     if (!lat || !lng) {
-      Alert.alert('GPS Required', 'Please lock GPS coordinates before saving grid node.');
-      return;
+      Alert.alert('GPS Required', 'Waiting for GPS location lock. Please try capturing coordinates again.');
+      return false;
     }
 
+    const nodeLabel = data.nameLabel.trim() || (nodeType === 'DTR' ? 'DTR-0' : `P-${currentSeq}`);
     const newNode: SurveyNode = {
       id: `node-${Date.now()}`,
       nodeType,
       sequenceNumber: currentSeq,
-      nameLabel: nameLabel.trim() || (nodeType === 'DTR' ? `DTR-${Date.now().toString(36).toUpperCase()}` : `P-${currentSeq}`),
+      nameLabel: nodeLabel,
       latitude: lat,
       longitude: lng,
       attributes: {
-        cableSize,
-        poleType,
-        height,
-        tilt,
-        sag,
+        cableSize: data.cableSize.trim() || '100 sqmm ACSR',
+        poleType: nodeType === 'DTR' ? 'Transformer platform' : 'Concrete',
+        height: '9m',
+        tilt: '0°',
+        sag: '0.4m',
       },
       imageUri: capturedPhoto,
       capturedAt: new Date().toISOString(),
     };
 
     dispatch(addNode(newNode));
-
-    // Reset inputs for next pole
-    setLat(null);
-    setLng(null);
-    setGpsAccuracy('WAITING...');
-    setCapturedPhoto(null);
-    Alert.alert('Saved', `${nodeType} node sequence #${currentSeq} logged successfully.`);
+    return true;
   };
 
-  const handleCompleteSurvey = () => {
-    if (activeLine.nodes.length === 0) {
-      Alert.alert('Empty Line', 'You must log at least 1 node (DTR or Pole) to complete this line survey.');
+  // "Add New" Button
+  const handleAddNew = (data: SurveyNodeFormInputs) => {
+    if (commitCurrentNode(data)) {
+      // Reset details input fields
+      setCapturedPhoto(null);
+      setLat(null);
+      setLng(null);
+      setGpsAccuracy('WAITING...');
+      
+      // Go back to capture screen
+      setSurveyStep('CAPTURE');
+    }
+  };
+
+  // "Finish Survey" Button with Confirmation
+  const handleFinishSurvey = (data: SurveyNodeFormInputs) => {
+    if (!lat || !lng) {
+      Alert.alert('GPS Required', 'Waiting for GPS location lock. Please try capturing coordinates again.');
       return;
     }
 
+    const totalNodesCount = activeLine.nodes.length + 1; // including the one we just committed
     Alert.alert(
-      'Complete Survey',
-      `Are you sure you want to close this survey session? This will save ${activeLine.nodes.length} nodes to the upload queue.`,
+      'Finish Survey Line',
+      `Complete this survey run? A total of ${totalNodesCount} nodes (including current) will be saved to your local offline upload queue.`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Complete', 
+        {
+          text: 'Confirm Finish',
           onPress: () => {
-            dispatch(finishSurvey());
-            dispatch(navigateTo('DASHBOARD'));
-          } 
-        }
-      ]
-    );
-  };
-
-  const handleAbandonSurvey = () => {
-    Alert.alert(
-      'Abandon Survey',
-      'Discard all captured nodes in this active line session? This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Discard', 
-          style: 'destructive',
-          onPress: () => {
-            dispatch(cancelSurvey());
-            dispatch(navigateTo('DASHBOARD'));
-          } 
+            if (commitCurrentNode(data)) {
+              dispatch(finishSurvey());
+              navigation.navigate('MainTabs');
+            }
+          }
         }
       ]
     );
@@ -233,199 +253,32 @@ export default function ActiveSurveyScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        {/* Active Line Status Header */}
-        <View style={styles.surveyHeader}>
-          <View>
-            <Text style={styles.subtitleText}>ACTIVE GRID SURVEY</Text>
-            <Text style={styles.titleText}>{activeLine.contractorName}</Text>
-          </View>
-          <View style={[styles.typeBadge, { borderColor: getLineAccent() }]}>
-            <Text style={[styles.typeBadgeText, { color: getLineAccent() }]}>
-              {activeLine.lineType.replace('_', ' ')}
-            </Text>
-          </View>
+      {/* Header status bar */}
+      <View style={styles.surveyHeader}>
+        <View>
+          <Text style={styles.subtitleText}>ACTIVE SURVEY // NODE #{currentSeq}</Text>
+          <Text style={styles.titleText}>{activeLine.contractorName}</Text>
         </View>
-
-        {/* Current Node Section Title */}
-        <View style={styles.stepTitleRow}>
-          <Text style={styles.stepTitle}>LOGGING NODE: SEQ #{currentSeq}</Text>
-          <View style={[styles.stepBadge, { backgroundColor: nodeType === 'DTR' ? 'rgba(139, 92, 246, 0.15)' : 'rgba(6, 182, 212, 0.15)' }]}>
-            <Text style={[styles.stepBadgeText, { color: nodeType === 'DTR' ? Theme.colors.neonDTR : Theme.colors.glowCyan }]}>
-              {nodeType}
-            </Text>
-          </View>
+        <View style={[styles.typeBadge, { borderColor: getLineAccent() }]}>
+          <Text style={[styles.typeBadgeText, { color: getLineAccent() }]}>
+            {activeLine.lineType.replace('_', ' ')}
+          </Text>
         </View>
+      </View>
 
-        {/* Form panel */}
-        <View style={styles.panel}>
-          {/* Label / Name */}
-          <Text style={styles.label}>NODE SERIAL LABEL / NAME</Text>
-          <TextInput
-            style={styles.input}
-            value={nameLabel}
-            onChangeText={setNameLabel}
-            placeholder={nodeType === 'DTR' ? 'DTR Serial Number' : 'Pole label identifier'}
-            placeholderTextColor="rgba(255, 255, 255, 0.25)"
-          />
-
-          {/* GPS Coordinates acquiring box */}
-          <Text style={styles.label}>GEOSPATIAL COORDINATES</Text>
-          <View style={styles.gpsBox}>
-            <View style={styles.gpsGrid}>
-              <View style={styles.gpsCol}>
-                <Text style={styles.gpsLabel}>LATITUDE</Text>
-                <Text style={styles.gpsValue}>{lat ? lat.toFixed(6) : '----.------'}</Text>
-              </View>
-              <View style={styles.gpsCol}>
-                <Text style={styles.gpsLabel}>LONGITUDE</Text>
-                <Text style={styles.gpsValue}>{lng ? lng.toFixed(6) : '----.------'}</Text>
-              </View>
-            </View>
-
-            <View style={styles.gpsFooter}>
-              <Text style={styles.accuracyText}>STATUS: {gpsAccuracy}</Text>
-              <TouchableOpacity 
-                style={[styles.gpsBtn, acquiringGps && styles.gpsBtnDisabled]} 
-                onPress={acquireGps}
-                disabled={acquiringGps}
-              >
-                <Text style={styles.gpsBtnText}>{acquiringGps ? 'LOCKING...' : 'CAPTURE GPS'}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Physical traits */}
-          {nodeType === 'DTR' ? (
-            <View>
-              <Text style={styles.label}>TRANSFORMER RATING & CAPACITY</Text>
-              <View style={styles.selectorRow}>
-                {['63KVA', '100KVA', '250KVA'].map((opt) => (
-                  <TouchableOpacity
-                    key={opt}
-                    style={[styles.selectorItem, poleType === opt && styles.selectorItemActive]}
-                    onPress={() => setPoleType(opt)}
-                  >
-                    <Text style={[styles.selectorItemText, poleType === opt && styles.selectorItemTextActive]}>{opt}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          ) : (
-            <View>
-              <Text style={styles.label}>POLE SPECIFICATION</Text>
-              <View style={styles.selectorRow}>
-                {['Concrete', 'Tubular Steel', 'Rail Pole'].map((opt) => (
-                  <TouchableOpacity
-                    key={opt}
-                    style={[styles.selectorItem, poleType === opt && styles.selectorItemActive]}
-                    onPress={() => setPoleType(opt)}
-                  >
-                    <Text style={[styles.selectorItemText, poleType === opt && styles.selectorItemTextActive]}>{opt}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <View style={styles.multiInputsGrid}>
-                <View style={styles.multiCol}>
-                  <Text style={styles.label}>POLE HEIGHT</Text>
-                  <TextInput style={styles.smallInput} value={height} onChangeText={setHeight} />
-                </View>
-                <View style={styles.multiCol}>
-                  <Text style={styles.label}>CABLE SAG</Text>
-                  <TextInput style={styles.smallInput} value={sag} onChangeText={setSag} />
-                </View>
-                <View style={styles.multiCol}>
-                  <Text style={styles.label}>TILT ANGLE</Text>
-                  <TextInput style={styles.smallInput} value={tilt} onChangeText={setTilt} />
-                </View>
-              </View>
-            </View>
-          )}
-
-          <Text style={styles.label}>CONDUCTOR SPECIFICATION</Text>
-          <View style={styles.selectorRow}>
-            {['50 sqmm', '100 sqmm ACSR', '150 sqmm ACSR'].map((opt) => (
-              <TouchableOpacity
-                key={opt}
-                style={[styles.selectorItem, cableSize === opt && styles.selectorItemActive]}
-                onPress={() => setCableSize(opt)}
-              >
-                <Text style={[styles.selectorItemText, cableSize === opt && styles.selectorItemTextActive]}>{opt}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Camera photo placeholder/preview */}
-          <Text style={styles.label}>NODE COMPLIANCE IMAGE</Text>
-          <View style={styles.photoContainer}>
-            {capturedPhoto ? (
-              <View style={styles.photoPreviewWrapper}>
-                <Image source={{ uri: capturedPhoto }} style={styles.photoPreview} />
-                <TouchableOpacity style={styles.recaptureBtn} onPress={handleCapturePhoto}>
-                  <Text style={styles.recaptureBtnText}>RE-TAKE PHOTO</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <TouchableOpacity style={styles.photoPlaceholder} onPress={handleCapturePhoto}>
-                <Text style={styles.photoPlaceholderText}>📷 LAUNCH NATIVE CAMERA SURVEY</Text>
-                <Text style={styles.photoPlaceholderSub}>Required for structure approval</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {/* Node Save Buttons */}
-          <TouchableOpacity style={styles.saveNodeBtn} onPress={handleSaveNode}>
-            <Text style={styles.saveNodeBtnText}>COMMIT NODE DATA & NEXT &gt;</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Topology Line preview sequence */}
-        <View style={styles.panel}>
-          <Text style={styles.panelTitle}>GRID TOPOLOGY ROUTE ({activeLine.nodes.length} LOGGED)</Text>
-          <ScrollView horizontal style={styles.nodesScroll} showsHorizontalScrollIndicator={false}>
-            {activeLine.nodes.length === 0 ? (
-              <Text style={styles.noNodesText}>No nodes logged yet. Commiting starts the sequence.</Text>
-            ) : (
-              activeLine.nodes.map((node, index) => (
-                <View key={node.id} style={styles.nodeSeqCard}>
-                  <Text style={styles.nodeSeqNum}>#{node.sequenceNumber}</Text>
-                  <Text style={styles.nodeSeqType}>{node.nodeType}</Text>
-                  <Text style={styles.nodeSeqLabel}>{node.nameLabel}</Text>
-                  {index < activeLine.nodes.length - 1 && <Text style={styles.seqConnector}>&gt;&gt;</Text>}
-                </View>
-              ))
-            )}
-          </ScrollView>
-        </View>
-
-        {/* Survey termination buttons */}
-        <View style={styles.actionsRow}>
-          <TouchableOpacity style={styles.abandonBtn} onPress={handleAbandonSurvey}>
-            <Text style={styles.abandonText}>DISCARD SURVEY</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.finishBtn} onPress={handleCompleteSurvey}>
-            <Text style={styles.finishText}>COMPLETE LINE SURVEY</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-
-      {/* Mock Camera Modal Overlay */}
-      {showCamera && (
-        <View style={styles.cameraOverlay}>
+      {/* Screen body based on step */}
+      {surveyStep === 'CAPTURE' ? (
+        <View style={styles.captureStepContainer}>
+          {/* Flash screen overlay */}
           <View style={[styles.cameraFlashOverlay, cameraFlash && { backgroundColor: '#fff', opacity: 1 }]} />
           
-          {/* Top Camera Controls */}
-          <View style={styles.cameraHeader}>
-            <Text style={styles.cameraHeaderText}>SURVEY HUD // GRID VIEW</Text>
-            <TouchableOpacity onPress={() => setShowCamera(false)}>
-              <Text style={styles.cameraCloseBtn}>[ CLOSE ]</Text>
-            </TouchableOpacity>
+          <View style={styles.hudHeaderRow}>
+            <Text style={styles.hudHeaderText}>ALIGN STRUCTURE WITH FIELD CAMERA</Text>
+            <View style={styles.liveIndicator} />
           </View>
 
-          {/* Camera focus box */}
-          <View style={styles.cameraFrame}>
+          {/* Embedded Camera Viewport */}
+          <View style={styles.cameraBoxContainer}>
             {cameraPermission && cameraPermission.granted ? (
               <CameraView
                 style={StyleSheet.absoluteFill}
@@ -433,24 +286,159 @@ export default function ActiveSurveyScreen() {
                 facing="back"
               />
             ) : (
-              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                <Text style={styles.cameraGuidelineText}>WAITING FOR CAMERA PREVIEW...</Text>
+              <View style={styles.cameraFallbackBox}>
+                <Text style={styles.cameraFallbackText}>📷 SIMULATED CAMERA ACTIVE</Text>
+                <Text style={styles.cameraFallbackSub}>Camera access not granted or unavailable</Text>
               </View>
             )}
+
+            {/* Overlay grid lines */}
             <View style={styles.focusBracketTL} />
             <View style={styles.focusBracketTR} />
             <View style={styles.focusBracketBL} />
             <View style={styles.focusBracketBR} />
-            <Text style={styles.cameraGuidelineText}>ALIGN POLE HEIGHT WITH HUD GRID</Text>
+            <View style={styles.horizontalScanline} />
           </View>
 
-          {/* Capture Trigger */}
-          <View style={styles.cameraFooter}>
-            <TouchableOpacity style={styles.shutterBtn} onPress={savePhoto}>
+          {/* Controls Footer */}
+          <View style={styles.captureFooter}>
+            <Text style={styles.hudInstructionText}>TAP RED SHUTTER TO CAPTURE & PIN GPS</Text>
+            <TouchableOpacity style={styles.shutterBtn} onPress={takePhoto} activeOpacity={0.85}>
               <View style={styles.shutterBtnInner} />
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.abandonLink} 
+              onPress={() => {
+                Alert.alert(
+                  'Abandon Survey',
+                  'Discard all captured structures and return to Dashboard?',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Discard', style: 'destructive', onPress: () => {
+                      dispatch(cancelSurvey());
+                      navigation.navigate('MainTabs');
+                    }}
+                  ]
+                );
+              }}
+            >
+              <Text style={styles.abandonLinkText}>CANCEL SURVEY LINE</Text>
             </TouchableOpacity>
           </View>
         </View>
+      ) : (
+        /* STEP 2: INPUT DETAILS FORM */
+        <ScrollView style={styles.detailsScroll} contentContainerStyle={styles.detailsContent} keyboardShouldPersistTaps="handled">
+          <View style={styles.panel}>
+            <Text style={styles.panelTitle}>STRUCTURE VERIFICATION</Text>
+
+            {/* Photo Thumbnail + GPS Overlay */}
+            <View style={styles.previewCard}>
+              <View style={styles.thumbnailWrapper}>
+                {capturedPhoto ? (
+                  <Image source={{ uri: capturedPhoto }} style={styles.previewThumbnail} />
+                ) : (
+                  <View style={styles.placeholderThumbnail} />
+                )}
+              </View>
+              <View style={styles.previewGpsData}>
+                <Text style={styles.gpsBadgeText}>📡 COORDINATES PINNED</Text>
+                <Text style={styles.gpsDataText}>LAT: {lat ? lat.toFixed(6) : 'ACQUIRING...'}</Text>
+                <Text style={styles.gpsDataText}>LNG: {lng ? lng.toFixed(6) : 'ACQUIRING...'}</Text>
+                <Text style={styles.gpsDataText}>ACCURACY: {gpsAccuracy}</Text>
+                <TouchableOpacity style={styles.gpsRecalBtn} onPress={acquireGps}>
+                  <Text style={styles.gpsRecalText}>RE-ACQUIRE GPS</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Textbox inputs */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>{nodeType === 'DTR' ? 'DTR SERIAL / ID' : 'POLE NO'}</Text>
+              <Controller
+                control={control}
+                name="nameLabel"
+                rules={{ required: nodeType === 'DTR' ? 'DTR identifier is required' : 'Pole identifier is required' }}
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={[styles.input, errors.nameLabel && styles.inputError]}
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    placeholder={nodeType === 'DTR' ? 'Enter DTR Serial' : 'e.g. P-1'}
+                    placeholderTextColor="rgba(255, 255, 255, 0.25)"
+                  />
+                )}
+              />
+              {errors.nameLabel && (
+                <Text style={styles.errorFeedback}>{errors.nameLabel.message}</Text>
+              )}
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>{nodeType === 'DTR' ? 'CONDUCTOR CLASS' : 'CABLE TYPE USED'}</Text>
+              <Controller
+                control={control}
+                name="cableSize"
+                rules={{ required: 'Cable/Conductor specification is required' }}
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={[styles.input, errors.cableSize && styles.inputError]}
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    placeholder="e.g. 100 sqmm ACSR"
+                    placeholderTextColor="rgba(255, 255, 255, 0.25)"
+                  />
+                )}
+              />
+              {errors.cableSize && (
+                <Text style={styles.errorFeedback}>{errors.cableSize.message}</Text>
+              )}
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>SITE REMARKS</Text>
+              <Controller
+                control={control}
+                name="remarks"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={[styles.input, styles.remarksTextArea]}
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    placeholder="Weather, terrain features, sag observations..."
+                    placeholderTextColor="rgba(255, 255, 255, 0.25)"
+                    multiline
+                    numberOfLines={3}
+                  />
+                )}
+              />
+            </View>
+
+            {/* Retake photo action */}
+            <TouchableOpacity style={styles.retakePhotoBtn} onPress={() => setSurveyStep('CAPTURE')}>
+              <Text style={styles.retakePhotoText}>📸 RETAKE compliance PHOTO</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* TWO PRIMARY ACTIONS BELOW FORM */}
+          <View style={styles.primaryActionsRow}>
+            {/* Add New Button */}
+            <TouchableOpacity style={styles.addNewBtn} onPress={handleSubmit(handleAddNew)} activeOpacity={0.8}>
+              <Text style={styles.addNewBtnText}>ADD NEW STRUCTURE</Text>
+              <Text style={styles.btnSubtext}>Saves current & re-opens camera</Text>
+            </TouchableOpacity>
+
+            {/* Finish Survey Button */}
+            <TouchableOpacity style={styles.finishSurveyBtn} onPress={handleSubmit(handleFinishSurvey)} activeOpacity={0.8}>
+              <Text style={styles.finishSurveyBtnText}>FINISH SURVEY</Text>
+              <Text style={styles.btnSubtext}>Submit line for verification</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
       )}
     </View>
   );
@@ -460,14 +448,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Theme.colors.background,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 20,
-    paddingTop: 50,
-    paddingBottom: 40,
   },
   errorContainer: {
     flex: 1,
@@ -497,8 +477,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderColor: 'rgba(255, 255, 255, 0.05)',
     borderBottomWidth: 1,
+    paddingHorizontal: 20,
+    paddingTop: 50,
     paddingBottom: 16,
-    marginBottom: 20,
   },
   subtitleText: {
     color: Theme.colors.textSecondary,
@@ -523,33 +504,237 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     letterSpacing: 1,
   },
-  stepTitleRow: {
+  // STEP 1: CAPTURE PHOTO STYLES
+  captureStepContainer: {
+    flex: 1,
+    padding: 20,
+    justifyContent: 'space-between',
+    position: 'relative',
+  },
+  cameraFlashOverlay: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    opacity: 0,
+    zIndex: 105,
+    pointerEvents: 'none',
+  },
+  hudHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 14,
+    marginBottom: 10,
   },
-  stepTitle: {
+  hudHeaderText: {
     color: Theme.colors.glowCyan,
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: 9,
+    fontWeight: 'bold',
     letterSpacing: 1.5,
   },
-  stepBadge: {
-    borderWidth: 1,
-    borderColor: 'rgba(6, 182, 212, 0.2)',
-    borderRadius: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+  liveIndicator: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#EF4444',
   },
-  stepBadgeText: {
-    fontSize: 9,
+  cameraBoxContainer: {
+    flex: 1,
+    borderColor: 'rgba(6, 182, 212, 0.2)',
+    borderWidth: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: '#000',
+  },
+  cameraFallbackBox: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  cameraFallbackText: {
+    color: Theme.colors.glowCyan,
+    fontSize: 14,
     fontWeight: 'bold',
     letterSpacing: 1,
   },
+  cameraFallbackSub: {
+    color: Theme.colors.textSecondary,
+    fontSize: 10,
+    marginTop: 6,
+    textAlign: 'center',
+  },
+  focusBracketTL: {
+    position: 'absolute',
+    top: 30,
+    left: 30,
+    width: 30,
+    height: 30,
+    borderTopWidth: 2,
+    borderLeftWidth: 2,
+    borderColor: Theme.colors.glowCyan,
+  },
+  focusBracketTR: {
+    position: 'absolute',
+    top: 30,
+    right: 30,
+    width: 30,
+    height: 30,
+    borderTopWidth: 2,
+    borderRightWidth: 2,
+    borderColor: Theme.colors.glowCyan,
+  },
+  focusBracketBL: {
+    position: 'absolute',
+    bottom: 30,
+    left: 30,
+    width: 30,
+    height: 30,
+    borderBottomWidth: 2,
+    borderLeftWidth: 2,
+    borderColor: Theme.colors.glowCyan,
+  },
+  focusBracketBR: {
+    position: 'absolute',
+    bottom: 30,
+    right: 30,
+    width: 30,
+    height: 30,
+    borderBottomWidth: 2,
+    borderRightWidth: 2,
+    borderColor: Theme.colors.glowCyan,
+  },
+  horizontalScanline: {
+    position: 'absolute',
+    top: '50%',
+    left: 10,
+    right: 10,
+    height: 1,
+    backgroundColor: 'rgba(6, 182, 212, 0.3)',
+  },
+  captureFooter: {
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  hudInstructionText: {
+    color: Theme.colors.textSecondary,
+    fontSize: 9,
+    fontWeight: 'bold',
+    letterSpacing: 1,
+    marginBottom: 14,
+  },
+  shutterBtn: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    borderWidth: 4,
+    borderColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#06B6D4',
+    shadowRadius: 10,
+    shadowOpacity: 0.3,
+    elevation: 5,
+  },
+  shutterBtnInner: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: '#EF4444',
+  },
+  abandonLink: {
+    marginTop: 20,
+    padding: 6,
+  },
+  abandonLinkText: {
+    color: 'rgba(239, 68, 68, 0.65)',
+    fontSize: 10,
+    fontWeight: 'bold',
+    letterSpacing: 1.5,
+  },
+  // STEP 2: DETAILS SCREEN STYLES
+  detailsScroll: {
+    flex: 1,
+  },
+  detailsContent: {
+    padding: 20,
+    paddingBottom: 40,
+  },
   panel: {
     ...Theme.glassmorphic.container,
+    padding: 20,
+    marginBottom: 24,
+  },
+  panelTitle: {
+    color: Theme.colors.textPrimary,
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 2,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderBottomWidth: 1,
+    paddingBottom: 10,
+    marginBottom: 16,
+  },
+  previewCard: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    borderRadius: 8,
+    padding: 10,
+    borderColor: 'rgba(6, 182, 212, 0.15)',
+    borderWidth: 1,
     marginBottom: 20,
+  },
+  thumbnailWrapper: {
+    width: 100,
+    height: 100,
+    borderRadius: 6,
+    overflow: 'hidden',
+    backgroundColor: '#000',
+  },
+  previewThumbnail: {
+    width: '100%',
+    height: '100%',
+  },
+  placeholderThumbnail: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  previewGpsData: {
+    flex: 1,
+    paddingLeft: 14,
+    justifyContent: 'space-between',
+  },
+  gpsBadgeText: {
+    color: Theme.colors.glowCyan,
+    fontSize: 8.5,
+    fontWeight: 'bold',
+    letterSpacing: 1,
+  },
+  gpsDataText: {
+    color: '#D1D5DB',
+    fontSize: 10,
+    fontFamily: 'System',
+    marginTop: 2,
+  },
+  gpsRecalBtn: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(6, 182, 212, 0.12)',
+    borderColor: 'rgba(6, 182, 212, 0.4)',
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginTop: 6,
+  },
+  gpsRecalText: {
+    color: Theme.colors.glowCyan,
+    fontSize: 8.5,
+    fontWeight: 'bold',
+  },
+  formGroup: {
+    marginBottom: 16,
   },
   label: {
     color: Theme.colors.textSecondary,
@@ -557,7 +742,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     letterSpacing: 1.5,
     marginBottom: 6,
-    marginTop: 14,
   },
   input: {
     backgroundColor: 'rgba(8, 11, 17, 0.6)',
@@ -569,372 +753,70 @@ const styles = StyleSheet.create({
     color: Theme.colors.textPrimary,
     fontSize: 13,
   },
-  gpsBox: {
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    borderColor: 'rgba(6, 182, 212, 0.15)',
+  remarksTextArea: {
+    height: 60,
+    textAlignVertical: 'top',
+  },
+  retakePhotoBtn: {
+    borderColor: 'rgba(6, 182, 212, 0.4)',
     borderWidth: 1,
     borderRadius: 6,
-    padding: 12,
-  },
-  gpsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  gpsCol: {
-    flex: 1,
-  },
-  gpsLabel: {
-    color: 'rgba(6, 182, 212, 0.5)',
-    fontSize: 8,
-    fontWeight: 'bold',
-  },
-  gpsValue: {
-    color: Theme.colors.textPrimary,
-    fontFamily: 'System',
-    fontSize: 14,
-    fontWeight: 'bold',
-    marginTop: 4,
-    letterSpacing: 0.5,
-  },
-  gpsFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    paddingVertical: 10,
     alignItems: 'center',
     marginTop: 10,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
-    borderTopWidth: 1,
-    paddingTop: 8,
   },
-  accuracyText: {
-    color: Theme.colors.textSecondary,
-    fontSize: 9,
-  },
-  gpsBtn: {
-    backgroundColor: 'rgba(6, 182, 212, 0.12)',
-    borderColor: Theme.colors.glowCyan,
-    borderWidth: 1,
-    borderRadius: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  gpsBtnDisabled: {
-    opacity: 0.5,
-  },
-  gpsBtnText: {
+  retakePhotoText: {
     color: Theme.colors.glowCyan,
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: 'bold',
     letterSpacing: 1,
   },
-  selectorRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 2,
-  },
-  selectorItem: {
-    flex: 1,
-    marginHorizontal: 3,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    borderWidth: 1,
-    borderRadius: 6,
-    paddingVertical: 8,
-    alignItems: 'center',
-  },
-  selectorItemActive: {
-    borderColor: Theme.colors.glowCyan,
-    backgroundColor: 'rgba(6, 182, 212, 0.1)',
-  },
-  selectorItemText: {
-    color: Theme.colors.textSecondary,
-    fontSize: 10.5,
-  },
-  selectorItemTextActive: {
-    color: Theme.colors.glowCyan,
-    fontWeight: 'bold',
-  },
-  multiInputsGrid: {
+  primaryActionsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
-  multiCol: {
-    flex: 1,
-    marginHorizontal: 3,
-  },
-  smallInput: {
-    backgroundColor: 'rgba(8, 11, 17, 0.6)',
-    borderColor: 'rgba(6, 182, 212, 0.15)',
-    borderWidth: 1,
-    borderRadius: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    color: Theme.colors.textPrimary,
-    fontSize: 12,
-    textAlign: 'center',
-  },
-  photoContainer: {
-    marginTop: 4,
-  },
-  photoPlaceholder: {
-    borderStyle: 'dashed',
-    borderWidth: 1,
-    borderColor: 'rgba(6, 182, 212, 0.3)',
-    borderRadius: 6,
-    paddingVertical: 18,
-    alignItems: 'center',
-    backgroundColor: 'rgba(6, 182, 212, 0.03)',
-  },
-  photoPlaceholderText: {
-    color: Theme.colors.glowCyan,
-    fontSize: 12,
-    fontWeight: 'bold',
-    letterSpacing: 1,
-  },
-  photoPlaceholderSub: {
-    color: Theme.colors.textSecondary,
-    fontSize: 9,
-    marginTop: 4,
-  },
-  photoPreviewWrapper: {
-    position: 'relative',
-    height: 140,
-    borderRadius: 6,
-    overflow: 'hidden',
-  },
-  photoPreview: {
-    width: '100%',
-    height: '100%',
-  },
-  recaptureBtn: {
-    position: 'absolute',
-    bottom: 10,
-    right: 10,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    borderColor: Theme.colors.glowCyan,
-    borderWidth: 1,
-    borderRadius: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  recaptureBtnText: {
-    color: Theme.colors.glowCyan,
-    fontSize: 9,
-    fontWeight: 'bold',
-    letterSpacing: 0.5,
-  },
-  saveNodeBtn: {
+  addNewBtn: {
     ...Theme.glassmorphic.button,
+    flex: 1,
+    marginRight: 6,
     paddingVertical: 12,
     alignItems: 'center',
-    marginTop: 22,
+    backgroundColor: 'rgba(6, 182, 212, 0.1)',
   },
-  saveNodeBtnText: {
+  addNewBtnText: {
     color: Theme.colors.glowCyan,
-    fontWeight: 'bold',
     fontSize: 12,
-    letterSpacing: 1.5,
-  },
-  panelTitle: {
-    color: Theme.colors.textPrimary,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1.5,
-    borderColor: 'rgba(255,255,255,0.05)',
-    borderBottomWidth: 1,
-    paddingBottom: 8,
-    marginBottom: 10,
-  },
-  nodesScroll: {
-    flexDirection: 'row',
-    paddingVertical: 6,
-  },
-  noNodesText: {
-    color: Theme.colors.textSecondary,
-    fontSize: 11,
-    fontStyle: 'italic',
-    paddingVertical: 10,
-  },
-  nodeSeqCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.02)',
-    borderColor: 'rgba(6, 182, 212, 0.1)',
-    borderWidth: 1,
-    borderRadius: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    marginRight: 6,
-  },
-  nodeSeqNum: {
-    color: Theme.colors.glowCyan,
-    fontSize: 9,
     fontWeight: 'bold',
-    marginRight: 4,
+    letterSpacing: 1,
   },
-  nodeSeqType: {
+  finishSurveyBtn: {
+    ...Theme.glassmorphic.button,
+    flex: 1,
+    marginLeft: 6,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderColor: Theme.colors.success,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+  },
+  finishSurveyBtnText: {
+    color: Theme.colors.success,
+    fontSize: 12,
+    fontWeight: 'bold',
+    letterSpacing: 1,
+  },
+  btnSubtext: {
     color: Theme.colors.textSecondary,
     fontSize: 8,
-    fontWeight: '600',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    borderRadius: 2,
-    marginRight: 6,
-  },
-  nodeSeqLabel: {
-    color: Theme.colors.textPrimary,
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  seqConnector: {
-    color: 'rgba(6, 182, 212, 0.3)',
-    fontSize: 9,
-    marginLeft: 8,
-    fontWeight: 'bold',
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 10,
-  },
-  abandonBtn: {
-    borderColor: 'rgba(239, 68, 68, 0.4)',
-    borderWidth: 1,
-    borderRadius: 8,
-    flex: 1.2,
-    marginRight: 8,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  abandonText: {
-    color: '#EF4444',
-    fontWeight: 'bold',
-    fontSize: 11,
-    letterSpacing: 1,
-  },
-  finishBtn: {
-    ...Theme.glassmorphic.button,
-    backgroundColor: 'rgba(6, 182, 212, 0.2)',
-    borderColor: Theme.colors.glowCyan,
-    flex: 2,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  finishText: {
-    color: Theme.colors.glowCyan,
-    fontWeight: 'bold',
-    fontSize: 11,
-    letterSpacing: 1,
-  },
-  cameraOverlay: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#000',
-    justifyContent: 'space-between',
-    paddingVertical: 40,
-    paddingHorizontal: 20,
-    zIndex: 100,
-  },
-  cameraFlashOverlay: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#fff',
-    opacity: 0,
-    zIndex: 105,
-  },
-  cameraHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  cameraHeaderText: {
-    color: Theme.colors.glowCyan,
-    fontSize: 10,
-    fontWeight: 'bold',
-    letterSpacing: 2,
-  },
-  cameraCloseBtn: {
-    color: '#EF4444',
-    fontSize: 11,
-    fontWeight: 'bold',
-  },
-  cameraFrame: {
-    height: SCREEN_WIDTH * 1.0,
-    width: '100%',
-    borderColor: 'rgba(6, 182, 212, 0.1)',
-    borderWidth: 1,
-    position: 'relative',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  focusBracketTL: {
-    position: 'absolute',
-    top: 20,
-    left: 20,
-    width: 25,
-    height: 25,
-    borderTopWidth: 2,
-    borderLeftWidth: 2,
-    borderColor: Theme.colors.glowCyan,
-  },
-  focusBracketTR: {
-    position: 'absolute',
-    top: 20,
-    right: 20,
-    width: 25,
-    height: 25,
-    borderTopWidth: 2,
-    borderRightWidth: 2,
-    borderColor: Theme.colors.glowCyan,
-  },
-  focusBracketBL: {
-    position: 'absolute',
-    bottom: 20,
-    left: 20,
-    width: 25,
-    height: 25,
-    borderBottomWidth: 2,
-    borderLeftWidth: 2,
-    borderColor: Theme.colors.glowCyan,
-  },
-  focusBracketBR: {
-    position: 'absolute',
-    bottom: 20,
-    right: 20,
-    width: 25,
-    height: 25,
-    borderBottomWidth: 2,
-    borderRightWidth: 2,
-    borderColor: Theme.colors.glowCyan,
-  },
-  cameraGuidelineText: {
-    color: 'rgba(6, 182, 212, 0.4)',
-    fontSize: 9,
-    fontWeight: 'bold',
-    letterSpacing: 1,
+    marginTop: 2,
     textAlign: 'center',
   },
-  cameraFooter: {
-    alignItems: 'center',
+  inputError: {
+    borderColor: Theme.colors.error,
   },
-  shutterBtn: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    borderWidth: 4,
-    borderColor: '#fff',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  shutterBtnInner: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: '#EF4444',
+  errorFeedback: {
+    color: Theme.colors.error,
+    fontSize: 9.5,
+    marginTop: 4,
+    fontWeight: 'bold',
   },
 });
