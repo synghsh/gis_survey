@@ -1,24 +1,25 @@
 import React from 'react';
 import { Provider, useSelector, useDispatch } from 'react-redux';
-import { store, RootState } from './src/store';
+import { store, RootState, loadPersistedState, hydrateAuth, hydrateStore } from './src/store';
 import { StatusBar } from 'expo-status-bar';
 import { 
   StyleSheet, 
-  Text 
+  Text,
+  View
 } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
-import IntroScreen from './src/screens/IntroScreen';
-import LoginScreen from './src/screens/LoginScreen';
-import DashboardScreen from './src/screens/DashboardScreen';
-import SurveyListScreen from './src/screens/SurveyListScreen';
-import ProfileScreen from './src/screens/ProfileScreen';
-import ActiveSurveyScreen from './src/screens/ActiveSurveyScreen';
-import SyncQueueScreen from './src/screens/SyncQueueScreen';
-import SurveyDetailsScreen from './src/screens/SurveyDetailsScreen';
+import IntroScreen from './src/screens/auth/IntroScreen';
+import LoginScreen from './src/screens/auth/LoginScreen';
+import DashboardScreen from './src/screens/dashboard/DashboardScreen';
+import SurveyListScreen from './src/screens/survey/SurveyListScreen';
+import ProfileScreen from './src/screens/profile/ProfileScreen';
+import ActiveSurveyScreen from './src/screens/survey/ActiveSurveyScreen';
+import SyncQueueScreen from './src/screens/sync/SyncQueueScreen';
+import SurveyDetailsScreen from './src/screens/survey/SurveyDetailsScreen';
 import Theme from './src/theme';
 
 const Stack = createNativeStackNavigator();
@@ -96,6 +97,39 @@ function LoginScreenWrapper({ navigation }: any) {
 }
 
 export default function App() {
+  const [isReady, setIsReady] = React.useState(false);
+
+  React.useEffect(() => {
+    async function prepare() {
+      try {
+        const state = await loadPersistedState();
+        if (state) {
+          if (state.auth) {
+            store.dispatch(hydrateAuth(state.auth));
+          }
+          if (state.survey) {
+            store.dispatch(hydrateStore(state.survey));
+          }
+        }
+      } catch (e) {
+        console.warn(e);
+      } finally {
+        setIsReady(true);
+      }
+    }
+
+    prepare();
+  }, []);
+
+  if (!isReady) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#080B11', justifyContent: 'center', alignItems: 'center' }}>
+        <Text style={{ color: '#06B6D4', fontSize: 12, fontWeight: 'bold', letterSpacing: 2 }}>GIS SURVEY TERMINAL</Text>
+        <Text style={{ color: '#9CA3AF', fontSize: 9, marginTop: 10, letterSpacing: 1 }}>HYDRATING SECURE DATABASE...</Text>
+      </View>
+    );
+  }
+
   return (
     <Provider store={store}>
       <SafeAreaProvider>

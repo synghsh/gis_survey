@@ -1,4 +1,5 @@
 import { configureStore, createSlice, PayloadAction } from '@reduxjs/toolkit';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Types representing survey structures
 export interface SurveyNode {
@@ -73,6 +74,15 @@ const authSlice = createSlice({
     },
     updateProfileImage: (state, action: PayloadAction<string>) => {
       state.profileImage = action.payload;
+    },
+    hydrateAuth: (state, action: PayloadAction<any>) => {
+      if (action.payload) {
+        state.isLoggedIn = action.payload.isLoggedIn ?? false;
+        state.surveyorName = action.payload.surveyorName ?? '';
+        state.surveyorId = action.payload.surveyorId ?? '';
+        state.division = action.payload.division ?? '';
+        state.profileImage = action.payload.profileImage ?? null;
+      }
     },
   },
 });
@@ -254,6 +264,14 @@ const surveySlice = createSlice({
           node.attributes = action.payload.attributes;
         }
       }
+    },
+    hydrateStore: (state, action: PayloadAction<any>) => {
+      if (action.payload) {
+        state.activeLine = action.payload.activeLine ?? null;
+        state.syncQueue = action.payload.syncQueue ?? [];
+        state.completedCount = action.payload.completedCount ?? 2;
+        state.historyList = action.payload.historyList ?? initialHistory;
+      }
     }
   },
 });
@@ -269,5 +287,37 @@ export const store = configureStore({
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;
 
-export const { login, logout, updateProfileImage } = authSlice.actions;
-export const { startSurvey, addNode, cancelSurvey, finishSurvey, clearQueueItem, clearAllCompleted, updateSurveyLineMetadata, updateSurveyNode } = surveySlice.actions;
+export const { login, logout, updateProfileImage, hydrateAuth } = authSlice.actions;
+export const { startSurvey, addNode, cancelSurvey, finishSurvey, clearQueueItem, clearAllCompleted, updateSurveyLineMetadata, updateSurveyNode, hydrateStore } = surveySlice.actions;
+
+const STORAGE_KEY = 'GIS_SURVEY_APP_STATE';
+
+export const loadPersistedState = async () => {
+  try {
+    const serializedState = await AsyncStorage.getItem(STORAGE_KEY);
+    if (serializedState === null) {
+      return undefined;
+    }
+    return JSON.parse(serializedState);
+  } catch (err) {
+    console.error('Failed to load state:', err);
+    return undefined;
+  }
+};
+
+const saveState = async (state: any) => {
+  try {
+    const stateToSave = {
+      auth: state.auth,
+      survey: state.survey,
+    };
+    const serializedState = JSON.stringify(stateToSave);
+    await AsyncStorage.setItem(STORAGE_KEY, serializedState);
+  } catch (err) {
+    console.error('Failed to save state:', err);
+  }
+};
+
+store.subscribe(() => {
+  saveState(store.getState());
+});

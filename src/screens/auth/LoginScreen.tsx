@@ -11,7 +11,7 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import Theme from '../theme';
+import Theme from '../../theme';
 import { useForm, Controller } from 'react-hook-form';
 
 interface LoginScreenProps {
@@ -25,7 +25,6 @@ interface LoginFormInputs {
 }
 
 export default function LoginScreen({ onLogin }: LoginScreenProps) {
-  // react-hook-form configuration
   const { control, handleSubmit, setValue, watch, formState: { errors } } = useForm<LoginFormInputs>({
     defaultValues: {
       username: '',
@@ -36,18 +35,15 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
 
   const division = watch('division');
   
-  // Interactive UI states
   const [loading, setLoading] = useState(false);
   const [logText, setLogText] = useState('READY TO AUTHENTICATE');
   const [showDropdown, setShowDropdown] = useState(false);
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
 
-  // Animation Refs
   const cardFade = useRef(new Animated.Value(0)).current;
   const cardSlide = useRef(new Animated.Value(30)).current;
   const shakeAnim = useRef(new Animated.Value(0)).current;
 
-  // Available divisions
   const divisions = [
     'Central Division',
     'North Grid division',
@@ -85,7 +81,6 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     setLoading(true);
     setLogText('INITIALIZING HANDSHAKE...');
 
-    // Simulate cyber auth logging process
     setTimeout(() => {
       setLogText('VERIFYING SURVEYOR SIGNATURE...');
       setTimeout(() => {
@@ -109,7 +104,6 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
       style={styles.container}
     >
       <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
-        {/* Subtle top HUD line */}
         <View style={styles.topHudLine}>
           <Text style={styles.topHudText}>SECURE TERMINAL // PORT 443</Text>
           <View style={styles.liveIndicator} />
@@ -124,15 +118,12 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
             },
           ]}
         >
-          {/* Card Header */}
           <View style={styles.cardHeader}>
             <Text style={styles.cardTitle}>PORTAL ACCESS</Text>
             <Text style={styles.cardSubtitle}>VERIFY SURVEYOR IDENTITY</Text>
           </View>
 
-          {/* Input Form */}
           <View style={styles.form}>
-            {/* Surveyor Name */}
             <View style={styles.inputContainer}>
               <Text style={styles.label}>SURVEYOR FULL NAME</Text>
               <Controller
@@ -167,7 +158,6 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
               )}
             </View>
 
-            {/* Surveyor ID */}
             <View style={styles.inputContainer}>
               <Text style={styles.label}>SURVEYOR ID / CERTIFICATE NO</Text>
               <Controller
@@ -203,7 +193,6 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
               )}
             </View>
 
-            {/* Division dropdown selector */}
             <View style={styles.inputContainer}>
               <Text style={styles.label}>ASSIGNED GRID DIVISION</Text>
               <Controller
@@ -239,9 +228,9 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                           >
                             <Text
                               style={[
-                                styles.dropdownItemText,
-                                value === div && styles.dropdownItemTextActive,
-                              ]}
+                                  styles.dropdownItemText,
+                                  value === div && styles.dropdownItemTextActive,
+                                ]}
                             >
                               {div}
                             </Text>
@@ -254,7 +243,6 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
               />
             </View>
 
-            {/* Auth Action Button */}
             <TouchableOpacity
               style={[styles.loginButton, loading && styles.loginButtonDisabled]}
               onPress={handleSubmit(onSubmit, onInvalid)}
@@ -269,7 +257,6 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
             </TouchableOpacity>
           </View>
 
-          {/* Logging HUD */}
           <View style={styles.logsHud}>
             <View style={styles.logHeader}>
               <Text style={styles.logLabel}>SYSTEM LOGS</Text>
@@ -281,7 +268,6 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
           </View>
         </Animated.View>
 
-        {/* HUD Info Text */}
         <View style={styles.footerInfo}>
           <Text style={styles.footerText}>
             ENCRYPTED AES-256 SURVEY DB // VERSION 56.0.0
@@ -331,7 +317,7 @@ const styles = StyleSheet.create({
     ...Theme.glassmorphic.container,
     width: '100%',
     padding: 24,
-    backgroundColor: 'rgba(17, 24, 39, 0.82)', // slightly more solid glass
+    backgroundColor: 'rgba(17, 24, 39, 0.82)',
   },
   cardHeader: {
     marginBottom: 24,
@@ -441,6 +427,7 @@ const styles = StyleSheet.create({
   dropdownItemTextActive: {
     color: Theme.colors.glowCyan,
     fontWeight: 'bold',
+    shadowColor: Theme.colors.glowCyan,
   },
   loginButton: {
     ...Theme.glassmorphic.button,
@@ -487,7 +474,7 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.colors.warning,
   },
   logText: {
-    color: '#34D399', // soft green terminal text
+    color: '#34D399',
     fontSize: 10,
     fontFamily: 'System',
     letterSpacing: 0.5,

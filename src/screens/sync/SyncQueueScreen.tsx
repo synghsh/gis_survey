@@ -6,13 +6,12 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
-  FlatList,
   Alert,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
-import { RootState, clearQueueItem, clearAllCompleted } from '../store';
-import Theme from '../theme';
+import { RootState, clearQueueItem } from '../../store';
+import Theme from '../../theme';
 
 export default function SyncQueueScreen() {
   const navigation = useNavigation<any>();
@@ -47,7 +46,7 @@ export default function SyncQueueScreen() {
         setCurrentSyncingId(line.id);
         const nameText = `${line.lineType.replace('_', ' ')} // ${line.contractorName}`;
         
-        setActiveSyncLogs(prev => [...prev, `\n&gt;&gt; STARTING UPLOAD: ${nameText.toUpperCase()}`]);
+        setActiveSyncLogs(prev => [...prev, `\n>> STARTING UPLOAD: ${nameText.toUpperCase()}`]);
         await wait(600);
         
         // Step 1: Sync Media links
@@ -128,7 +127,7 @@ export default function SyncQueueScreen() {
                   styles.logText,
                   log.includes('[SUCCESS]') && { color: Theme.colors.success },
                   log.includes('[ERROR]') && { color: Theme.colors.error },
-                  log.includes('&gt;&gt;') && { color: Theme.colors.neon11KV, fontWeight: 'bold' }
+                  log.includes('>>') && { color: Theme.colors.neon11KV, fontWeight: 'bold' }
                 ]}>
                   {log}
                 </Text>

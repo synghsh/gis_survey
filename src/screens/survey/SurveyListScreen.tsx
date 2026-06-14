@@ -11,19 +11,17 @@ import {
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
-import { RootState, startSurvey, SurveyLine } from '../store';
-import Theme from '../theme';
+import { RootState, startSurvey, SurveyLine } from '../../store';
+import Theme from '../../theme';
 
 export default function SurveyListScreen() {
   const navigation = useNavigation<any>();
   const dispatch = useDispatch();
   const historyList = useSelector((state: RootState) => state.survey.historyList);
   
-  // Filtering States
   const [voltageFilter, setVoltageFilter] = useState<'ALL' | 'HT_11KV' | 'HT_33KV' | 'LT_440V'>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'SYNCED'>('ALL');
 
-  // Modal State for New Survey
   const [showAddModal, setShowAddModal] = useState(false);
   const [contractor, setContractor] = useState('');
   const [lineType, setLineType] = useState<'HT_11KV' | 'HT_33KV' | 'LT_440V'>('HT_11KV');
@@ -34,7 +32,6 @@ export default function SurveyListScreen() {
       Alert.alert('Missing Field', 'Please enter the Contractor Firm Name.');
       return;
     }
-
     const uniqueId = `srv-${Date.now().toString(36)}`;
     dispatch(
       startSurvey({
@@ -44,15 +41,12 @@ export default function SurveyListScreen() {
         remarks: remarks.trim(),
       })
     );
-    
-    // Reset and close
     setContractor('');
     setRemarks('');
     setShowAddModal(false);
     navigation.navigate('ActiveSurvey');
   };
 
-  // Filter survey lines based on selected parameters
   const filteredLines = historyList.filter((line: SurveyLine) => {
     const matchesVoltage = voltageFilter === 'ALL' || line.lineType === voltageFilter;
     const matchesStatus = statusFilter === 'ALL' || line.status === statusFilter;
@@ -70,7 +64,6 @@ export default function SurveyListScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header bar with branding & title */}
       <View style={styles.header}>
         <View style={styles.brandingWrapper}>
           <Text style={styles.brandingIcon}>📋</Text>
@@ -80,9 +73,7 @@ export default function SurveyListScreen() {
         <View style={styles.headerPlaceholder} />
       </View>
 
-      {/* Filter Tabs Bar */}
       <View style={styles.filtersContainer}>
-        {/* Voltage Class Filters */}
         <Text style={styles.filterTitle}>VOLTAGE CLASS</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtersScroll}>
           {([
@@ -103,7 +94,6 @@ export default function SurveyListScreen() {
           ))}
         </ScrollView>
 
-        {/* Status Filters */}
         <Text style={[styles.filterTitle, { marginTop: 10 }]}>UPLOAD STATUS</Text>
         <View style={styles.statusFiltersRow}>
           {([
@@ -124,7 +114,6 @@ export default function SurveyListScreen() {
         </View>
       </View>
 
-      {/* Main List */}
       <ScrollView style={styles.scrollList} contentContainerStyle={styles.scrollListContent}>
         {filteredLines.length === 0 ? (
           <View style={styles.emptyCard}>
@@ -135,7 +124,6 @@ export default function SurveyListScreen() {
           filteredLines.map((item: SurveyLine) => {
             const accent = getLineAccent(item.lineType);
             const isSynced = item.status === 'SYNCED';
-
             return (
               <TouchableOpacity 
                 key={item.id} 
@@ -156,11 +144,9 @@ export default function SurveyListScreen() {
                     </Text>
                   </View>
                 </View>
-
                 {item.remarks ? (
                   <Text style={styles.remarksText}>&gt; {item.remarks}</Text>
                 ) : null}
-
                 <View style={styles.cardFooter}>
                   <Text style={styles.nodesCount}>🗺️ {item.nodes.length} nodes mapped</Text>
                   <View style={[styles.statusBadge, { 
@@ -178,7 +164,6 @@ export default function SurveyListScreen() {
         )}
       </ScrollView>
 
-      {/* FLOATING ACTION BUTTON (FAB) */}
       <TouchableOpacity 
         style={styles.fab} 
         onPress={() => setShowAddModal(true)}
@@ -187,7 +172,6 @@ export default function SurveyListScreen() {
         <Text style={styles.fabIcon}>+</Text>
       </TouchableOpacity>
 
-      {/* ADD SURVEY MODAL DIALOG */}
       <Modal
         visible={showAddModal}
         transparent
@@ -238,7 +222,7 @@ export default function SurveyListScreen() {
               <Text style={styles.formLabel}>SITE DESCRIPTION / REMARKS</Text>
               <TextInput
                 style={[styles.formInput, styles.formTextArea]}
-                placeholder="Observed alignment, conductor weight class, or span constraints..."
+                placeholder="Observed alignment, conductor weight class..."
                 placeholderTextColor="rgba(255, 255, 255, 0.25)"
                 value={remarks}
                 onChangeText={setRemarks}
@@ -366,7 +350,7 @@ const styles = StyleSheet.create({
   },
   scrollListContent: {
     padding: 20,
-    paddingBottom: 90, // extra spacing for FAB
+    paddingBottom: 90,
   },
   emptyCard: {
     ...Theme.glassmorphic.container,
@@ -450,7 +434,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     letterSpacing: 0.5,
   },
-  // FAB STYLES
   fab: {
     position: 'absolute',
     bottom: 24,
@@ -463,10 +446,6 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: Theme.colors.glowCyan,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
     elevation: 8,
   },
   fabIcon: {
@@ -475,7 +454,6 @@ const styles = StyleSheet.create({
     fontWeight: '300',
     marginTop: -2,
   },
-  // MODAL FORM STYLES
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(3, 7, 18, 0.8)',

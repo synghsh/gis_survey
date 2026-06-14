@@ -9,8 +9,8 @@ import {
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
-import { RootState } from '../store';
-import Theme from '../theme';
+import { RootState } from '../../store';
+import Theme from '../../theme';
 
 export default function DashboardScreen() {
   const navigation = useNavigation<any>();
@@ -286,6 +286,9 @@ const styles = StyleSheet.create({
     color: Theme.colors.textPrimary,
     fontSize: 20,
     fontWeight: 'bold',
+  },
+  statBoxTextAlert: {
+    color: Theme.colors.warning,
   },
   statLabel: {
     color: Theme.colors.textSecondary,

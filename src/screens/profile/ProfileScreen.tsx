@@ -11,9 +11,9 @@ import {
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { RootState, updateProfileImage, logout } from '../store';
+import { RootState, updateProfileImage, logout } from '../../store';
 import { useNavigation } from '@react-navigation/native';
-import Theme from '../theme';
+import Theme from '../../theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
