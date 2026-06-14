@@ -181,6 +181,7 @@ export default function ActiveSurveyScreen() {
     }
 
     const nodeLabel = data.nameLabel.trim() || (nodeType === 'DTR' ? 'DTR-0' : `P-${currentSeq}`);
+    const parentNode = currentSeq > 0 ? activeLine.nodes[currentSeq - 1] : null;
     const newNode: SurveyNode = {
       id: `node-${Date.now()}`,
       nodeType,
@@ -197,6 +198,7 @@ export default function ActiveSurveyScreen() {
       },
       imageUri: capturedPhoto,
       capturedAt: new Date().toISOString(),
+      parentLabel: parentNode ? parentNode.nameLabel : undefined,
     };
 
     dispatch(addNode(newNode));

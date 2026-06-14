@@ -53,7 +53,7 @@ export default function SurveyListScreen() {
   };
 
   // Filter survey lines based on selected parameters
-  const filteredLines = historyList.filter((line) => {
+  const filteredLines = historyList.filter((line: SurveyLine) => {
     const matchesVoltage = voltageFilter === 'ALL' || line.lineType === voltageFilter;
     const matchesStatus = statusFilter === 'ALL' || line.status === statusFilter;
     return matchesVoltage && matchesStatus;
@@ -132,12 +132,17 @@ export default function SurveyListScreen() {
             <Text style={styles.emptySubText}>Tap the floating icon in the bottom right corner to log a new survey run.</Text>
           </View>
         ) : (
-          filteredLines.map((item) => {
+          filteredLines.map((item: SurveyLine) => {
             const accent = getLineAccent(item.lineType);
             const isSynced = item.status === 'SYNCED';
 
             return (
-              <View key={item.id} style={styles.surveyCard}>
+              <TouchableOpacity 
+                key={item.id} 
+                style={styles.surveyCard}
+                onPress={() => navigation.navigate('SurveyDetails', { surveyId: item.id })}
+                activeOpacity={0.75}
+              >
                 <View style={styles.cardHeader}>
                   <View>
                     <Text style={styles.contractorName}>{item.contractorName}</Text>
@@ -167,7 +172,7 @@ export default function SurveyListScreen() {
                     </Text>
                   </View>
                 </View>
-              </View>
+              </TouchableOpacity>
             );
           })
         )}

@@ -18,6 +18,7 @@ import SurveyListScreen from './src/screens/SurveyListScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import ActiveSurveyScreen from './src/screens/ActiveSurveyScreen';
 import SyncQueueScreen from './src/screens/SyncQueueScreen';
+import SurveyDetailsScreen from './src/screens/SurveyDetailsScreen';
 import Theme from './src/theme';
 
 const Stack = createNativeStackNavigator();
@@ -110,6 +111,7 @@ export default function App() {
             <Stack.Screen name="Login" component={LoginScreenWrapper} />
             <Stack.Screen name="MainTabs" component={MainTabNavigator} />
             <Stack.Screen name="ActiveSurvey" component={ActiveSurveyScreen} />
+            <Stack.Screen name="SurveyDetails" component={SurveyDetailsScreen} />
           </Stack.Navigator>
         </NavigationContainer>
       </SafeAreaProvider>

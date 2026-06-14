@@ -14,9 +14,11 @@ export interface SurveyNode {
     height: string;
     tilt: string;
     sag: string;
+    spanDistance?: string;
   };
   imageUri: string | null;
   capturedAt: string;
+  parentLabel?: string;
 }
 
 export interface SurveyLine {
@@ -28,6 +30,10 @@ export interface SurveyLine {
   startedAt: string;
   endedAt?: string;
   status: 'PENDING' | 'SYNCED';
+  location?: string;
+  block?: string;
+  district?: string;
+  preparedBy?: string;
 }
 
 // Slice 1: Authentication & Profile State
@@ -107,6 +113,32 @@ const initialHistory: SurveyLine[] = [
       { id: 'hn-3', nodeType: 'DTR', sequenceNumber: 0, nameLabel: 'DTR-11-F', latitude: 22.580, longitude: 88.371, attributes: { cableSize: 'Grid spec', poleType: 'Transformer', height: '9m', tilt: '0', sag: '0' }, imageUri: null, capturedAt: '' },
       { id: 'hn-4', nodeType: 'POLE', sequenceNumber: 1, nameLabel: 'P-1', latitude: 22.581, longitude: 88.372, attributes: { cableSize: '100 sqmm ACSR', poleType: 'Concrete', height: '9m', tilt: '1°', sag: '0.4m' }, imageUri: null, capturedAt: '' }
     ]
+  },
+  {
+    id: 'hist-3',
+    lineType: 'LT_440V',
+    contractorName: 'Power Grid Corp',
+    remarks: 'Sample Branched LT Line Distribution',
+    startedAt: new Date(Date.now() - 3600000 * 3).toISOString(),
+    endedAt: new Date(Date.now() - 3600000 * 3 + 12000).toISOString(),
+    status: 'PENDING',
+    location: 'Sayan Grid Sector 4',
+    block: 'Block-VII',
+    district: 'North Division',
+    preparedBy: 'Surveyor Sayan',
+    nodes: [
+      { id: 'hn-3-1', nodeType: 'DTR', sequenceNumber: 0, nameLabel: 'DTR 100KVA', latitude: 22.5710, longitude: 88.3620, attributes: { cableSize: 'DTR Lead', poleType: 'Transformer Plt', height: '9m', tilt: '0°', sag: '0m' }, imageUri: null, capturedAt: '' },
+      { id: 'hn-3-2', nodeType: 'POLE', sequenceNumber: 1, nameLabel: 'P1', latitude: 22.5714, longitude: 88.3620, attributes: { cableSize: '90 sqmm ABC', poleType: 'Concrete Pole', height: '9m', tilt: '0°', sag: '0.2m' }, imageUri: null, capturedAt: '', parentLabel: 'DTR 100KVA' },
+      { id: 'hn-3-3', nodeType: 'POLE', sequenceNumber: 2, nameLabel: 'P2', latitude: 22.5718, longitude: 88.3620, attributes: { cableSize: '90 sqmm ABC', poleType: 'Concrete Pole', height: '9m', tilt: '0°', sag: '0.3m' }, imageUri: null, capturedAt: '', parentLabel: 'P1' },
+      { id: 'hn-3-4', nodeType: 'POLE', sequenceNumber: 3, nameLabel: 'P3', latitude: 22.5722, longitude: 88.3622, attributes: { cableSize: '90 sqmm ABC', poleType: 'Concrete Pole', height: '9m', tilt: '0°', sag: '0.3m' }, imageUri: null, capturedAt: '', parentLabel: 'P2' },
+      { id: 'hn-3-5', nodeType: 'POLE', sequenceNumber: 4, nameLabel: 'P4', latitude: 22.5724, longitude: 88.3618, attributes: { cableSize: '50 sqmm ABC', poleType: 'Concrete Pole', height: '9m', tilt: '0°', sag: '0.4m' }, imageUri: null, capturedAt: '', parentLabel: 'P3' },
+      { id: 'hn-3-6', nodeType: 'POLE', sequenceNumber: 5, nameLabel: 'P5', latitude: 22.5727, longitude: 88.3615, attributes: { cableSize: '50 sqmm ABC', poleType: 'Concrete Pole', height: '9m', tilt: '0°', sag: '0.4m' }, imageUri: null, capturedAt: '', parentLabel: 'P4' },
+      { id: 'hn-3-7', nodeType: 'POLE', sequenceNumber: 6, nameLabel: 'P6', latitude: 22.5720, longitude: 88.3628, attributes: { cableSize: '75 sqmm ABC', poleType: 'Concrete Pole', height: '9m', tilt: '1°', sag: '0.2m' }, imageUri: null, capturedAt: '', parentLabel: 'P3' },
+      { id: 'hn-3-8', nodeType: 'POLE', sequenceNumber: 7, nameLabel: 'P7', latitude: 22.5718, longitude: 88.3633, attributes: { cableSize: '75 sqmm ABC', poleType: 'Concrete Pole', height: '9m', tilt: '0°', sag: '0.3m' }, imageUri: null, capturedAt: '', parentLabel: 'P6' },
+      { id: 'hn-3-9', nodeType: 'POLE', sequenceNumber: 8, nameLabel: 'P8', latitude: 22.5715, longitude: 88.3637, attributes: { cableSize: '75 sqmm ABC', poleType: 'Concrete Pole', height: '9m', tilt: '0°', sag: '0.3m' }, imageUri: null, capturedAt: '', parentLabel: 'P7' },
+      { id: 'hn-3-10', nodeType: 'POLE', sequenceNumber: 9, nameLabel: 'P9', latitude: 22.5711, longitude: 88.3640, attributes: { cableSize: '75 sqmm ABC', poleType: 'Concrete Pole', height: '9m', tilt: '0°', sag: '0.3m' }, imageUri: null, capturedAt: '', parentLabel: 'P8' },
+      { id: 'hn-3-11', nodeType: 'POLE', sequenceNumber: 10, nameLabel: 'P10', latitude: 22.5717, longitude: 88.3642, attributes: { cableSize: '50 sqmm ABC', poleType: 'Concrete Pole', height: '9m', tilt: '0°', sag: '0.2m' }, imageUri: null, capturedAt: '', parentLabel: 'P8' }
+    ]
   }
 ];
 
@@ -155,6 +187,73 @@ const surveySlice = createSlice({
     },
     clearAllCompleted: (state) => {
       state.syncQueue = [];
+    },
+    updateSurveyLineMetadata: (state, action: PayloadAction<{ 
+      id: string; 
+      contractorName: string;
+      remarks: string;
+      location?: string; 
+      block?: string; 
+      district?: string; 
+      preparedBy?: string; 
+    }>) => {
+      const line = state.historyList.find(l => l.id === action.payload.id);
+      if (line) {
+        line.contractorName = action.payload.contractorName;
+        line.remarks = action.payload.remarks;
+        line.location = action.payload.location;
+        line.block = action.payload.block;
+        line.district = action.payload.district;
+        line.preparedBy = action.payload.preparedBy;
+      }
+      const queueLine = state.syncQueue.find(l => l.id === action.payload.id);
+      if (queueLine) {
+        queueLine.contractorName = action.payload.contractorName;
+        queueLine.remarks = action.payload.remarks;
+        queueLine.location = action.payload.location;
+        queueLine.block = action.payload.block;
+        queueLine.district = action.payload.district;
+        queueLine.preparedBy = action.payload.preparedBy;
+      }
+    },
+    updateSurveyNode: (state, action: PayloadAction<{
+      lineId: string;
+      nodeId: string;
+      nameLabel: string;
+      latitude: number;
+      longitude: number;
+      parentLabel?: string;
+      attributes: {
+        cableSize: string;
+        poleType: string;
+        height: string;
+        tilt: string;
+        sag: string;
+        spanDistance?: string;
+      };
+    }>) => {
+      const line = state.historyList.find(l => l.id === action.payload.lineId);
+      if (line) {
+        const node = line.nodes.find(n => n.id === action.payload.nodeId);
+        if (node) {
+          node.nameLabel = action.payload.nameLabel;
+          node.latitude = action.payload.latitude;
+          node.longitude = action.payload.longitude;
+          node.parentLabel = action.payload.parentLabel;
+          node.attributes = action.payload.attributes;
+        }
+      }
+      const queueLine = state.syncQueue.find(l => l.id === action.payload.lineId);
+      if (queueLine) {
+        const node = queueLine.nodes.find(n => n.id === action.payload.nodeId);
+        if (node) {
+          node.nameLabel = action.payload.nameLabel;
+          node.latitude = action.payload.latitude;
+          node.longitude = action.payload.longitude;
+          node.parentLabel = action.payload.parentLabel;
+          node.attributes = action.payload.attributes;
+        }
+      }
     }
   },
 });
@@ -171,4 +270,4 @@ export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;
 
 export const { login, logout, updateProfileImage } = authSlice.actions;
-export const { startSurvey, addNode, cancelSurvey, finishSurvey, clearQueueItem, clearAllCompleted } = surveySlice.actions;
+export const { startSurvey, addNode, cancelSurvey, finishSurvey, clearQueueItem, clearAllCompleted, updateSurveyLineMetadata, updateSurveyNode } = surveySlice.actions;
