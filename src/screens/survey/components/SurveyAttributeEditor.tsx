@@ -1,6 +1,5 @@
 import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, TextInput } from 'react-native';
-import Theme from '../../../theme';
 
 interface SurveyAttributeEditorProps {
   selectedNodeId: string | null;
@@ -58,10 +57,10 @@ export default function SurveyAttributeEditor({
   if (!selectedNodeId && !selectedSpanNodeId) return null;
 
   return (
-    <View style={[styles.panel, styles.editorPanel]}>
+    <View style={styles.editorPanel}>
       <View style={styles.panelHeader}>
-        <Text style={[styles.panelTitle, { color: Theme.colors.warning }]}>
-          {selectedNodeId ? `EDIT NODE PARAMETERS: ${nodeName}` : `EDIT SECTION SPAN: ${nodeName}`}
+        <Text style={styles.panelTitle}>
+          {selectedNodeId ? `EDIT STRUCTURE NODE: ${nodeName}` : `EDIT SECTION SPAN: ${nodeName}`}
         </Text>
         <TouchableOpacity onPress={onCancel}>
           <Text style={styles.cancelText}>CANCEL</Text>
@@ -87,7 +86,7 @@ export default function SurveyAttributeEditor({
                 value={nodeParentLabel}
                 onChangeText={setNodeParentLabel}
                 placeholder="e.g. DTR 100KVA or P1"
-                placeholderTextColor="rgba(255,255,255,0.2)"
+                placeholderTextColor="rgba(30, 41, 59, 0.35)"
               />
             </View>
 
@@ -98,7 +97,7 @@ export default function SurveyAttributeEditor({
                 value={nodeHeight}
                 onChangeText={setNodeHeight}
                 placeholder="e.g. 9m"
-                placeholderTextColor="rgba(255,255,255,0.2)"
+                placeholderTextColor="rgba(30, 41, 59, 0.35)"
               />
             </View>
 
@@ -109,7 +108,7 @@ export default function SurveyAttributeEditor({
                 value={nodePoleType}
                 onChangeText={setNodePoleType}
                 placeholder="Concrete/Tubular"
-                placeholderTextColor="rgba(255,255,255,0.2)"
+                placeholderTextColor="rgba(30, 41, 59, 0.35)"
               />
             </View>
 
@@ -136,13 +135,13 @@ export default function SurveyAttributeEditor({
         ) : (
           <>
             <View style={styles.formGroupThird}>
-              <Text style={styles.formLabel}>CABLE NAME / SPECIFICATION</Text>
+              <Text style={styles.formLabel}>CABLE SPECIFICATION</Text>
               <TextInput
                 style={styles.formInput}
                 value={nodeCableSize}
                 onChangeText={setNodeCableSize}
                 placeholder="e.g. 90 sqmm ABC"
-                placeholderTextColor="rgba(255,255,255,0.2)"
+                placeholderTextColor="rgba(30, 41, 59, 0.35)"
               />
             </View>
 
@@ -153,7 +152,7 @@ export default function SurveyAttributeEditor({
                 value={nodeSpanDistance}
                 onChangeText={setNodeSpanDistance}
                 placeholder="e.g. 35m"
-                placeholderTextColor="rgba(255,255,255,0.2)"
+                placeholderTextColor="rgba(30, 41, 59, 0.35)"
               />
             </View>
 
@@ -164,7 +163,7 @@ export default function SurveyAttributeEditor({
                 value={nodeParentLabel}
                 onChangeText={setNodeParentLabel}
                 placeholder="e.g. DTR 100KVA or P1"
-                placeholderTextColor="rgba(255,255,255,0.2)"
+                placeholderTextColor="rgba(30, 41, 59, 0.35)"
               />
             </View>
 
@@ -175,7 +174,7 @@ export default function SurveyAttributeEditor({
                 value={nodePoleType}
                 onChangeText={setNodePoleType}
                 placeholder="Concrete/Tubular"
-                placeholderTextColor="rgba(255,255,255,0.2)"
+                placeholderTextColor="rgba(30, 41, 59, 0.35)"
               />
             </View>
 
@@ -186,7 +185,7 @@ export default function SurveyAttributeEditor({
                 value={nodeTilt}
                 onChangeText={setNodeTilt}
                 placeholder="0°"
-                placeholderTextColor="rgba(255,255,255,0.2)"
+                placeholderTextColor="rgba(30, 41, 59, 0.35)"
               />
             </View>
 
@@ -197,7 +196,7 @@ export default function SurveyAttributeEditor({
                 value={nodeSag}
                 onChangeText={setNodeSag}
                 placeholder="0.3m"
-                placeholderTextColor="rgba(255,255,255,0.2)"
+                placeholderTextColor="rgba(30, 41, 59, 0.35)"
               />
             </View>
           </>
@@ -212,25 +211,33 @@ export default function SurveyAttributeEditor({
 }
 
 const styles = StyleSheet.create({
-  panel: {
-    ...Theme.glassmorphic.container,
+  editorPanel: {
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    borderColor: 'rgba(2, 132, 199, 0.15)',
+    borderWidth: 1.5,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 20,
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
   },
   panelHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    borderBottomColor: 'rgba(2, 132, 199, 0.08)',
+    borderBottomWidth: 1.2,
+    paddingBottom: 8,
+    marginBottom: 14,
   },
   panelTitle: {
-    fontSize: 11.5,
+    fontSize: 11,
     fontWeight: '800',
-    letterSpacing: 1.5,
-  },
-  editorPanel: {
-    borderColor: Theme.colors.warning,
-    backgroundColor: 'rgba(245, 158, 11, 0.02)',
+    letterSpacing: 1.2,
+    color: '#0284C7',
   },
   cancelText: {
     color: '#EF4444',
@@ -252,34 +259,38 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   formLabel: {
-    color: Theme.colors.textSecondary,
+    color: '#64748B',
     fontSize: 8,
-    fontWeight: 'bold',
+    fontWeight: '800',
     letterSpacing: 1,
     marginBottom: 5,
   },
   formInput: {
-    backgroundColor: 'rgba(8, 11, 17, 0.7)',
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    borderWidth: 1,
-    borderRadius: 6,
+    backgroundColor: '#FFFFFF',
+    borderColor: 'rgba(2, 132, 199, 0.15)',
+    borderWidth: 1.2,
+    borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 12,
-    color: Theme.colors.textPrimary,
+    color: '#0F172A',
     fontSize: 12,
   },
   saveBtn: {
-    ...Theme.glassmorphic.button,
+    backgroundColor: '#0284C7',
+    borderRadius: 10,
     paddingVertical: 12,
     alignItems: 'center',
     marginTop: 12,
-    borderColor: Theme.colors.warning,
-    backgroundColor: 'rgba(245, 158, 11, 0.08)',
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 4,
   },
   saveBtnText: {
-    color: Theme.colors.warning,
+    color: '#FFFFFF',
     fontSize: 11.5,
-    fontWeight: 'bold',
+    fontWeight: '900',
     letterSpacing: 1.5,
   },
 });

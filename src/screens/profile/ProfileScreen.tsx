@@ -11,9 +11,9 @@ import {
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { RootState, updateProfileImage, logout } from '../../store';
 import { useNavigation } from '@react-navigation/native';
-import Theme from '../../theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -22,14 +22,12 @@ export default function ProfileScreen() {
   const dispatch = useDispatch();
   const auth = useSelector((state: RootState) => state.auth);
 
-  // Selfie Camera State
   const [showSelfieCamera, setShowSelfieCamera] = useState(false);
   const [cameraFlash, setCameraFlash] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
 
   const handleUpdateAvatar = async () => {
-    // Request permission if not granted
     if (!cameraPermission || !cameraPermission.granted) {
       const result = await requestCameraPermission();
       if (!result.granted) {
@@ -58,20 +56,32 @@ export default function ProfileScreen() {
         }
       } catch (err) {
         console.log('Capture error:', err);
-        // Fallback mockup selfie
         dispatch(updateProfileImage('https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'));
         setShowSelfieCamera(false);
       }
     } else {
-      // Mockup selfie fallback
       dispatch(updateProfileImage('https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'));
       setShowSelfieCamera(false);
     }
   };
 
   return (
-    <View style={styles.container}>
-      {/* Header bar with branding & title */}
+    <View style={styles.outerContainer}>
+      {/* 1. NATIVE GRADIENT SVG BACKDROP */}
+      <View style={[StyleSheet.absoluteFill, { zIndex: 1 }]} pointerEvents="none">
+        <Svg width="100%" height="100%">
+          <Defs>
+            <LinearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <Stop offset="0%" stopColor="#FFFFFF" />
+              <Stop offset="60%" stopColor="#F0F9FF" />
+              <Stop offset="100%" stopColor="#E0F2FE" />
+            </LinearGradient>
+          </Defs>
+          <Rect width="100%" height="100%" fill="url(#bgGradient)" />
+        </Svg>
+      </View>
+
+      {/* 2. HEADER */}
       <View style={styles.header}>
         <View style={styles.brandingWrapper}>
           <Text style={styles.brandingIcon}>👤</Text>
@@ -81,7 +91,8 @@ export default function ProfileScreen() {
         <View style={styles.headerPlaceholder} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+      {/* 3. SCROLLABLE LAYOUT */}
+      <ScrollView style={styles.scrollContainerWrapper} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         {/* Avatar Panel */}
         <View style={styles.profileCard}>
           <TouchableOpacity 
@@ -155,7 +166,7 @@ export default function ProfileScreen() {
       {/* Selfie Front Camera Modal Overlay */}
       {showSelfieCamera && (
         <View style={styles.cameraOverlay}>
-          <View style={[styles.cameraFlashOverlay, cameraFlash && { backgroundColor: '#fff', opacity: 1 }]} />
+          <View style={[styles.cameraFlashOverlay, cameraFlash && { backgroundColor: '#FFFFFF', opacity: 1 }]} />
           
           <View style={styles.cameraHeader}>
             <Text style={styles.cameraHeaderText}>SELFIE CAMERA // AVATAR SURVEY</Text>
@@ -164,7 +175,6 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Selfie viewport (front-facing) */}
           <View style={styles.cameraFrame}>
             {cameraPermission && cameraPermission.granted ? (
               <CameraView
@@ -192,26 +202,28 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  outerContainer: {
     flex: 1,
-    backgroundColor: Theme.colors.background,
+    backgroundColor: '#F8FAFC',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderColor: 'rgba(255, 255, 255, 0.05)',
-    borderBottomWidth: 1,
+    borderColor: 'rgba(2, 132, 199, 0.08)',
+    borderBottomWidth: 1.2,
     paddingHorizontal: 20,
     paddingTop: 50,
     paddingBottom: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    zIndex: 20,
   },
   brandingWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(6, 182, 212, 0.06)',
-    borderColor: 'rgba(6, 182, 212, 0.2)',
-    borderWidth: 1,
+    backgroundColor: 'rgba(2, 132, 199, 0.06)',
+    borderColor: 'rgba(2, 132, 199, 0.18)',
+    borderWidth: 1.2,
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -221,13 +233,13 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   brandingText: {
-    color: Theme.colors.glowCyan,
+    color: '#0284C7',
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 1.5,
   },
   headerTitle: {
-    color: Theme.colors.textPrimary,
+    color: '#0F172A',
     fontSize: 16,
     fontWeight: 'bold',
     letterSpacing: 2,
@@ -235,15 +247,27 @@ const styles = StyleSheet.create({
   headerPlaceholder: {
     width: 130,
   },
+  scrollContainerWrapper: {
+    flex: 1,
+    zIndex: 10,
+  },
   scrollContent: {
     padding: 20,
     paddingBottom: 40,
   },
   profileCard: {
-    ...Theme.glassmorphic.container,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    borderColor: 'rgba(255, 255, 255, 0.7)',
+    borderWidth: 1.5,
+    borderRadius: 16,
     alignItems: 'center',
     paddingVertical: 24,
     marginBottom: 20,
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
   },
   avatarContainer: {
     position: 'relative',
@@ -253,26 +277,21 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    borderColor: Theme.colors.glowCyan,
+    borderColor: '#0284C7',
     borderWidth: 2,
   },
   defaultAvatar: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: 'rgba(6, 182, 212, 0.1)',
-    borderColor: Theme.colors.glowCyan,
+    backgroundColor: 'rgba(2, 132, 199, 0.08)',
+    borderColor: '#0284C7',
     borderWidth: 1.5,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: Theme.colors.glowCyan,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 5,
   },
   defaultAvatarText: {
-    color: Theme.colors.glowCyan,
+    color: '#0284C7',
     fontSize: 36,
     fontWeight: 'bold',
   },
@@ -280,105 +299,116 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     right: 0,
-    backgroundColor: '#080B11',
-    borderColor: Theme.colors.glowCyan,
-    borderWidth: 1,
+    backgroundColor: '#FFFFFF',
+    borderColor: '#0284C7',
+    borderWidth: 1.2,
     borderRadius: 15,
     width: 30,
     height: 30,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: Theme.colors.glowCyan,
-    shadowOpacity: 0.4,
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
     shadowRadius: 3,
+    elevation: 2,
   },
   cameraBadgeIcon: {
     fontSize: 12,
   },
   surveyorName: {
-    color: Theme.colors.textPrimary,
+    color: '#0F172A',
     fontSize: 20,
     fontWeight: 'bold',
   },
   surveyorId: {
-    color: Theme.colors.textSecondary,
+    color: '#64748B',
     fontSize: 11,
     fontWeight: 'bold',
     letterSpacing: 1.5,
     marginTop: 4,
   },
   certPill: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    borderColor: Theme.colors.success,
-    borderWidth: 1,
+    backgroundColor: 'rgba(5, 150, 105, 0.08)',
+    borderColor: '#059669',
+    borderWidth: 1.2,
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 4,
     marginTop: 12,
   },
   certPillText: {
-    color: Theme.colors.success,
+    color: '#059669',
     fontSize: 8.5,
     fontWeight: 'bold',
     letterSpacing: 1,
   },
   panel: {
-    ...Theme.glassmorphic.container,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    borderColor: 'rgba(255, 255, 255, 0.7)',
+    borderWidth: 1.5,
+    borderRadius: 16,
     padding: 20,
     marginBottom: 20,
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
   },
   panelTitle: {
-    color: Theme.colors.textPrimary,
+    color: '#0F172A',
     fontSize: 12,
     fontWeight: '800',
     letterSpacing: 2,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
-    borderBottomWidth: 1,
+    borderColor: 'rgba(2, 132, 199, 0.08)',
+    borderBottomWidth: 1.2,
     paddingBottom: 10,
     marginBottom: 16,
   },
   infoRow: {
-    borderColor: 'rgba(255,255,255,0.02)',
-    borderBottomWidth: 1,
+    borderColor: 'rgba(2, 132, 199, 0.08)',
+    borderBottomWidth: 1.2,
     paddingVertical: 10,
   },
   infoLabel: {
-    color: Theme.colors.textSecondary,
+    color: '#64748B',
     fontSize: 8.5,
-    fontWeight: 'bold',
+    fontWeight: '800',
     letterSpacing: 1.5,
   },
   infoVal: {
-    color: Theme.colors.textPrimary,
+    color: '#0F172A',
     fontSize: 13,
     marginTop: 4,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   monoText: {
     fontFamily: 'System',
-    color: Theme.colors.glowCyan,
+    color: '#0284C7',
   },
   logoutBtn: {
-    borderColor: 'rgba(239, 68, 68, 0.4)',
-    borderWidth: 1,
-    borderRadius: 8,
+    borderColor: 'rgba(239, 68, 68, 0.25)',
+    backgroundColor: 'rgba(239, 68, 68, 0.05)',
+    borderWidth: 1.5,
+    borderRadius: 10,
     paddingVertical: 14,
     alignItems: 'center',
+    marginBottom: 20,
   },
   logoutBtnText: {
     color: '#EF4444',
-    fontWeight: 'bold',
+    fontWeight: '800',
     fontSize: 12,
     letterSpacing: 1.5,
   },
-  // FRONT SELFIE CAMERA STYLES
   cameraOverlay: {
     position: 'absolute',
     top: 0,
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#000',
+    backgroundColor: '#0F172A',
     justifyContent: 'space-between',
     paddingVertical: 40,
     paddingHorizontal: 20,
@@ -400,7 +430,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cameraHeaderText: {
-    color: Theme.colors.glowCyan,
+    color: '#0284C7',
     fontSize: 10,
     fontWeight: 'bold',
     letterSpacing: 2,
@@ -413,23 +443,25 @@ const styles = StyleSheet.create({
   cameraFrame: {
     height: SCREEN_WIDTH * 1.0,
     width: '100%',
-    borderColor: 'rgba(6, 182, 212, 0.1)',
-    borderWidth: 1,
+    borderColor: 'rgba(2, 132, 199, 0.25)',
+    borderWidth: 1.2,
     position: 'relative',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000',
+    backgroundColor: '#1E293B',
+    borderRadius: 16,
+    overflow: 'hidden',
   },
   selfieGuideCircle: {
     width: SCREEN_WIDTH * 0.65,
     height: SCREEN_WIDTH * 0.65,
     borderRadius: SCREEN_WIDTH * 0.325,
-    borderColor: 'rgba(6, 182, 212, 0.25)',
+    borderColor: 'rgba(2, 132, 199, 0.35)',
     borderWidth: 2,
     borderStyle: 'dashed',
   },
   cameraGuidelineText: {
-    color: 'rgba(6, 182, 212, 0.4)',
+    color: '#64748B',
     fontSize: 9,
     fontWeight: 'bold',
     letterSpacing: 1,
@@ -443,7 +475,7 @@ const styles = StyleSheet.create({
     height: 68,
     borderRadius: 34,
     borderWidth: 4,
-    borderColor: '#fff',
+    borderColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -451,6 +483,6 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: Theme.colors.glowCyan,
+    backgroundColor: '#0284C7',
   },
 });

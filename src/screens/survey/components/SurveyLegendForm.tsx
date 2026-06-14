@@ -1,6 +1,5 @@
 import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, TextInput } from 'react-native';
-import Theme from '../../../theme';
 
 interface SurveyLegendFormProps {
   location: string;
@@ -48,7 +47,7 @@ export default function SurveyLegendForm({
             value={location}
             onChangeText={setLocation}
             placeholder="Sector or Area Name"
-            placeholderTextColor="rgba(255,255,255,0.2)"
+            placeholderTextColor="rgba(30, 41, 59, 0.35)"
           />
         </View>
 
@@ -59,7 +58,7 @@ export default function SurveyLegendForm({
             value={block}
             onChangeText={setBlock}
             placeholder="e.g. Block-VII"
-            placeholderTextColor="rgba(255,255,255,0.2)"
+            placeholderTextColor="rgba(30, 41, 59, 0.35)"
           />
         </View>
 
@@ -70,7 +69,7 @@ export default function SurveyLegendForm({
             value={district}
             onChangeText={setDistrict}
             placeholder="District Division"
-            placeholderTextColor="rgba(255,255,255,0.2)"
+            placeholderTextColor="rgba(30, 41, 59, 0.35)"
           />
         </View>
 
@@ -81,7 +80,7 @@ export default function SurveyLegendForm({
             value={preparedBy}
             onChangeText={setPreparedBy}
             placeholder="Your Name"
-            placeholderTextColor="rgba(255,255,255,0.2)"
+            placeholderTextColor="rgba(30, 41, 59, 0.35)"
           />
         </View>
 
@@ -92,7 +91,7 @@ export default function SurveyLegendForm({
             value={contractor}
             onChangeText={setContractor}
             placeholder="Contracting Agency"
-            placeholderTextColor="rgba(255,255,255,0.2)"
+            placeholderTextColor="rgba(30, 41, 59, 0.35)"
           />
         </View>
 
@@ -105,13 +104,13 @@ export default function SurveyLegendForm({
             multiline
             numberOfLines={2}
             placeholder="General route remarks..."
-            placeholderTextColor="rgba(255,255,255,0.2)"
+            placeholderTextColor="rgba(30, 41, 59, 0.35)"
           />
         </View>
       </View>
 
       <TouchableOpacity 
-        style={[styles.saveBtn, { borderColor: accentColor, backgroundColor: 'rgba(6, 182, 212, 0.05)' }]} 
+        style={[styles.saveBtn, { borderColor: accentColor, backgroundColor: `${accentColor}0A` }]} 
         onPress={onSave}
       >
         <Text style={[styles.saveBtnText, { color: accentColor }]}>SAVE LEGEND METADATA</Text>
@@ -122,18 +121,26 @@ export default function SurveyLegendForm({
 
 const styles = StyleSheet.create({
   panel: {
-    ...Theme.glassmorphic.container,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    borderColor: 'rgba(255, 255, 255, 0.7)',
+    borderWidth: 1.5,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 20,
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
   },
   panelTitle: {
-    color: Theme.colors.textPrimary,
+    color: '#0F172A',
     fontSize: 11.5,
     fontWeight: '800',
     letterSpacing: 1.5,
   },
   legendFormSubtitle: {
-    color: Theme.colors.textSecondary,
+    color: '#64748B',
     fontSize: 9.5,
     marginTop: 2,
     marginBottom: 14,
@@ -152,31 +159,32 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   formLabel: {
-    color: Theme.colors.textSecondary,
+    color: '#64748B',
     fontSize: 8,
-    fontWeight: 'bold',
+    fontWeight: '800',
     letterSpacing: 1,
     marginBottom: 5,
   },
   formInput: {
-    backgroundColor: 'rgba(8, 11, 17, 0.7)',
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    borderWidth: 1,
-    borderRadius: 6,
+    backgroundColor: '#FFFFFF',
+    borderColor: 'rgba(2, 132, 199, 0.15)',
+    borderWidth: 1.2,
+    borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 12,
-    color: Theme.colors.textPrimary,
+    color: '#0F172A',
     fontSize: 12,
   },
   saveBtn: {
-    ...Theme.glassmorphic.button,
+    borderWidth: 1.5,
+    borderRadius: 10,
     paddingVertical: 12,
     alignItems: 'center',
     marginTop: 12,
   },
   saveBtnText: {
     fontSize: 11.5,
-    fontWeight: 'bold',
+    fontWeight: '900',
     letterSpacing: 1.5,
   },
 });

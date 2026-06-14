@@ -1,7 +1,6 @@
 import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import { CameraView } from 'expo-camera';
-import Theme from '../../../theme';
 
 interface ActiveSurveyCameraProps {
   cameraPermission: any;
@@ -24,8 +23,8 @@ export default function ActiveSurveyCamera({
 }: ActiveSurveyCameraProps) {
   return (
     <View style={styles.captureStepContainer}>
-      {/* Flash screen overlay */}
-      <View style={[styles.cameraFlashOverlay, cameraFlash && { backgroundColor: '#fff', opacity: 1 }]} />
+      {/* Flash overlay */}
+      <View style={[styles.cameraFlashOverlay, cameraFlash && { backgroundColor: '#FFFFFF', opacity: 1 }]} />
       
       <View style={styles.hudHeaderRow}>
         <Text style={styles.hudHeaderText}>ALIGN STRUCTURE WITH FIELD CAMERA</Text>
@@ -52,7 +51,7 @@ export default function ActiveSurveyCamera({
           </View>
         )}
 
-        {/* Overlay grid lines */}
+        {/* Overlay grid brackets */}
         <View style={styles.focusBracketTL} />
         <View style={styles.focusBracketTR} />
         <View style={styles.focusBracketBL} />
@@ -62,15 +61,12 @@ export default function ActiveSurveyCamera({
 
       {/* Controls Footer */}
       <View style={styles.captureFooter}>
-        <Text style={styles.hudInstructionText}>TAP RED SHUTTER TO CAPTURE & PIN GPS</Text>
+        <Text style={styles.hudInstructionText}>TAP SHUTTER TO CAPTURE & PIN GPS</Text>
         <TouchableOpacity style={styles.shutterBtn} onPress={onTakePhoto} activeOpacity={0.85}>
           <View style={styles.shutterBtnInner} />
         </TouchableOpacity>
         
-        <TouchableOpacity 
-          style={styles.abandonLink} 
-          onPress={onAbandon}
-        >
+        <TouchableOpacity style={styles.abandonLink} onPress={onAbandon}>
           <Text style={styles.abandonLinkText}>CANCEL SURVEY LINE</Text>
         </TouchableOpacity>
       </View>
@@ -102,9 +98,9 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   hudHeaderText: {
-    color: Theme.colors.glowCyan,
+    color: '#0284C7',
     fontSize: 9,
-    fontWeight: 'bold',
+    fontWeight: '800',
     letterSpacing: 1.5,
   },
   liveIndicator: {
@@ -115,12 +111,12 @@ const styles = StyleSheet.create({
   },
   cameraBoxContainer: {
     flex: 1,
-    borderColor: 'rgba(6, 182, 212, 0.2)',
-    borderWidth: 1,
-    borderRadius: 12,
+    borderColor: 'rgba(2, 132, 199, 0.25)',
+    borderWidth: 1.2,
+    borderRadius: 16,
     overflow: 'hidden',
     position: 'relative',
-    backgroundColor: '#000',
+    backgroundColor: '#1E293B',
   },
   cameraFallbackBox: {
     flex: 1,
@@ -129,28 +125,28 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   cameraFallbackText: {
-    color: Theme.colors.glowCyan,
+    color: '#0284C7',
     fontSize: 14,
     fontWeight: 'bold',
     letterSpacing: 1,
   },
   cameraFallbackSub: {
-    color: Theme.colors.textSecondary,
+    color: '#64748B',
     fontSize: 10,
     marginTop: 6,
     textAlign: 'center',
     marginBottom: 12,
   },
   permissionBtn: {
-    backgroundColor: 'rgba(6, 182, 212, 0.15)',
-    borderColor: Theme.colors.glowCyan,
-    borderWidth: 1,
-    borderRadius: 6,
+    backgroundColor: 'rgba(2, 132, 199, 0.08)',
+    borderColor: '#0284C7',
+    borderWidth: 1.2,
+    borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 16,
   },
   permissionBtnText: {
-    color: Theme.colors.glowCyan,
+    color: '#0284C7',
     fontSize: 10,
     fontWeight: 'bold',
   },
@@ -160,9 +156,9 @@ const styles = StyleSheet.create({
     left: 30,
     width: 30,
     height: 30,
-    borderTopWidth: 2,
-    borderLeftWidth: 2,
-    borderColor: Theme.colors.glowCyan,
+    borderTopWidth: 2.5,
+    borderLeftWidth: 2.5,
+    borderColor: '#0284C7',
   },
   focusBracketTR: {
     position: 'absolute',
@@ -170,9 +166,9 @@ const styles = StyleSheet.create({
     right: 30,
     width: 30,
     height: 30,
-    borderTopWidth: 2,
-    borderRightWidth: 2,
-    borderColor: Theme.colors.glowCyan,
+    borderTopWidth: 2.5,
+    borderRightWidth: 2.5,
+    borderColor: '#0284C7',
   },
   focusBracketBL: {
     position: 'absolute',
@@ -180,9 +176,9 @@ const styles = StyleSheet.create({
     left: 30,
     width: 30,
     height: 30,
-    borderBottomWidth: 2,
-    borderLeftWidth: 2,
-    borderColor: Theme.colors.glowCyan,
+    borderBottomWidth: 2.5,
+    borderLeftWidth: 2.5,
+    borderColor: '#0284C7',
   },
   focusBracketBR: {
     position: 'absolute',
@@ -190,26 +186,26 @@ const styles = StyleSheet.create({
     right: 30,
     width: 30,
     height: 30,
-    borderBottomWidth: 2,
-    borderRightWidth: 2,
-    borderColor: Theme.colors.glowCyan,
+    borderBottomWidth: 2.5,
+    borderRightWidth: 2.5,
+    borderColor: '#0284C7',
   },
   horizontalScanline: {
     position: 'absolute',
     top: '50%',
     left: 10,
     right: 10,
-    height: 1,
-    backgroundColor: 'rgba(6, 182, 212, 0.3)',
+    height: 1.2,
+    backgroundColor: 'rgba(2, 132, 199, 0.3)',
   },
   captureFooter: {
     alignItems: 'center',
     marginTop: 20,
   },
   hudInstructionText: {
-    color: Theme.colors.textSecondary,
+    color: '#64748B',
     fontSize: 9,
-    fontWeight: 'bold',
+    fontWeight: '800',
     letterSpacing: 1,
     marginBottom: 14,
   },
@@ -218,18 +214,18 @@ const styles = StyleSheet.create({
     height: 70,
     borderRadius: 35,
     borderWidth: 4,
-    borderColor: '#fff',
+    borderColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#06B6D4',
+    shadowColor: '#0284C7',
     shadowRadius: 10,
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.25,
     elevation: 5,
   },
   shutterBtnInner: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: '#EF4444',
   },
   abandonLink: {
@@ -237,9 +233,9 @@ const styles = StyleSheet.create({
     padding: 6,
   },
   abandonLinkText: {
-    color: 'rgba(239, 68, 68, 0.65)',
+    color: '#EF4444',
     fontSize: 10,
-    fontWeight: 'bold',
+    fontWeight: '800',
     letterSpacing: 1.5,
   },
 });

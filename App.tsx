@@ -2,8 +2,8 @@ import React from 'react';
 import { Provider, useSelector, useDispatch } from 'react-redux';
 import { store, RootState, loadPersistedState, hydrateAuth, hydrateStore } from './src/store';
 import { StatusBar } from 'expo-status-bar';
-import { 
-  StyleSheet, 
+import {
+  StyleSheet,
   Text,
   View
 } from 'react-native';
@@ -61,10 +61,10 @@ function MainTabNavigator() {
     >
       <Tab.Screen name="Dashboard" component={DashboardScreen} options={{ title: 'DASHBOARD' }} />
       <Tab.Screen name="SurveyList" component={SurveyListScreen} options={{ title: 'SURVEY RUNS' }} />
-      <Tab.Screen 
-        name="SyncQueue" 
-        component={SyncQueueScreen} 
-        options={{ 
+      <Tab.Screen
+        name="SyncQueue"
+        component={SyncQueueScreen}
+        options={{
           title: 'SYNC TERMINAL',
           tabBarBadge: queueLength > 0 ? queueLength : undefined,
           tabBarBadgeStyle: {
@@ -73,7 +73,7 @@ function MainTabNavigator() {
             fontSize: 9,
             fontWeight: 'bold',
           }
-        }} 
+        }}
       />
       <Tab.Screen name="Profile" component={ProfileScreen} options={{ title: 'MY PROFILE' }} />
     </Tab.Navigator>
@@ -87,11 +87,11 @@ function IntroScreenWrapper({ navigation }: any) {
 function LoginScreenWrapper({ navigation }: any) {
   const dispatch = useDispatch();
   return (
-    <LoginScreen 
+    <LoginScreen
       onLogin={(username, surveyorId, division) => {
         dispatch({ type: 'auth/login', payload: { name: username, srvId: surveyorId, div: division } });
         navigation.replace('MainTabs');
-      }} 
+      }}
     />
   );
 }
@@ -133,7 +133,7 @@ export default function App() {
   return (
     <Provider store={store}>
       <SafeAreaProvider>
-        <StatusBar style="light" />
+        <StatusBar style="dark" />
         <NavigationContainer>
           <Stack.Navigator
             screenOptions={{

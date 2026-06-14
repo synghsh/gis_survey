@@ -6,17 +6,20 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  Dimensions,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useCameraPermissions } from 'expo-camera';
 import { useNavigation } from '@react-navigation/native';
 import { useForm } from 'react-hook-form';
 import * as Location from 'expo-location';
+import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { RootState, addNode, finishSurvey, cancelSurvey, SurveyNode } from '../../store';
-import Theme from '../../theme';
 
 import ActiveSurveyCamera from './components/ActiveSurveyCamera';
 import ActiveSurveyForm from './components/ActiveSurveyForm';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface SurveyNodeFormInputs {
   nameLabel: string;
@@ -29,7 +32,6 @@ export default function ActiveSurveyScreen() {
   const dispatch = useDispatch();
   const activeLine = useSelector((state: RootState) => state.survey.activeLine);
 
-  // react-hook-form configuration
   const { control, handleSubmit, setValue, formState: { errors } } = useForm<SurveyNodeFormInputs>({
     defaultValues: {
       nameLabel: '',
@@ -38,28 +40,21 @@ export default function ActiveSurveyScreen() {
     }
   });
 
-  // Survey Step State: CAPTURE -> DETAILS
   const [surveyStep, setSurveyStep] = useState<'CAPTURE' | 'DETAILS'>('CAPTURE');
-
-  // Input states for current node details
   const [nodeType, setNodeType] = useState<'DTR' | 'POLE'>('POLE');
 
-  // GPS coordinates state
   const [lat, setLat] = useState<number | null>(null);
   const [lng, setLng] = useState<number | null>(null);
   const [gpsAccuracy, setGpsAccuracy] = useState('WAITING...');
   const [acquiringGps, setAcquiringGps] = useState(false);
 
-  // Camera state
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
   const [cameraFlash, setCameraFlash] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const cameraRef = useRef<any>(null);
 
-  // Current sequence calculation
   const currentSeq = activeLine ? activeLine.nodes.length : 0;
 
-  // Auto-fill values on sequence change or step change
   useEffect(() => {
     if (activeLine) {
       if (currentSeq === 0) {
@@ -76,7 +71,6 @@ export default function ActiveSurveyScreen() {
     }
   }, [currentSeq, activeLine, surveyStep]);
 
-  // Request permissions immediately when screen mounts
   useEffect(() => {
     (async () => {
       if (!cameraPermission || !cameraPermission.granted) {
@@ -107,7 +101,6 @@ export default function ActiveSurveyScreen() {
     setGpsAccuracy('1.8m (MOCK LOCK)');
   };
 
-  // Acquire coordinates
   const acquireGps = async () => {
     setAcquiringGps(true);
     setGpsAccuracy('ACQUIRING SIGNAL...');
@@ -137,9 +130,7 @@ export default function ActiveSurveyScreen() {
     }
   };
 
-  // Trigger capture photo
   const takePhoto = async () => {
-    // Acquire GPS instantly at the moment of photo capture
     acquireGps();
 
     if (cameraRef.current) {
@@ -162,7 +153,6 @@ export default function ActiveSurveyScreen() {
         setSurveyStep('DETAILS');
       }
     } else {
-      // Emulator or fallback mock
       setCameraFlash(true);
       setTimeout(() => setCameraFlash(false), 150);
       setCapturedPhoto('https://images.unsplash.com/photo-1548676924-48e71ceac151?w=400');
@@ -170,9 +160,7 @@ export default function ActiveSurveyScreen() {
     }
   };
 
-  // Commit current node details to Redux
   const commitCurrentNode = (data: SurveyNodeFormInputs): boolean => {
-    // Ensure coordinates are locked
     if (!lat || !lng) {
       Alert.alert('GPS Required', 'Waiting for GPS location lock. Please try capturing coordinates again.');
       return false;
@@ -203,28 +191,23 @@ export default function ActiveSurveyScreen() {
     return true;
   };
 
-  // "Add New" Button
   const handleAddNew = (data: SurveyNodeFormInputs) => {
     if (commitCurrentNode(data)) {
-      // Reset details input fields
       setCapturedPhoto(null);
       setLat(null);
       setLng(null);
       setGpsAccuracy('WAITING...');
-      
-      // Go back to capture screen
       setSurveyStep('CAPTURE');
     }
   };
 
-  // "Finish Survey" Button with Confirmation
   const handleFinishSurvey = (data: SurveyNodeFormInputs) => {
     if (!lat || !lng) {
       Alert.alert('GPS Required', 'Waiting for GPS location lock. Please try capturing coordinates again.');
       return;
     }
 
-    const totalNodesCount = activeLine.nodes.length + 1; // including the one we just committed
+    const totalNodesCount = activeLine.nodes.length + 1;
     Alert.alert(
       'Finish Survey Line',
       `Complete this survey run? A total of ${totalNodesCount} nodes (including current) will be saved to your local offline upload queue.`,
@@ -245,82 +228,106 @@ export default function ActiveSurveyScreen() {
 
   const getLineAccent = () => {
     switch (activeLine.lineType) {
-      case 'HT_11KV': return Theme.colors.neon11KV;
-      case 'HT_33KV': return Theme.colors.neon33KV;
-      case 'LT_440V': return Theme.colors.neon440V;
-      default: return Theme.colors.glowCyan;
+      case 'HT_11KV': return '#F59E0B';
+      case 'HT_33KV': return '#EF4444';
+      case 'LT_440V': return '#0284C7';
+      default: return '#0284C7';
     }
   };
 
   return (
-    <View style={styles.container}>
-      {/* Header status bar */}
-      <View style={styles.surveyHeader}>
-        <View>
-          <Text style={styles.subtitleText}>ACTIVE SURVEY // NODE #{currentSeq}</Text>
-          <Text style={styles.titleText}>{activeLine.contractorName}</Text>
-        </View>
-        <View style={[styles.typeBadge, { borderColor: getLineAccent() }]}>
-          <Text style={[styles.typeBadgeText, { color: getLineAccent() }]}>
-            {activeLine.lineType.replace('_', ' ')}
-          </Text>
+    <View style={styles.outerContainer}>
+      {/* 1. NATIVE GRADIENT SVG BACKDROP */}
+      <View style={[StyleSheet.absoluteFill, { zIndex: 1 }]} pointerEvents="none">
+        <Svg width="100%" height="100%">
+          <Defs>
+            <LinearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <Stop offset="0%" stopColor="#FFFFFF" />
+              <Stop offset="60%" stopColor="#F0F9FF" />
+              <Stop offset="100%" stopColor="#E0F2FE" />
+            </LinearGradient>
+          </Defs>
+          <Rect width="100%" height="100%" fill="url(#bgGradient)" />
+        </Svg>
+      </View>
+
+      {/* 2. HEADER */}
+      <View style={styles.headerWrapper}>
+        <View style={styles.surveyHeader}>
+          <View>
+            <Text style={styles.subtitleText}>ACTIVE SURVEY // NODE #{currentSeq}</Text>
+            <Text style={styles.titleText}>{activeLine.contractorName}</Text>
+          </View>
+          <View style={[styles.typeBadge, { borderColor: getLineAccent() }]}>
+            <Text style={[styles.typeBadgeText, { color: getLineAccent() }]}>
+              {activeLine.lineType.replace('_', ' ')}
+            </Text>
+          </View>
         </View>
       </View>
 
-      {/* Screen body based on step */}
-      {surveyStep === 'CAPTURE' ? (
-        <ActiveSurveyCamera
-          cameraPermission={cameraPermission}
-          requestCameraPermission={requestCameraPermission}
-          cameraRef={cameraRef}
-          cameraFlash={cameraFlash}
-          currentSeq={currentSeq}
-          onTakePhoto={takePhoto}
-          onAbandon={() => {
-            Alert.alert(
-              'Abandon Survey',
-              'Discard all captured structures and return to Dashboard?',
-              [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Discard', style: 'destructive', onPress: () => {
-                  dispatch(cancelSurvey());
-                  navigation.navigate('MainTabs');
-                }}
-              ]
-            );
-          }}
-        />
-      ) : (
-        /* STEP 2: INPUT DETAILS FORM */
-        <ScrollView style={styles.detailsScroll} contentContainerStyle={styles.detailsContent} keyboardShouldPersistTaps="handled">
-          <ActiveSurveyForm
-            control={control}
-            errors={errors}
-            nodeType={nodeType}
-            lat={lat}
-            lng={lng}
-            gpsAccuracy={gpsAccuracy}
-            capturedPhoto={capturedPhoto}
-            acquiringGps={acquiringGps}
-            onAcquireGps={acquireGps}
-            onRetakePhoto={() => setSurveyStep('CAPTURE')}
-            onSubmitAddNew={handleSubmit(handleAddNew)}
-            onSubmitFinish={handleSubmit(handleFinishSurvey)}
+      {/* 3. SCREEN BODY */}
+      <View style={styles.bodyWrapper}>
+        {surveyStep === 'CAPTURE' ? (
+          <ActiveSurveyCamera
+            cameraPermission={cameraPermission}
+            requestCameraPermission={requestCameraPermission}
+            cameraRef={cameraRef}
+            cameraFlash={cameraFlash}
+            currentSeq={currentSeq}
+            onTakePhoto={takePhoto}
+            onAbandon={() => {
+              Alert.alert(
+                'Abandon Survey',
+                'Discard all captured structures and return to Dashboard?',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Discard', style: 'destructive', onPress: () => {
+                    dispatch(cancelSurvey());
+                    navigation.navigate('MainTabs');
+                  }}
+                ]
+              );
+            }}
           />
-        </ScrollView>
-      )}
+        ) : (
+          <ScrollView style={styles.detailsScroll} contentContainerStyle={styles.detailsContent} keyboardShouldPersistTaps="handled">
+            <ActiveSurveyForm
+              control={control}
+              errors={errors}
+              nodeType={nodeType}
+              lat={lat}
+              lng={lng}
+              gpsAccuracy={gpsAccuracy}
+              capturedPhoto={capturedPhoto}
+              acquiringGps={acquiringGps}
+              onAcquireGps={acquireGps}
+              onRetakePhoto={() => setSurveyStep('CAPTURE')}
+              onSubmitAddNew={handleSubmit(handleAddNew)}
+              onSubmitFinish={handleSubmit(handleFinishSurvey)}
+            />
+          </ScrollView>
+        )}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  outerContainer: {
     flex: 1,
-    backgroundColor: Theme.colors.background,
+    backgroundColor: '#F8FAFC',
+  },
+  headerWrapper: {
+    zIndex: 20,
+  },
+  bodyWrapper: {
+    flex: 1,
+    zIndex: 10,
   },
   errorContainer: {
     flex: 1,
-    backgroundColor: Theme.colors.background,
+    backgroundColor: '#F8FAFC',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -332,38 +339,46 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   backBtn: {
-    ...Theme.glassmorphic.button,
+    backgroundColor: '#0284C7',
+    borderRadius: 10,
     paddingVertical: 12,
     paddingHorizontal: 24,
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 4,
   },
   backBtnText: {
-    color: Theme.colors.glowCyan,
+    color: '#FFFFFF',
     fontWeight: 'bold',
+    fontSize: 12,
   },
   surveyHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderColor: 'rgba(255, 255, 255, 0.05)',
-    borderBottomWidth: 1,
+    borderColor: 'rgba(2, 132, 199, 0.08)',
+    borderBottomWidth: 1.2,
     paddingHorizontal: 20,
     paddingTop: 50,
     paddingBottom: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
   },
   subtitleText: {
-    color: Theme.colors.textSecondary,
+    color: '#64748B',
     fontSize: 9,
-    fontWeight: 'bold',
+    fontWeight: '800',
     letterSpacing: 2,
   },
   titleText: {
-    color: Theme.colors.textPrimary,
+    color: '#0F172A',
     fontSize: 18,
     fontWeight: 'bold',
     marginTop: 2,
   },
   typeBadge: {
-    borderWidth: 1,
+    borderWidth: 1.2,
     borderRadius: 4,
     paddingHorizontal: 10,
     paddingVertical: 4,

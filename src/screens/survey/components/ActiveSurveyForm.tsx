@@ -1,7 +1,6 @@
 import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, TextInput, Image } from 'react-native';
 import { Controller } from 'react-hook-form';
-import Theme from '../../../theme';
 
 interface ActiveSurveyFormProps {
   control: any;
@@ -71,7 +70,7 @@ export default function ActiveSurveyForm({
                 onChangeText={onChange}
                 onBlur={onBlur}
                 placeholder={nodeType === 'DTR' ? 'Enter DTR Serial' : 'e.g. P-1'}
-                placeholderTextColor="rgba(255, 255, 255, 0.25)"
+                placeholderTextColor="rgba(30, 41, 59, 0.35)"
               />
             )}
           />
@@ -93,7 +92,7 @@ export default function ActiveSurveyForm({
                 onChangeText={onChange}
                 onBlur={onBlur}
                 placeholder="e.g. 100 sqmm ACSR"
-                placeholderTextColor="rgba(255, 255, 255, 0.25)"
+                placeholderTextColor="rgba(30, 41, 59, 0.35)"
               />
             )}
           />
@@ -114,7 +113,7 @@ export default function ActiveSurveyForm({
                 onChangeText={onChange}
                 onBlur={onBlur}
                 placeholder="Weather, terrain features, sag observations..."
-                placeholderTextColor="rgba(255, 255, 255, 0.25)"
+                placeholderTextColor="rgba(30, 41, 59, 0.35)"
                 multiline
                 numberOfLines={3}
               />
@@ -122,21 +121,19 @@ export default function ActiveSurveyForm({
           />
         </View>
 
-        {/* Retake photo action */}
+        {/* Retake photo */}
         <TouchableOpacity style={styles.retakePhotoBtn} onPress={onRetakePhoto}>
           <Text style={styles.retakePhotoText}>📸 RETAKE compliance PHOTO</Text>
         </TouchableOpacity>
       </View>
 
-      {/* TWO PRIMARY ACTIONS BELOW FORM */}
+      {/* TWO PRIMARY ACTIONS */}
       <View style={styles.primaryActionsRow}>
-        {/* Add New Button */}
         <TouchableOpacity style={styles.addNewBtn} onPress={onSubmitAddNew} activeOpacity={0.8}>
           <Text style={styles.addNewBtnText}>ADD NEW STRUCTURE</Text>
           <Text style={styles.btnSubtext}>Saves current & re-opens camera</Text>
         </TouchableOpacity>
 
-        {/* Finish Survey Button */}
         <TouchableOpacity style={styles.finishSurveyBtn} onPress={onSubmitFinish} activeOpacity={0.8}>
           <Text style={styles.finishSurveyBtnText}>FINISH SURVEY</Text>
           <Text style={styles.btnSubtext}>Submit line for verification</Text>
@@ -151,35 +148,43 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   panel: {
-    ...Theme.glassmorphic.container,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    borderColor: 'rgba(255, 255, 255, 0.7)',
+    borderWidth: 1.5,
+    borderRadius: 16,
     padding: 20,
     marginBottom: 24,
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
   },
   panelTitle: {
-    color: Theme.colors.textPrimary,
+    color: '#0F172A',
     fontSize: 13,
     fontWeight: '800',
     letterSpacing: 2,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
-    borderBottomWidth: 1,
+    borderColor: 'rgba(2, 132, 199, 0.08)',
+    borderBottomWidth: 1.2,
     paddingBottom: 10,
     marginBottom: 16,
   },
   previewCard: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(0, 0, 0, 0.35)',
-    borderRadius: 8,
+    backgroundColor: 'rgba(2, 132, 199, 0.03)',
+    borderRadius: 12,
     padding: 10,
-    borderColor: 'rgba(6, 182, 212, 0.15)',
-    borderWidth: 1,
+    borderColor: 'rgba(2, 132, 199, 0.15)',
+    borderWidth: 1.2,
     marginBottom: 20,
   },
   thumbnailWrapper: {
     width: 100,
     height: 100,
-    borderRadius: 6,
+    borderRadius: 8,
     overflow: 'hidden',
-    backgroundColor: '#000',
+    backgroundColor: '#F8FAFC',
   },
   previewThumbnail: {
     width: '100%',
@@ -187,7 +192,7 @@ const styles = StyleSheet.create({
   },
   placeholderThumbnail: {
     flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: 'rgba(2, 132, 199, 0.05)',
   },
   previewGpsData: {
     flex: 1,
@@ -195,57 +200,58 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   gpsBadgeText: {
-    color: Theme.colors.glowCyan,
+    color: '#0284C7',
     fontSize: 8.5,
-    fontWeight: 'bold',
+    fontWeight: '800',
     letterSpacing: 1,
   },
   gpsDataText: {
-    color: '#D1D5DB',
+    color: '#475569',
     fontSize: 10,
     fontFamily: 'System',
     marginTop: 2,
+    fontWeight: '600',
   },
   gpsRecalBtn: {
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(6, 182, 212, 0.12)',
-    borderColor: 'rgba(6, 182, 212, 0.4)',
-    borderWidth: 1,
-    borderRadius: 4,
+    backgroundColor: 'rgba(2, 132, 199, 0.06)',
+    borderColor: 'rgba(2, 132, 199, 0.25)',
+    borderWidth: 1.2,
+    borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 4,
     marginTop: 6,
   },
   gpsRecalText: {
-    color: Theme.colors.glowCyan,
+    color: '#0284C7',
     fontSize: 8.5,
-    fontWeight: 'bold',
+    fontWeight: '800',
   },
   formGroup: {
     marginBottom: 16,
   },
   label: {
-    color: Theme.colors.textSecondary,
+    color: '#64748B',
     fontSize: 8.5,
-    fontWeight: 'bold',
+    fontWeight: '800',
     letterSpacing: 1.5,
     marginBottom: 6,
   },
   input: {
-    backgroundColor: 'rgba(8, 11, 17, 0.6)',
-    borderColor: 'rgba(6, 182, 212, 0.15)',
-    borderWidth: 1,
-    borderRadius: 6,
+    backgroundColor: '#FFFFFF',
+    borderColor: 'rgba(2, 132, 199, 0.15)',
+    borderWidth: 1.2,
+    borderRadius: 8,
     paddingVertical: 10,
     paddingHorizontal: 14,
-    color: Theme.colors.textPrimary,
+    color: '#0F172A',
     fontSize: 13,
   },
   inputError: {
-    borderColor: Theme.colors.error,
+    borderColor: '#EF4444',
   },
   errorFeedback: {
-    color: Theme.colors.error,
+    color: '#EF4444',
     fontSize: 9.5,
     marginTop: 4,
     fontWeight: 'bold',
@@ -255,17 +261,17 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   retakePhotoBtn: {
-    borderColor: 'rgba(6, 182, 212, 0.4)',
-    borderWidth: 1,
-    borderRadius: 6,
+    borderColor: 'rgba(2, 132, 199, 0.25)',
+    borderWidth: 1.2,
+    borderRadius: 8,
     paddingVertical: 10,
     alignItems: 'center',
     marginTop: 10,
   },
   retakePhotoText: {
-    color: Theme.colors.glowCyan,
+    color: '#0284C7',
     fontSize: 11,
-    fontWeight: 'bold',
+    fontWeight: '800',
     letterSpacing: 1,
   },
   primaryActionsRow: {
@@ -273,36 +279,39 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   addNewBtn: {
-    ...Theme.glassmorphic.button,
     flex: 1,
     marginRight: 6,
     paddingVertical: 12,
     alignItems: 'center',
-    backgroundColor: 'rgba(6, 182, 212, 0.1)',
+    backgroundColor: 'rgba(2, 132, 199, 0.08)',
+    borderColor: '#0284C7',
+    borderWidth: 1.5,
+    borderRadius: 10,
   },
   addNewBtnText: {
-    color: Theme.colors.glowCyan,
+    color: '#0284C7',
     fontSize: 12,
-    fontWeight: 'bold',
+    fontWeight: '800',
     letterSpacing: 1,
   },
   finishSurveyBtn: {
-    ...Theme.glassmorphic.button,
     flex: 1,
     marginLeft: 6,
     paddingVertical: 12,
     alignItems: 'center',
-    borderColor: Theme.colors.success,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    borderColor: '#059669',
+    backgroundColor: 'rgba(5, 150, 105, 0.08)',
+    borderWidth: 1.5,
+    borderRadius: 10,
   },
   finishSurveyBtnText: {
-    color: Theme.colors.success,
+    color: '#059669',
     fontSize: 12,
-    fontWeight: 'bold',
+    fontWeight: '800',
     letterSpacing: 1,
   },
   btnSubtext: {
-    color: Theme.colors.textSecondary,
+    color: '#64748B',
     fontSize: 8,
     marginTop: 2,
     textAlign: 'center',

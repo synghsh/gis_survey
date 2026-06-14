@@ -6,16 +6,18 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  Dimensions,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useRoute, useNavigation } from '@react-navigation/native';
+import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { RootState, updateSurveyLineMetadata, updateSurveyNode } from '../../store';
-import Theme from '../../theme';
 
 import SurveySvgCanvas from './components/SurveySvgCanvas';
 import SurveyAttributeEditor from './components/SurveyAttributeEditor';
 import SurveyLegendForm from './components/SurveyLegendForm';
 
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SVG_WIDTH = 320;
 const SVG_HEIGHT = 240;
 
@@ -30,19 +32,11 @@ export default function SurveyDetailsScreen() {
 
   const [zoomScale, setZoomScale] = useState(1.0);
 
-  const handleZoomIn = () => {
-    setZoomScale(prev => Math.min(prev + 0.25, 3.0));
-  };
+  const handleZoomIn = () => setZoomScale(prev => Math.min(prev + 0.25, 3.0));
+  const handleZoomOut = () => setZoomScale(prev => Math.max(prev - 0.25, 1.0));
+  const handleResetZoom = () => setZoomScale(1.0);
 
-  const handleZoomOut = () => {
-    setZoomScale(prev => Math.max(prev - 0.25, 1.0));
-  };
-
-  const handleResetZoom = () => {
-    setZoomScale(1.0);
-  };
-
-  // Selected sub-elements for editing
+  // Selected sub-elements
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedSpanNodeId, setSelectedSpanNodeId] = useState<string | null>(null);
 
@@ -66,7 +60,6 @@ export default function SurveyDetailsScreen() {
   const [nodeParentLabel, setNodeParentLabel] = useState('');
   const [nodeSpanDistance, setNodeSpanDistance] = useState('');
 
-  // Load survey attributes on mount or change
   useEffect(() => {
     if (survey) {
       setContractor(survey.contractorName || '');
@@ -91,16 +84,14 @@ export default function SurveyDetailsScreen() {
 
   const getLineAccent = () => {
     switch (survey.lineType) {
-      case 'HT_11KV': return Theme.colors.neon11KV;
-      case 'HT_33KV': return Theme.colors.neon33KV;
-      case 'LT_440V': return Theme.colors.neon440V;
-      default: return Theme.colors.glowCyan;
+      case 'HT_11KV': return '#F59E0B';
+      case 'HT_33KV': return '#EF4444';
+      case 'LT_440V': return '#0284C7';
+      default: return '#0284C7';
     }
   };
 
   const accentColor = getLineAccent();
-
-  // SVG Coordinates projection calculation
   const nodes = survey.nodes;
   const latitudes = nodes.map(n => n.latitude);
   const longitudes = nodes.map(n => n.longitude);
@@ -112,8 +103,7 @@ export default function SurveyDetailsScreen() {
 
   const latRange = maxLat - minLat;
   const lngRange = maxLng - minLng;
-
-  const padding = 35; // margin to ensure labels fit inside SVG boundary
+  const padding = 35;
 
   const projectedPoints = nodes.map(node => {
     let x = SVG_WIDTH / 2;
@@ -122,19 +112,12 @@ export default function SurveyDetailsScreen() {
     if (latRange > 0 || lngRange > 0) {
       const normX = lngRange > 0 ? (node.longitude - minLng) / lngRange : 0.5;
       const normY = latRange > 0 ? (node.latitude - minLat) / latRange : 0.5;
-
       x = padding + normX * (SVG_WIDTH - 2 * padding);
       y = SVG_HEIGHT - (padding + normY * (SVG_HEIGHT - 2 * padding));
     }
-
-    return {
-      ...node,
-      x,
-      y
-    };
+    return { ...node, x, y };
   });
 
-  // Load node into editor
   const handleSelectNode = (node: any, index: number) => {
     setSelectedSpanNodeId(null);
     setSelectedNodeId(node.id);
@@ -148,14 +131,10 @@ export default function SurveyDetailsScreen() {
     setNodeSag(node.attributes.sag || '');
     setNodeSpanDistance(node.attributes.spanDistance || '');
     
-    let resolvedParent = node.parentLabel;
-    if (!resolvedParent && index > 0) {
-      resolvedParent = projectedPoints[index - 1]?.nameLabel;
-    }
-    setNodeParentLabel(resolvedParent || '');
+    let resolvedParent = node.parentLabel || (index > 0 ? projectedPoints[index - 1]?.nameLabel : '');
+    setNodeParentLabel(resolvedParent);
   };
 
-  // Load span (incoming connection of node) into editor
   const handleSelectSpan = (node: any, index: number) => {
     setSelectedNodeId(null);
     setSelectedSpanNodeId(node.id);
@@ -167,27 +146,20 @@ export default function SurveyDetailsScreen() {
     setNodeSag(node.attributes.sag || '');
     setNodeSpanDistance(node.attributes.spanDistance || '');
     
-    let resolvedParent = node.parentLabel;
-    if (!resolvedParent && index > 0) {
-      resolvedParent = projectedPoints[index - 1]?.nameLabel;
-    }
-    setNodeParentLabel(resolvedParent || '');
+    let resolvedParent = node.parentLabel || (index > 0 ? projectedPoints[index - 1]?.nameLabel : '');
+    setNodeParentLabel(resolvedParent);
   };
 
-  // Save node or span updates
   const handleSaveNodeUpdates = () => {
     const activeId = selectedNodeId || selectedSpanNodeId;
     if (!activeId) return;
-
-    const latNum = parseFloat(nodeLat) || 0;
-    const lngNum = parseFloat(nodeLng) || 0;
 
     dispatch(updateSurveyNode({
       lineId: survey.id,
       nodeId: activeId,
       nameLabel: nodeName.trim(),
-      latitude: selectedNodeId ? latNum : (survey.nodes.find(n => n.id === activeId)?.latitude || 0),
-      longitude: selectedNodeId ? lngNum : (survey.nodes.find(n => n.id === activeId)?.longitude || 0),
+      latitude: selectedNodeId ? parseFloat(nodeLat) || 0 : (survey.nodes.find(n => n.id === activeId)?.latitude || 0),
+      longitude: selectedNodeId ? parseFloat(nodeLng) || 0 : (survey.nodes.find(n => n.id === activeId)?.longitude || 0),
       parentLabel: nodeParentLabel.trim() || undefined,
       attributes: {
         cableSize: nodeCableSize.trim(),
@@ -204,7 +176,6 @@ export default function SurveyDetailsScreen() {
     setSelectedSpanNodeId(null);
   };
 
-  // Save meta legend changes
   const handleSaveMetadata = () => {
     dispatch(updateSurveyLineMetadata({
       id: survey.id,
@@ -219,8 +190,22 @@ export default function SurveyDetailsScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      {/* HUD HEADER */}
+    <View style={styles.outerContainer}>
+      {/* 1. NATIVE GRADIENT SVG BACKDROP */}
+      <View style={[StyleSheet.absoluteFill, { zIndex: 1 }]} pointerEvents="none">
+        <Svg width="100%" height="100%">
+          <Defs>
+            <LinearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <Stop offset="0%" stopColor="#FFFFFF" />
+              <Stop offset="60%" stopColor="#F0F9FF" />
+              <Stop offset="100%" stopColor="#E0F2FE" />
+            </LinearGradient>
+          </Defs>
+          <Rect width="100%" height="100%" fill="url(#bgGradient)" />
+        </Svg>
+      </View>
+
+      {/* 2. HUD HEADER */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Text style={styles.backText}>&lt; LOGS</Text>
@@ -233,8 +218,9 @@ export default function SurveyDetailsScreen() {
         </View>
       </View>
 
-      <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        {/* INTERACTIVE DIAGRAM CANVAS */}
+      {/* 3. SCROLLABLE LAYOUT */}
+      <ScrollView style={styles.scrollContainerWrapper} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        {/* DIAGRAM CANVAS */}
         <View style={styles.canvasPanel}>
           <View style={styles.panelHeader}>
             <Text style={styles.panelTitle}>LINE ROUTING LAYOUT</Text>
@@ -264,7 +250,7 @@ export default function SurveyDetailsScreen() {
             />
           )}
 
-          {/* Canvas Legend Overlay (Mirroring Hand Drawing) */}
+          {/* Canvas Legend Overlay */}
           <View style={styles.legendBox}>
             <Text style={styles.legendTitle}>HUD SYMBOL LEGEND</Text>
             <View style={styles.legendGrid}>
@@ -287,7 +273,7 @@ export default function SurveyDetailsScreen() {
           </View>
         </View>
 
-        {/* INLINE CONTEXT SENSITIVE EDITOR PANEL */}
+        {/* INLINE ATTRS EDITOR */}
         <SurveyAttributeEditor
           selectedNodeId={selectedNodeId}
           selectedSpanNodeId={selectedSpanNodeId}
@@ -315,7 +301,7 @@ export default function SurveyDetailsScreen() {
           onApply={handleSaveNodeUpdates}
         />
 
-        {/* METADATA LEGEND FORM BLOCK (Matching Hand-Drawn Sheet Footer) */}
+        {/* METADATA LEGEND FORM */}
         <SurveyLegendForm
           location={location}
           setLocation={setLocation}
@@ -338,19 +324,19 @@ export default function SurveyDetailsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  outerContainer: {
     flex: 1,
-    backgroundColor: Theme.colors.background,
+    backgroundColor: '#F8FAFC',
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Theme.colors.background,
+    backgroundColor: '#F8FAFC',
     padding: 24,
   },
   errorText: {
-    color: Theme.colors.error,
+    color: '#EF4444',
     fontSize: 16,
     fontWeight: 'bold',
     marginBottom: 20,
@@ -359,33 +345,34 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderColor: 'rgba(255, 255, 255, 0.05)',
-    borderBottomWidth: 1,
+    borderColor: 'rgba(2, 132, 199, 0.08)',
+    borderBottomWidth: 1.2,
     paddingHorizontal: 20,
     paddingTop: 55,
     paddingBottom: 16,
-    backgroundColor: 'rgba(8, 11, 17, 0.95)',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    zIndex: 20,
   },
   backBtn: {
     paddingVertical: 6,
     paddingHorizontal: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    borderWidth: 1,
-    borderRadius: 6,
+    backgroundColor: 'rgba(2, 132, 199, 0.06)',
+    borderColor: 'rgba(2, 132, 199, 0.15)',
+    borderWidth: 1.2,
+    borderRadius: 8,
   },
   backText: {
-    color: Theme.colors.textPrimary,
+    color: '#0284C7',
     fontSize: 11,
     fontWeight: 'bold',
   },
   backBtnText: {
-    color: Theme.colors.textPrimary,
+    color: '#0284C7',
     fontSize: 12,
     fontWeight: 'bold',
   },
   headerTitle: {
-    color: Theme.colors.textPrimary,
+    color: '#0F172A',
     fontSize: 16,
     fontWeight: 'bold',
     letterSpacing: 2,
@@ -401,17 +388,26 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     letterSpacing: 0.5,
   },
-  scrollContainer: {
+  scrollContainerWrapper: {
     flex: 1,
+    zIndex: 10,
   },
   scrollContent: {
     padding: 20,
     paddingBottom: 40,
   },
   canvasPanel: {
-    ...Theme.glassmorphic.container,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    borderColor: 'rgba(255, 255, 255, 0.7)',
+    borderWidth: 1.5,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 20,
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
   },
   panelHeader: {
     flexDirection: 'row',
@@ -420,7 +416,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   panelTitle: {
-    color: Theme.colors.textPrimary,
+    color: '#0F172A',
     fontSize: 11.5,
     fontWeight: '800',
     letterSpacing: 1.5,
@@ -428,9 +424,9 @@ const styles = StyleSheet.create({
   liveBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    borderColor: 'rgba(255,255,255,0.08)',
-    borderWidth: 1,
+    backgroundColor: 'rgba(2, 132, 199, 0.05)',
+    borderColor: 'rgba(2, 132, 199, 0.15)',
+    borderWidth: 1.2,
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -447,7 +443,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   canvasSubtitle: {
-    color: Theme.colors.textSecondary,
+    color: '#64748B',
     fontSize: 9.5,
     marginBottom: 12,
   },
@@ -455,23 +451,25 @@ const styles = StyleSheet.create({
     height: 200,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(4, 6, 10, 0.5)',
-    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderColor: 'rgba(2, 132, 199, 0.15)',
+    borderWidth: 1.2,
   },
   emptyCanvasText: {
-    color: Theme.colors.textSecondary,
+    color: '#64748B',
     fontSize: 11,
     fontWeight: 'bold',
     letterSpacing: 1,
   },
   legendBox: {
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.05)',
+    borderTopWidth: 1.2,
+    borderTopColor: 'rgba(2, 132, 199, 0.08)',
     marginTop: 14,
     paddingTop: 12,
   },
   legendTitle: {
-    color: 'rgba(255, 255, 255, 0.35)',
+    color: 'rgba(15, 23, 42, 0.35)',
     fontSize: 8.5,
     fontWeight: '800',
     letterSpacing: 1.5,
@@ -499,7 +497,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    borderColor: Theme.colors.neonDTR,
+    borderColor: '#8B5CF6',
     borderWidth: 1.2,
   },
   legendCircleOverRight: {
@@ -509,16 +507,16 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    borderColor: Theme.colors.neonDTR,
+    borderColor: '#8B5CF6',
     borderWidth: 1.2,
   },
   legendText: {
-    color: Theme.colors.textSecondary,
+    color: '#64748B',
     fontSize: 9,
     fontWeight: '500',
   },
   legendWavySym: {
-    color: Theme.colors.glowCyan,
+    color: '#0284C7',
     fontSize: 10,
     marginRight: 6,
     letterSpacing: -2,

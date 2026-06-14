@@ -1,25 +1,23 @@
 import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import Svg, { Polyline, Circle, Text as SvgText, G, Path } from 'react-native-svg';
-import Theme from '../../../theme';
 
 const SVG_WIDTH = 320;
 const SVG_HEIGHT = 240;
 
-// SVG spring-coiled path helper for ABC cables
 const createCoiledPath = (x1: number, y1: number, x2: number, y2: number, numCoils = 12) => {
   const dx = x2 - x1;
   const dy = y2 - y1;
   const len = Math.sqrt(dx * dx + dy * dy);
   if (len === 0) return `M ${x1} ${y1}`;
   
-  const ux = dx / len; // direction vector
+  const ux = dx / len;
   const uy = dy / len;
-  const px = -uy;      // perpendicular vector
+  const px = -uy;
   const py = ux;
   
   let path = `M ${x1} ${y1}`;
-  const amp = 4.5;     // wave height
+  const amp = 4.5;
   
   for (let i = 0; i < numCoils; i++) {
     const tStart = i / numCoils;
@@ -39,9 +37,8 @@ const createCoiledPath = (x1: number, y1: number, x2: number, y2: number, numCoi
   return path;
 };
 
-// GPS Haversine distance calculator in meters
 const calculateDistanceMeters = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-  const R = 6371e3; // Earth radius in meters
+  const R = 6371e3;
   const phi1 = (lat1 * Math.PI) / 180;
   const phi2 = (lat2 * Math.PI) / 180;
   const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
@@ -51,9 +48,7 @@ const calculateDistanceMeters = (lat1: number, lon1: number, lat2: number, lon2:
     Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
     Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-  const d = R * c; // in meters
-  return Math.round(d);
+  return Math.round(R * c);
 };
 
 interface SurveySvgCanvasProps {
@@ -81,6 +76,9 @@ export default function SurveySvgCanvas({
   handleZoomOut,
   handleResetZoom,
 }: SurveySvgCanvasProps) {
+  const warningColor = '#D97706';
+  const dtrColor = '#8B5CF6';
+  
   return (
     <View style={[styles.svgWrapper, { height: SVG_HEIGHT }]}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }} nestedScrollEnabled={true}>
@@ -91,8 +89,8 @@ export default function SurveySvgCanvas({
             viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`}
             style={styles.svgCanvas}
           >
-            {/* HUD Tech Grid Lines */}
-            <G stroke="rgba(6, 182, 212, 0.04)" strokeWidth={0.5}>
+            {/* Tech Grid Lines */}
+            <G stroke="rgba(2, 132, 199, 0.08)" strokeWidth={0.8}>
               <Polyline points={`0,${SVG_HEIGHT/4} ${SVG_WIDTH},${SVG_HEIGHT/4}`} />
               <Polyline points={`0,${SVG_HEIGHT/2} ${SVG_WIDTH},${SVG_HEIGHT/2}`} />
               <Polyline points={`0,${SVG_HEIGHT*3/4} ${SVG_WIDTH},${SVG_HEIGHT*3/4}`} />
@@ -101,7 +99,7 @@ export default function SurveySvgCanvas({
               <Polyline points={`${SVG_WIDTH*3/4},0 ${SVG_WIDTH*3/4},${SVG_HEIGHT}`} />
             </G>
 
-            {/* DRAW CABLES (SPANS) IN ORDER OF CONNECTION */}
+            {/* DRAW CABLES (SPANS) */}
             {projectedPoints.map((node, index) => {
               let resolvedParentLabel = node.parentLabel;
               if (!resolvedParentLabel && index > 0) {
@@ -109,14 +107,12 @@ export default function SurveySvgCanvas({
               }
               if (!resolvedParentLabel) return null;
               
-              // Find parent coordinates
               const parent = projectedPoints.find(p => p.nameLabel === resolvedParentLabel);
               if (!parent) return null;
 
               const spanPath = createCoiledPath(parent.x, parent.y, node.x, node.y);
               const isSpanSelected = selectedSpanNodeId === node.id;
 
-              // Label coordinates (midpoint + perpendicular offset)
               const midX = (parent.x + node.x) / 2;
               const midY = (parent.y + node.y) / 2;
               const dx = node.x - parent.x;
@@ -130,7 +126,7 @@ export default function SurveySvgCanvas({
 
               return (
                 <G key={`span-${node.id}`}>
-                  {/* Thicker touch target for easy tap between poles */}
+                  {/* Thick Touch target */}
                   <Path
                     d={spanPath}
                     fill="none"
@@ -143,19 +139,19 @@ export default function SurveySvgCanvas({
                   <Path
                     d={spanPath}
                     fill="none"
-                    stroke={isSpanSelected ? Theme.colors.warning : accentColor}
+                    stroke={isSpanSelected ? warningColor : accentColor}
                     strokeWidth={isSpanSelected ? 2.5 : 1.5}
                     opacity={isSpanSelected ? 1.0 : 0.8}
                     onPress={() => handleSelectSpan(node, index)}
                   />
                   
-                  {/* Span Cable Size & Distance Label Text */}
+                  {/* Label Text */}
                   <G onPress={() => handleSelectSpan(node, index)}>
                     <SvgText
                       x={labelX}
                       y={labelY}
-                      fill={isSpanSelected ? Theme.colors.warning : '#9CA3AF'}
-                      fontSize={7}
+                      fill={isSpanSelected ? warningColor : '#64748B'}
+                      fontSize={7.2}
                       fontWeight="bold"
                       fontFamily="System"
                       textAnchor="middle"
@@ -167,11 +163,11 @@ export default function SurveySvgCanvas({
               );
             })}
 
-            {/* DRAW NODES (CIRCLES & LABELS) */}
+            {/* DRAW NODES */}
             {projectedPoints.map((node, index) => {
               const isDtr = node.nodeType === 'DTR';
               const isSelected = selectedNodeId === node.id;
-              const markerColor = isDtr ? Theme.colors.neonDTR : accentColor;
+              const markerColor = isDtr ? dtrColor : accentColor;
 
               return (
                 <G key={`node-${node.id}`} onPress={() => handleSelectNode(node, index)}>
@@ -182,13 +178,13 @@ export default function SurveySvgCanvas({
                       cy={node.y}
                       r={isDtr ? 14 : 9}
                       fill="none"
-                      stroke={Theme.colors.warning}
+                      stroke={warningColor}
                       strokeWidth={1.5}
                       strokeDasharray="2,2"
                     />
                   )}
 
-                  {/* DTR Overlapping Circles Symbol */}
+                  {/* DTR Overlapping Circles */}
                   {isDtr ? (
                     <G>
                       <Circle
@@ -229,7 +225,7 @@ export default function SurveySvgCanvas({
                       cy={node.y}
                       r={5}
                       fill={markerColor}
-                      stroke="#080B11"
+                      stroke="#FFFFFF"
                       strokeWidth={1.5}
                     />
                   )}
@@ -238,7 +234,7 @@ export default function SurveySvgCanvas({
                   <SvgText
                     x={node.x}
                     y={node.y - (isDtr ? 13 : 9)}
-                    fill={isSelected ? Theme.colors.warning : '#F3F4F6'}
+                    fill={isSelected ? warningColor : '#0F172A'}
                     fontSize={8.5}
                     fontWeight="900"
                     fontFamily="System"
@@ -253,7 +249,7 @@ export default function SurveySvgCanvas({
         </ScrollView>
       </ScrollView>
 
-      {/* Zoom overlay controls */}
+      {/* Zoom controls overlay */}
       <View style={styles.zoomControls}>
         <TouchableOpacity style={styles.zoomBtn} onPress={handleZoomOut} activeOpacity={0.7}>
           <Text style={styles.zoomBtnText}>-</Text>
@@ -274,16 +270,16 @@ export default function SurveySvgCanvas({
 
 const styles = StyleSheet.create({
   svgWrapper: {
-    backgroundColor: 'rgba(4, 6, 10, 0.5)',
-    borderRadius: 8,
-    borderColor: 'rgba(6, 182, 212, 0.15)',
-    borderWidth: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderColor: 'rgba(2, 132, 199, 0.15)',
+    borderWidth: 1.2,
     overflow: 'hidden',
     alignItems: 'center',
     position: 'relative',
   },
   svgCanvas: {
-    backgroundColor: 'rgba(3, 7, 18, 0.25)',
+    backgroundColor: '#FFFFFF',
   },
   zoomControls: {
     position: 'absolute',
@@ -291,24 +287,29 @@ const styles = StyleSheet.create({
     right: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(17, 24, 39, 0.9)',
-    borderColor: 'rgba(6, 182, 212, 0.25)',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderColor: 'rgba(2, 132, 199, 0.15)',
     borderWidth: 1.2,
     borderRadius: 8,
     padding: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   zoomBtn: {
     width: 24,
     height: 24,
     borderRadius: 5,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    borderWidth: 1,
+    backgroundColor: 'rgba(2, 132, 199, 0.05)',
+    borderColor: 'rgba(2, 132, 199, 0.15)',
+    borderWidth: 1.2,
     justifyContent: 'center',
     alignItems: 'center',
   },
   zoomBtnText: {
-    color: '#fff',
+    color: '#0284C7',
     fontSize: 12,
     fontWeight: 'bold',
   },
@@ -316,7 +317,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   zoomScaleText: {
-    color: Theme.colors.glowCyan,
+    color: '#0284C7',
     fontSize: 8.5,
     fontWeight: 'bold',
   },

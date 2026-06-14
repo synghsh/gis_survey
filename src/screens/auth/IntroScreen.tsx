@@ -1,121 +1,83 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Animated, Easing } from 'react-native';
-import Svg, { Line, Circle, Path } from 'react-native-svg';
-import Theme from '../../theme';
+import Svg, { Line, Circle, Path, Defs, LinearGradient, Stop, Rect, RadialGradient } from 'react-native-svg';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-// 3D Point Interface
 interface Point3D {
   x: number;
   y: number;
   z: number;
 }
 
-// 2D Projected Point
 interface Point2D {
   x: number;
   y: number;
-  z: number; // Keep Z for sorting or scale
+  z: number;
 }
 
 export default function IntroScreen({ onEnter }: { onEnter: () => void }) {
-  // Animation state values
-  const [angleY, setAngleY] = useState(0.4); // Initial rotation around Y
-  const [angleX, setAngleX] = useState(0.15); // Initial rotation around X
+  const [angleY, setAngleY] = useState(0.4);
+  const [angleX, setAngleX] = useState(0.15);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [systemStatus, setSystemStatus] = useState('SYSTEM CHECK');
 
-  // Animation values for transitions
+  // Animation refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
   const buttonPulse = useRef(new Animated.Value(1)).current;
 
-  // 3D Grid Data (represented as coordinates)
+  // Drifting Spheres animations
+  const blob1X = useRef(new Animated.Value(0)).current;
+  const blob1Y = useRef(new Animated.Value(0)).current;
+  const blob2X = useRef(new Animated.Value(0)).current;
+  const blob2Y = useRef(new Animated.Value(0)).current;
+
+  // Grid config
   const gridLines: { p1: Point3D; p2: Point3D }[] = [];
-  const gridY = 80;
+  const gridY = 85;
   const gridSize = 120;
   const gridStep = 40;
 
-  // Build grid lines on X-Z plane
   for (let x = -gridSize; x <= gridSize; x += gridStep) {
-    gridLines.push({
-      p1: { x, y: gridY, z: -gridSize },
-      p2: { x, y: gridY, z: gridSize }
-    });
+    gridLines.push({ p1: { x, y: gridY, z: -gridSize }, p2: { x, y: gridY, z: gridSize } });
   }
   for (let z = -gridSize; z <= gridSize; z += gridStep) {
-    gridLines.push({
-      p1: { x: -gridSize, y: gridY, z },
-      p2: { x: gridSize, y: gridY, z }
-    });
+    gridLines.push({ p1: { x: -gridSize, y: gridY, z }, p2: { x: gridSize, y: gridY, z } });
   }
 
-  // Define 3D Transmission Tower Vertices
+  // Tower Config
   const baseWidth = 35;
   const midWidth = 15;
   const topWidth = 8;
   const towerHeightY = -90;
 
   const towerVertices: { [key: string]: Point3D } = {
-    // Base joints on ground
-    b1: { x: -baseWidth, y: gridY, z: -baseWidth },
-    b2: { x: baseWidth, y: gridY, z: -baseWidth },
-    b3: { x: baseWidth, y: gridY, z: baseWidth },
-    b4: { x: -baseWidth, y: gridY, z: baseWidth },
-
-    // Middle platform joints
-    m1: { x: -midWidth, y: 0, z: -midWidth },
-    m2: { x: midWidth, y: 0, z: -midWidth },
-    m3: { x: midWidth, y: 0, z: midWidth },
-    m4: { x: -midWidth, y: 0, z: midWidth },
-
-    // Upper platform joints
-    u1: { x: -topWidth, y: -60, z: -topWidth },
-    u2: { x: topWidth, y: -60, z: -topWidth },
-    u3: { x: topWidth, y: -60, z: topWidth },
-    u4: { x: -topWidth, y: -60, z: topWidth },
-
-    // Tower top peak
+    b1: { x: -baseWidth, y: gridY, z: -baseWidth }, b2: { x: baseWidth, y: gridY, z: -baseWidth },
+    b3: { x: baseWidth, y: gridY, z: baseWidth }, b4: { x: -baseWidth, y: gridY, z: baseWidth },
+    m1: { x: -midWidth, y: 0, z: -midWidth }, m2: { x: midWidth, y: 0, z: -midWidth },
+    m3: { x: midWidth, y: 0, z: midWidth }, m4: { x: -midWidth, y: 0, z: midWidth },
+    u1: { x: -topWidth, y: -60, z: -topWidth }, u2: { x: topWidth, y: -60, z: -topWidth },
+    u3: { x: topWidth, y: -60, z: topWidth }, u4: { x: -topWidth, y: -60, z: topWidth },
     peak: { x: 0, y: towerHeightY - 15, z: 0 },
-
-    // Cross-arm Left/Right Ends (for cables)
-    armL1: { x: -45, y: -50, z: 0 },
-    armR1: { x: 45, y: -50, z: 0 },
-    armL2: { x: -35, y: -20, z: 0 },
-    armR2: { x: 35, y: -20, z: 0 },
+    armL1: { x: -45, y: -50, z: 0 }, armR1: { x: 45, y: -50, z: 0 },
+    armL2: { x: -35, y: -20, z: 0 }, armR2: { x: 35, y: -20, z: 0 },
   };
 
-  // Define Tower connections (edges)
   const towerEdges = [
-    // Legs
     ['b1', 'm1'], ['b2', 'm2'], ['b3', 'm3'], ['b4', 'm4'],
     ['m1', 'u1'], ['m2', 'u2'], ['m3', 'u3'], ['m4', 'u4'],
     ['u1', 'peak'], ['u2', 'peak'], ['u3', 'peak'], ['u4', 'peak'],
-
-    // Base horizontal rings
     ['b1', 'b2'], ['b2', 'b3'], ['b3', 'b4'], ['b4', 'b1'],
     ['m1', 'm2'], ['m2', 'm3'], ['m3', 'm4'], ['m4', 'm1'],
     ['u1', 'u2'], ['u2', 'u3'], ['u3', 'u4'], ['u4', 'u1'],
-
-    // Diagonal lattice braces (Middle Section)
-    ['b1', 'm2'], ['b2', 'm1'],
-    ['b2', 'm3'], ['b3', 'm2'],
-    ['b3', 'm4'], ['b4', 'm3'],
-    ['b4', 'm1'], ['b1', 'm4'],
-
-    // Diagonal lattice braces (Upper Section)
-    ['m1', 'u2'], ['m2', 'u1'],
-    ['m2', 'u3'], ['m3', 'm2'],
-    ['m3', 'u4'], ['m4', 'u3'],
-    ['m4', 'u1'], ['m1', 'u4'],
-
-    // Cross Arms
-    ['u1', 'armL1'], ['u2', 'armR1'],
-    ['m1', 'armL2'], ['m2', 'armR2'],
+    ['b1', 'm2'], ['b2', 'm1'], ['b2', 'm3'], ['b3', 'm2'],
+    ['b3', 'm4'], ['b4', 'm3'], ['b4', 'm1'], ['b1', 'm4'],
+    ['m1', 'u2'], ['m2', 'u1'], ['m2', 'u3'], ['m3', 'u2'],
+    ['m3', 'u4'], ['m4', 'u3'], ['m4', 'u1'], ['m1', 'u4'],
+    ['u1', 'armL1'], ['u2', 'armR1'], ['m1', 'armL2'], ['m2', 'armR2'],
   ];
 
-  // Cable paths (extending out of bounds representing network spans)
   const cables = [
     { from: 'armL1', toLeft: { x: -150, y: -30, z: -150 }, toRight: { x: -150, y: -30, z: 150 } },
     { from: 'armR1', toLeft: { x: 150, y: -30, z: -150 }, toRight: { x: 150, y: -30, z: 150 } },
@@ -123,69 +85,41 @@ export default function IntroScreen({ onEnter }: { onEnter: () => void }) {
     { from: 'armR2', toLeft: { x: 140, y: -10, z: -150 }, toRight: { x: 140, y: -10, z: 150 } },
   ];
 
-  // 3D Perspective Projection Function
   const project = (pt: Point3D): Point2D => {
-    // 1. Rotate around Y-axis
     const cosY = Math.cos(angleY);
     const sinY = Math.sin(angleY);
     const x1 = pt.x * cosY - pt.z * sinY;
     const z1 = pt.x * sinY + pt.z * cosY;
 
-    // 2. Rotate around X-axis
     const cosX = Math.cos(angleX);
     const sinX = Math.sin(angleX);
     const y2 = pt.y * cosX - z1 * sinX;
     const z2 = pt.y * sinX + z1 * cosX;
 
-    // 3. Perspective Math
     const cameraDistance = 250;
     const scale = 180 / (z2 + cameraDistance);
-
-    // Offset to center of viewport (assume center is at SCREEN_WIDTH/2, height/2 - 20)
     const centerX = SCREEN_WIDTH / 2;
-    const centerY = SCREEN_HEIGHT * 0.4;
+    const centerY = SCREEN_HEIGHT * 0.38;
 
-    return {
-      x: centerX + x1 * scale,
-      y: centerY + y2 * scale,
-      z: z2
-    };
+    return { x: centerX + x1 * scale, y: centerY + y2 * scale, z: z2 };
   };
 
-  // Auto-rotation & Loading lifecycle
   useEffect(() => {
-    // 1. Fade in UI components
+    // Entrances
     Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 1000,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 1000,
-        easing: Easing.out(Easing.back(1.5)),
-        useNativeDriver: true,
-      })
+      Animated.timing(fadeAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 1000, easing: Easing.out(Easing.back(1.5)), useNativeDriver: true })
     ]).start();
 
-    // 2. Start button pulse
+    // Pulse
     Animated.loop(
       Animated.sequence([
-        Animated.timing(buttonPulse, {
-          toValue: 1.05,
-          duration: 1200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(buttonPulse, {
-          toValue: 1.0,
-          duration: 1200,
-          useNativeDriver: true,
-        })
+        Animated.timing(buttonPulse, { toValue: 1.03, duration: 1500, useNativeDriver: true }),
+        Animated.timing(buttonPulse, { toValue: 1.0, duration: 1500, useNativeDriver: true })
       ])
     ).start();
 
-    // 3. Simulation initialization loader
+    // Loading sequence
     const interval = setInterval(() => {
       setLoadingProgress((prev) => {
         const next = prev + 1;
@@ -194,28 +128,62 @@ export default function IntroScreen({ onEnter }: { onEnter: () => void }) {
           setSystemStatus('SYSTEM READY');
           return 100;
         }
-
-        // Cycle through status messages
         if (next === 20) setSystemStatus('GRID SYNCHRONIZATION');
         if (next === 45) setSystemStatus('GPS RECEIVER WARMUP');
         if (next === 75) setSystemStatus('LOCAL DATABASE CHECK');
         if (next === 90) setSystemStatus('DECRYPTION KEYS READY');
-
         return next;
       });
-    }, 45);
+    }, 35);
 
-    // 4. Smooth continuous Y/X rotation loop
+    // Continuous rotation
     let animationFrameId: number;
     let rotationAngle = 0.4;
     const animateRotation = () => {
-      rotationAngle += 0.007; // Slow rotation speed
+      rotationAngle += 0.006;
       setAngleY(rotationAngle);
-      // Subtle oscillation on X axis
-      setAngleX(0.18 + Math.sin(rotationAngle * 0.5) * 0.08);
+      setAngleX(0.18 + Math.sin(rotationAngle * 0.5) * 0.07);
       animationFrameId = requestAnimationFrame(animateRotation);
     };
     animateRotation();
+
+    // Spheres animations
+    const animateBlob1 = () => {
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(blob1X, { toValue: 45, duration: 9000, useNativeDriver: true }),
+          Animated.timing(blob1Y, { toValue: -55, duration: 9000, useNativeDriver: true })
+        ]),
+        Animated.parallel([
+          Animated.timing(blob1X, { toValue: -25, duration: 10000, useNativeDriver: true }),
+          Animated.timing(blob1Y, { toValue: 35, duration: 10000, useNativeDriver: true })
+        ]),
+        Animated.parallel([
+          Animated.timing(blob1X, { toValue: 0, duration: 9000, useNativeDriver: true }),
+          Animated.timing(blob1Y, { toValue: 0, duration: 9000, useNativeDriver: true })
+        ])
+      ]).start(() => animateBlob1());
+    };
+
+    const animateBlob2 = () => {
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(blob2X, { toValue: -50, duration: 10000, useNativeDriver: true }),
+          Animated.timing(blob2Y, { toValue: 50, duration: 10000, useNativeDriver: true })
+        ]),
+        Animated.parallel([
+          Animated.timing(blob2X, { toValue: 30, duration: 11000, useNativeDriver: true }),
+          Animated.timing(blob2Y, { toValue: -30, duration: 11000, useNativeDriver: true })
+        ]),
+        Animated.parallel([
+          Animated.timing(blob2X, { toValue: 0, duration: 10000, useNativeDriver: true }),
+          Animated.timing(blob2Y, { toValue: 0, duration: 10000, useNativeDriver: true })
+        ])
+      ]).start(() => animateBlob2());
+    };
+
+    animateBlob1();
+    animateBlob2();
 
     return () => {
       clearInterval(interval);
@@ -223,7 +191,6 @@ export default function IntroScreen({ onEnter }: { onEnter: () => void }) {
     };
   }, []);
 
-  // Project all tower vertices
   const projectedVertices: { [key: string]: Point2D } = {};
   Object.keys(towerVertices).forEach((key) => {
     projectedVertices[key] = project(towerVertices[key]);
@@ -231,10 +198,70 @@ export default function IntroScreen({ onEnter }: { onEnter: () => void }) {
 
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
-      {/* Cyber Grid Background lines */}
-      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      {/* 1. NATIVE GRADIENT SVG BACKDROP */}
+      <View style={[StyleSheet.absoluteFill, { zIndex: 1 }]} pointerEvents="none">
+        <Svg width="100%" height="100%">
+          <Defs>
+            <LinearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <Stop offset="0%" stopColor="#FFFFFF" />
+              <Stop offset="60%" stopColor="#F0F9FF" />
+              <Stop offset="100%" stopColor="#E0F2FE" />
+            </LinearGradient>
+          </Defs>
+          <Rect width="100%" height="100%" fill="url(#bgGradient)" />
+        </Svg>
+      </View>
+
+      {/* 2. DRIFTING GLOW SPHERES */}
+      <Animated.View 
+        pointerEvents="none" 
+        style={[
+          styles.blurBlob, 
+          { 
+            top: SCREEN_HEIGHT * 0.06, 
+            left: -60,
+            transform: [{ translateX: blob1X }, { translateY: blob1Y }] 
+          }
+        ]}
+      >
+        <Svg width={300} height={300}>
+          <Defs>
+            <RadialGradient id="blueSphere" cx="50%" cy="50%" r="50%">
+              <Stop offset="0%" stopColor="#1D4ED8" stopOpacity="0.45" />
+              <Stop offset="60%" stopColor="#3B82F6" stopOpacity="0.25" />
+              <Stop offset="100%" stopColor="#3B82F6" stopOpacity="0" />
+            </RadialGradient>
+          </Defs>
+          <Circle cx={150} cy={150} r={140} fill="url(#blueSphere)" />
+        </Svg>
+      </Animated.View>
+
+      <Animated.View 
+        pointerEvents="none" 
+        style={[
+          styles.blurBlob, 
+          { 
+            bottom: SCREEN_HEIGHT * 0.12, 
+            right: -80,
+            transform: [{ translateX: blob2X }, { translateY: blob2Y }] 
+          }
+        ]}
+      >
+        <Svg width={300} height={300}>
+          <Defs>
+            <RadialGradient id="cyanSphere" cx="50%" cy="50%" r="50%">
+              <Stop offset="0%" stopColor="#0891B2" stopOpacity="0.4" />
+              <Stop offset="60%" stopColor="#06B6D4" stopOpacity="0.2" />
+              <Stop offset="100%" stopColor="#06B6D4" stopOpacity="0" />
+            </RadialGradient>
+          </Defs>
+          <Circle cx={150} cy={150} r={140} fill="url(#cyanSphere)" />
+        </Svg>
+      </Animated.View>
+
+      {/* 3. Cyber Grid Floor (under tower) */}
+      <View style={[StyleSheet.absoluteFill, { zIndex: 3 }]} pointerEvents="none">
         <Svg style={StyleSheet.absoluteFill}>
-          {/* Floor grid */}
           {gridLines.map((line, idx) => {
             const p1 = project(line.p1);
             const p2 = project(line.p2);
@@ -245,7 +272,7 @@ export default function IntroScreen({ onEnter }: { onEnter: () => void }) {
                 y1={p1.y}
                 x2={p2.x}
                 y2={p2.y}
-                stroke="rgba(6, 182, 212, 0.06)"
+                stroke="rgba(2, 132, 199, 0.08)"
                 strokeWidth={1}
               />
             );
@@ -253,10 +280,9 @@ export default function IntroScreen({ onEnter }: { onEnter: () => void }) {
         </Svg>
       </View>
 
-      {/* 3D Animated Vector Tower Display */}
-      <View style={styles.viewport3D}>
+      {/* 4. 3D Animated Vector Tower Display */}
+      <View style={[styles.viewport3D, { zIndex: 4 }]} pointerEvents="none">
         <Svg style={StyleSheet.absoluteFill}>
-          {/* Draping power line cables */}
           {cables.map((cable, idx) => {
             const node = projectedVertices[cable.from];
             const left = project(cable.toLeft);
@@ -265,26 +291,24 @@ export default function IntroScreen({ onEnter }: { onEnter: () => void }) {
 
             return (
               <React.Fragment key={`cable-${idx}`}>
-                {/* Curved paths using Bezier paths (replicates catenary sag of cable) */}
                 <Path
                   d={`M ${left.x} ${left.y} Q ${(left.x + node.x) / 2} ${(left.y + node.y) / 2 + 15} ${node.x} ${node.y}`}
-                  stroke={Theme.colors.neon440V}
-                  strokeWidth={1.5}
-                  opacity={0.6}
+                  stroke="#0284C7"
+                  strokeWidth={1.3}
+                  opacity={0.5}
                   fill="none"
                 />
                 <Path
                   d={`M ${node.x} ${node.y} Q ${(node.x + right.x) / 2} ${(node.y + right.y) / 2 + 15} ${right.x} ${right.y}`}
-                  stroke={Theme.colors.neon440V}
-                  strokeWidth={1.5}
-                  opacity={0.6}
+                  stroke="#0284C7"
+                  strokeWidth={1.3}
+                  opacity={0.5}
                   fill="none"
                 />
               </React.Fragment>
             );
           })}
 
-          {/* Tower steel framework edges */}
           {towerEdges.map((edge, idx) => {
             const p1 = projectedVertices[edge[0]];
             const p2 = projectedVertices[edge[1]];
@@ -297,14 +321,13 @@ export default function IntroScreen({ onEnter }: { onEnter: () => void }) {
                 y1={p1.y}
                 x2={p2.x}
                 y2={p2.y}
-                stroke={Theme.colors.glowCyan}
+                stroke="#0369A1"
                 strokeWidth={edge[0] === 'peak' || edge[1] === 'peak' ? 1.5 : 1}
                 opacity={0.7}
               />
             );
           })}
 
-          {/* Glowing node joins */}
           {Object.keys(projectedVertices).map((key) => {
             const pt = projectedVertices[key];
             const isArmEnd = key.startsWith('arm');
@@ -315,50 +338,54 @@ export default function IntroScreen({ onEnter }: { onEnter: () => void }) {
                 key={`vertex-${key}`}
                 cx={pt.x}
                 cy={pt.y}
-                r={isPeak ? 4 : isArmEnd ? 3.5 : 2}
-                fill={isPeak ? Theme.colors.neon33KV : isArmEnd ? Theme.colors.neon11KV : Theme.colors.glowCyan}
-                opacity={0.9}
+                r={isPeak ? 3.5 : isArmEnd ? 3 : 1.8}
+                fill={isPeak ? '#EF4444' : isArmEnd ? '#F59E0B' : '#0284C7'}
+                opacity={0.85}
               />
             );
           })}
         </Svg>
       </View>
 
-      {/* Title & Brand Panel */}
-      <Animated.View style={[styles.brandContainer, { transform: [{ translateY: slideAnim }] }]}>
-        <View style={styles.logoBadge}>
-          <Text style={styles.logoBadgeText}>GIS 3D</Text>
-        </View>
-        <Text style={styles.title}>GRID-NET</Text>
-        <Text style={styles.subtitle}>ELECTRICAL LINE SURVEYING SYSTEM</Text>
-        <View style={styles.divider} />
-      </Animated.View>
-
-      {/* Loading HUD & Sync Panel */}
-      <View style={styles.hudPanel}>
-        <View style={styles.hudHeader}>
-          <Text style={styles.hudText}>{systemStatus}</Text>
-          <Text style={styles.hudPercentage}>{loadingProgress}%</Text>
-        </View>
-
-        {/* Progress Bar Container */}
-        <View style={styles.progressBarBg}>
-          <View style={[styles.progressBarFill, { width: `${loadingProgress}%` }]} />
-        </View>
-
-        <Text style={styles.gpsLockText}>
-          🛰️ OFFLINE ENGINE v2.4 // COORD: WGS84 EGM96
-        </Text>
-      </View>
-
-      {/* Interaction Button */}
-      {loadingProgress >= 100 && (
-        <Animated.View style={[styles.buttonContainer, { transform: [{ scale: buttonPulse }] }]}>
-          <TouchableOpacity style={styles.actionButton} onPress={onEnter} activeOpacity={0.7}>
-            <Text style={styles.actionButtonText}>LAUNCH CORE CONSOLE</Text>
-          </TouchableOpacity>
+      {/* 5. INTERACTIVE CONTENT OVERLAY */}
+      <View style={styles.contentOverlay}>
+        {/* Title & Brand Panel */}
+        <Animated.View style={[styles.brandContainer, { transform: [{ translateY: slideAnim }] }]}>
+          <View style={styles.logoBadge}>
+            <Text style={styles.logoBadgeText}>GIS SURVEY ENGINE</Text>
+          </View>
+          <Text style={styles.title}>GRID-NET</Text>
+          <Text style={styles.subtitle}>OFFLINE ELECTRICAL MAPPING SYSTEM</Text>
+          <View style={styles.divider} />
         </Animated.View>
-      )}
+
+        {/* Loading HUD & Sync Panel */}
+        <View style={styles.hudPanel}>
+          <View style={styles.hudHeader}>
+            <Text style={styles.hudText}>{systemStatus}</Text>
+            <Text style={styles.hudPercentage}>{loadingProgress}%</Text>
+          </View>
+
+          <View style={styles.progressBarBg}>
+            <View style={[styles.progressBarFill, { width: `${loadingProgress}%` }]} />
+          </View>
+
+          <Text style={styles.gpsLockText}>
+            🛰️ SECURE LOCAL DATABASE // COORD: WGS84 EGM96
+          </Text>
+        </View>
+
+        {/* Interaction Button */}
+        <View style={styles.buttonPlaceholder}>
+          {loadingProgress >= 100 && (
+            <Animated.View style={{ transform: [{ scale: buttonPulse }], width: '100%' }}>
+              <TouchableOpacity style={styles.actionButton} onPress={onEnter} activeOpacity={0.8}>
+                <Text style={styles.actionButtonText}>LAUNCH CORE CONSOLE</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          )}
+        </View>
+      </View>
     </Animated.View>
   );
 }
@@ -366,117 +393,139 @@ export default function IntroScreen({ onEnter }: { onEnter: () => void }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Theme.colors.background,
+    backgroundColor: '#F8FAFC',
     justifyContent: 'space-between',
-    paddingVertical: 50,
+    paddingVertical: 40,
     paddingHorizontal: 24,
   },
   viewport3D: {
-    height: SCREEN_HEIGHT * 0.42,
-    marginTop: 20,
+    height: SCREEN_HEIGHT * 0.44,
+    marginTop: 10,
     width: '100%',
     position: 'relative',
+    zIndex: 3,
+  },
+  blurBlob: {
+    position: 'absolute',
+    width: 300,
+    height: 300,
+    zIndex: 2,
+  },
+  contentOverlay: {
+    zIndex: 10,
+    width: '100%',
   },
   brandContainer: {
     alignItems: 'center',
-    marginTop: -20,
+    marginBottom: 24,
   },
   logoBadge: {
-    backgroundColor: 'rgba(6, 182, 212, 0.15)',
-    borderColor: Theme.colors.glowCyan,
-    borderWidth: 1,
-    borderRadius: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    marginBottom: 10,
+    backgroundColor: 'rgba(2, 132, 199, 0.06)',
+    borderColor: 'rgba(2, 132, 199, 0.2)',
+    borderWidth: 1.2,
+    borderRadius: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    marginBottom: 12,
   },
   logoBadgeText: {
-    color: Theme.colors.glowCyan,
-    fontSize: 11,
-    fontFamily: Theme.typography.fontFamily,
-    fontWeight: 'bold',
+    color: '#0284C7',
+    fontSize: 9.5,
+    fontWeight: '800',
     letterSpacing: 2,
   },
   title: {
-    color: Theme.colors.textPrimary,
-    fontSize: 34,
+    color: '#0F172A',
+    fontSize: 36,
     fontWeight: '900',
     letterSpacing: 4,
     textAlign: 'center',
   },
   subtitle: {
-    color: Theme.colors.glowCyan,
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 3,
+    color: '#64748B',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 2.5,
     textAlign: 'center',
     marginTop: 6,
-    opacity: 0.85,
   },
   divider: {
-    height: 2,
-    backgroundColor: Theme.colors.glowCyan,
+    height: 1.5,
+    backgroundColor: 'rgba(2, 132, 199, 0.2)',
     width: 60,
-    marginTop: 15,
-    opacity: 0.3,
+    marginTop: 16,
   },
   hudPanel: {
-    ...Theme.glassmorphic.container,
-    padding: 14,
-    marginVertical: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    borderColor: 'rgba(255, 255, 255, 0.7)',
+    borderWidth: 1.5,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 4,
   },
   hudHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 6,
+    marginBottom: 8,
   },
   hudText: {
-    color: Theme.colors.glowCyan,
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 1,
+    color: '#0284C7',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.2,
   },
   hudPercentage: {
-    color: Theme.colors.textPrimary,
-    fontSize: 11,
-    fontWeight: 'bold',
+    color: '#0F172A',
+    fontSize: 10.5,
+    fontWeight: '800',
   },
   progressBarBg: {
     height: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'rgba(2, 132, 199, 0.08)',
     borderRadius: 2,
     overflow: 'hidden',
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: Theme.colors.glowCyan,
+    backgroundColor: '#0284C7',
     borderRadius: 2,
-    shadowColor: Theme.colors.glowCyan,
-    shadowOpacity: 0.8,
-    shadowRadius: 3,
   },
   gpsLockText: {
-    color: Theme.colors.textSecondary,
-    fontSize: 9,
+    color: '#64748B',
+    fontSize: 8.5,
+    fontWeight: '700',
     fontFamily: 'System',
     textAlign: 'center',
-    marginTop: 8,
+    marginTop: 10,
     letterSpacing: 0.5,
   },
-  buttonContainer: {
+  buttonPlaceholder: {
+    height: 52,
+    justifyContent: 'center',
     alignItems: 'center',
+    width: '100%',
   },
   actionButton: {
-    ...Theme.glassmorphic.button,
-    paddingVertical: 14,
-    paddingHorizontal: 32,
+    backgroundColor: '#0284C7',
+    borderRadius: 10,
+    paddingVertical: 15,
     width: '100%',
     alignItems: 'center',
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 4,
   },
   actionButtonText: {
-    color: Theme.colors.glowCyan,
-    fontWeight: 'bold',
-    fontSize: 14,
+    color: '#FFFFFF',
+    fontWeight: '900',
+    fontSize: 13,
     letterSpacing: 2,
   },
 });
