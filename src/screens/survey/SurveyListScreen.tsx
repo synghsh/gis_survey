@@ -12,8 +12,9 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
-import { RootState, startSurvey, SurveyLine } from '../../store';
+import { RootState, startSurvey, completeSurveyLine, SurveyLine } from '../../store';
 import { useToast } from '../../components/ToastProvider';
+import { useConfirmation } from '../../components/ConfirmationProvider';
 import { getLineTypeLabel } from '../../utils/surveyLabels';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -47,6 +48,7 @@ export default function SurveyListScreen() {
   const dispatch = useDispatch();
   const historyList = useSelector((state: RootState) => state.survey.historyList);
   const toast = useToast();
+  const { confirm } = useConfirmation();
   
   const [voltageFilter, setVoltageFilter] = useState<'ALL' | 'HT_11KV' | 'HT_33KV' | 'LT_440V'>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'SYNCED'>('ALL');
@@ -104,6 +106,23 @@ export default function SurveyListScreen() {
     setShowAddModal(false);
     setIsChoosingLtStart(false);
     setLtStartingPoint(null);
+  };
+
+  const handleCompleteLine = (line: SurveyLine) => {
+    if (line.isCompleted) {
+      toast.info('This survey line is already completed and permanently locked.');
+      return;
+    }
+    confirm({
+      title: 'Complete Survey Line?',
+      message: `${line.contractorName}\n${getLineTypeLabel(line.lineType)} • ${line.nodes.length} structures\n${line.village || line.location || 'Location not specified'}\n\nThis permanently locks editing and continuation.`,
+      confirmLabel: 'COMPLETE & LOCK',
+      tone: 'destructive',
+      onConfirm: () => {
+        dispatch(completeSurveyLine(line.id));
+        toast.success('Survey completed and locked. No further editing is allowed.', { title: 'Line completed' });
+      },
+    });
   };
 
   const filteredLines = historyList.filter((line: SurveyLine) => {
@@ -195,6 +214,7 @@ export default function SurveyListScreen() {
             filteredLines.map((item: SurveyLine) => {
               const accent = getLineAccent(item.lineType);
               const isSynced = item.status === 'SYNCED';
+              const isCompleted = Boolean(item.isCompleted);
               return (
                 <TouchableOpacity 
                   key={item.id} 
@@ -220,14 +240,40 @@ export default function SurveyListScreen() {
                   ) : null}
                   <View style={styles.cardFooter}>
                     <Text style={styles.nodesCount}>🗺️ {item.nodes.length} nodes mapped</Text>
-                    <View style={[styles.statusBadge, { 
-                      borderColor: isSynced ? '#059669' : '#D97706',
-                      backgroundColor: isSynced ? 'rgba(5, 150, 105, 0.05)' : 'rgba(217, 119, 6, 0.05)'
+                    <View style={[styles.statusBadge, {
+                      borderColor: isCompleted ? '#475569' : isSynced ? '#059669' : '#D97706',
+                      backgroundColor: isCompleted ? 'rgba(71, 85, 105, 0.08)' : isSynced ? 'rgba(5, 150, 105, 0.05)' : 'rgba(217, 119, 6, 0.05)'
                     }]}>
-                      <Text style={[styles.statusBadgeText, { color: isSynced ? '#059669' : '#D97706' }]}>
-                        {item.status}
+                      <Text style={[styles.statusBadgeText, { color: isCompleted ? '#475569' : isSynced ? '#059669' : '#D97706' }]}>
+                        {isCompleted ? 'COMPLETED' : item.status}
                       </Text>
                     </View>
+                  </View>
+                  <View style={styles.cardActions}>
+                    <TouchableOpacity
+                      style={[styles.editAction, isCompleted && styles.actionDisabled]}
+                      disabled={isCompleted}
+                      onPress={event => {
+                        event.stopPropagation();
+                        navigation.navigate('SurveyDetails', { surveyId: item.id, editMode: true });
+                      }}
+                    >
+                      <Text style={[styles.editActionText, isCompleted && styles.actionDisabledText]}>
+                        {isCompleted ? 'EDIT LOCKED' : 'EDIT'}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.completeAction, isCompleted && styles.actionDisabled]}
+                      disabled={isCompleted}
+                      onPress={event => {
+                        event.stopPropagation();
+                        handleCompleteLine(item);
+                      }}
+                    >
+                      <Text style={[styles.completeActionText, isCompleted && styles.actionDisabledText]}>
+                        {isCompleted ? 'LOCKED' : 'COMPLETE'}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 </TouchableOpacity>
               );
@@ -691,6 +737,36 @@ const styles = StyleSheet.create({
     fontSize: 12,
     letterSpacing: 1.5,
   },
+  cardActions: {
+    flexDirection: 'row',
+    marginTop: 12,
+  },
+  editAction: {
+    flex: 1,
+    minHeight: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.2,
+    borderColor: '#0284C7',
+    borderRadius: 8,
+    backgroundColor: 'rgba(2, 132, 199, 0.06)',
+    marginRight: 6,
+  },
+  completeAction: {
+    flex: 1,
+    minHeight: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.2,
+    borderColor: '#059669',
+    borderRadius: 8,
+    backgroundColor: 'rgba(5, 150, 105, 0.06)',
+    marginLeft: 6,
+  },
+  editActionText: { color: '#0284C7', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
+  completeActionText: { color: '#047857', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
+  actionDisabled: { borderColor: '#CBD5E1', backgroundColor: '#F1F5F9', opacity: 0.75 },
+  actionDisabledText: { color: '#94A3B8' },
   startingPointStep: {
     paddingTop: 2,
   },

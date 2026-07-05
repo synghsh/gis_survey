@@ -5,7 +5,6 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
-  Alert,
   Dimensions,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
@@ -16,6 +15,7 @@ import * as Location from 'expo-location';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { RootState, addNode, finishSurvey, cancelSurvey, SurveyNode } from '../../store';
 import { useToast } from '../../components/ToastProvider';
+import { useConfirmation } from '../../components/ConfirmationProvider';
 import { getLineTypeLabel } from '../../utils/surveyLabels';
 
 import ActiveSurveyCamera from './components/ActiveSurveyCamera';
@@ -32,6 +32,7 @@ interface SurveyNodeFormInputs {
 
 export default function ActiveSurveyScreen() {
   const toast = useToast();
+  const { confirm } = useConfirmation();
   const navigation = useNavigation<any>();
   const dispatch = useDispatch();
   const activeLine = useSelector((state: RootState) => state.survey.activeLine);
@@ -202,6 +203,7 @@ export default function ActiveSurveyScreen() {
 
     const nodeLabel = data.nameLabel.trim() || (nodeType === 'DTR' ? 'DTR-0' : `P-${currentSeq}`);
     const parentNode = currentSeq > 0 ? activeLine.nodes[currentSeq - 1] : null;
+    const parentLabel = activeLine.continuationParentLabel || parentNode?.nameLabel;
     const newNode: SurveyNode = {
       id: `node-${Date.now()}`,
       nodeType,
@@ -221,7 +223,7 @@ export default function ActiveSurveyScreen() {
       },
       imageUri: capturedPhoto,
       capturedAt: new Date().toISOString(),
-      parentLabel: parentNode ? parentNode.nameLabel : undefined,
+      parentLabel,
     };
 
     dispatch(addNode(newNode));
@@ -257,22 +259,18 @@ export default function ActiveSurveyScreen() {
     }
 
     const totalNodesCount = activeLine.nodes.length + 1;
-    Alert.alert(
-      'Finish Survey Line',
-      `Complete this survey run? A total of ${totalNodesCount} nodes (including current) will be saved to your local offline upload queue.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Confirm Finish',
-          onPress: () => {
-            if (commitCurrentNode(data)) {
-              dispatch(finishSurvey());
-              navigation.navigate('MainTabs');
-            }
-          }
+    confirm({
+      title: `Finish ${isErectionFlow ? 'Erection' : 'Survey'} Line?`,
+      message: `${totalNodesCount} structures, including the current one, will be saved to the offline upload queue.`,
+      confirmLabel: 'FINISH LINE',
+      tone: 'warning',
+      onConfirm: () => {
+        if (commitCurrentNode(data)) {
+          dispatch(finishSurvey());
+          navigation.navigate('MainTabs');
         }
-      ]
-    );
+      },
+    });
   };
 
   const getLineAccent = () => {
@@ -328,17 +326,16 @@ export default function ActiveSurveyScreen() {
             currentSeq={currentSeq}
             onTakePhoto={takePhoto}
             onAbandon={() => {
-              Alert.alert(
-                'Abandon Survey',
-                'Discard all captured structures and return to Dashboard?',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Discard', style: 'destructive', onPress: () => {
-                    dispatch(cancelSurvey());
-                    navigation.navigate('MainTabs');
-                  }}
-                ]
-              );
+              confirm({
+                title: `Abandon ${isErectionFlow ? 'Erection' : 'Survey'}?`,
+                message: 'All structures captured in this active session will be discarded.',
+                confirmLabel: 'DISCARD SESSION',
+                tone: 'destructive',
+                onConfirm: () => {
+                  dispatch(cancelSurvey());
+                  navigation.navigate('MainTabs');
+                },
+              });
             }}
           />
         ) : (

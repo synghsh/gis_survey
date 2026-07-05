@@ -28,6 +28,10 @@ export interface SurveyNode {
 export interface SurveyLine {
   id: string;
   workflowType?: 'SURVEY' | 'ERECTION';
+  isCompleted?: boolean;
+  completedAt?: string;
+  editingExisting?: boolean;
+  continuationParentLabel?: string;
   lineType: 'HT_11KV' | 'HT_33KV' | 'LT_440V';
   ltStartingPoint?: 'HT_TAPPING_POINT' | 'DTR' | 'EXISTING_LT_LINE';
   contractorName: string;
@@ -180,7 +184,19 @@ const surveySlice = createSlice({
     addNode: (state, action: PayloadAction<SurveyNode>) => {
       if (state.activeLine) {
         state.activeLine.nodes.push(action.payload);
+        delete state.activeLine.continuationParentLabel;
       }
+    },
+    resumeSurvey: (state, action: PayloadAction<{ lineId: string; parentLabel: string }>) => {
+      const line = state.historyList.find(item => item.id === action.payload.lineId);
+      if (!line || line.isCompleted) return;
+      state.activeLine = {
+        ...line,
+        status: 'PENDING',
+        nodes: line.nodes.map(node => ({ ...node, attributes: { ...node.attributes } })),
+        editingExisting: true,
+        continuationParentLabel: action.payload.parentLabel,
+      };
     },
     cancelSurvey: (state) => {
       state.activeLine = null;
@@ -188,9 +204,33 @@ const surveySlice = createSlice({
     finishSurvey: (state) => {
       if (state.activeLine) {
         state.activeLine.endedAt = new Date().toISOString();
-        state.syncQueue.push(state.activeLine);
-        state.historyList.unshift(state.activeLine);
+        const wasEditing = state.activeLine.editingExisting;
+        delete state.activeLine.editingExisting;
+        delete state.activeLine.continuationParentLabel;
+        if (wasEditing) {
+          const historyIndex = state.historyList.findIndex(line => line.id === state.activeLine?.id);
+          if (historyIndex >= 0) state.historyList[historyIndex] = state.activeLine;
+          const queueIndex = state.syncQueue.findIndex(line => line.id === state.activeLine?.id);
+          if (queueIndex >= 0) state.syncQueue[queueIndex] = state.activeLine;
+          else if (state.activeLine.status === 'PENDING') state.syncQueue.push(state.activeLine);
+        } else {
+          state.syncQueue.push(state.activeLine);
+          state.historyList.unshift(state.activeLine);
+        }
         state.activeLine = null;
+      }
+    },
+    completeSurveyLine: (state, action: PayloadAction<string>) => {
+      const completedAt = new Date().toISOString();
+      const line = state.historyList.find(item => item.id === action.payload);
+      if (line) {
+        line.isCompleted = true;
+        line.completedAt = completedAt;
+      }
+      const queueLine = state.syncQueue.find(item => item.id === action.payload);
+      if (queueLine) {
+        queueLine.isCompleted = true;
+        queueLine.completedAt = completedAt;
       }
     },
     clearQueueItem: (state, action: PayloadAction<string>) => {
@@ -216,7 +256,7 @@ const surveySlice = createSlice({
       preparedBy?: string; 
     }>) => {
       const line = state.historyList.find(l => l.id === action.payload.id);
-      if (line) {
+      if (line && !line.isCompleted) {
         line.contractorName = action.payload.contractorName;
         line.remarks = action.payload.remarks;
         line.location = action.payload.location;
@@ -225,7 +265,7 @@ const surveySlice = createSlice({
         line.preparedBy = action.payload.preparedBy;
       }
       const queueLine = state.syncQueue.find(l => l.id === action.payload.id);
-      if (queueLine) {
+      if (queueLine && !queueLine.isCompleted) {
         queueLine.contractorName = action.payload.contractorName;
         queueLine.remarks = action.payload.remarks;
         queueLine.location = action.payload.location;
@@ -251,7 +291,7 @@ const surveySlice = createSlice({
       };
     }>) => {
       const line = state.historyList.find(l => l.id === action.payload.lineId);
-      if (line) {
+      if (line && !line.isCompleted) {
         const node = line.nodes.find(n => n.id === action.payload.nodeId);
         if (node) {
           node.nameLabel = action.payload.nameLabel;
@@ -262,7 +302,7 @@ const surveySlice = createSlice({
         }
       }
       const queueLine = state.syncQueue.find(l => l.id === action.payload.lineId);
-      if (queueLine) {
+      if (queueLine && !queueLine.isCompleted) {
         const node = queueLine.nodes.find(n => n.id === action.payload.nodeId);
         if (node) {
           node.nameLabel = action.payload.nameLabel;
@@ -280,8 +320,12 @@ const surveySlice = createSlice({
         state.completedCount = action.payload.completedCount ?? 2;
         const persistedHistory: SurveyLine[] = action.payload.historyList ?? [];
         const demoLine = initialHistory.find(line => line.id === 'hist-3');
-        state.historyList = demoLine
-          ? [demoLine, ...persistedHistory.filter(line => line.id !== demoLine.id)]
+        const persistedDemo = persistedHistory.find(line => line.id === demoLine?.id);
+        const refreshedDemo = demoLine
+          ? { ...demoLine, isCompleted: persistedDemo?.isCompleted, completedAt: persistedDemo?.completedAt }
+          : undefined;
+        state.historyList = refreshedDemo
+          ? [refreshedDemo, ...persistedHistory.filter(line => line.id !== refreshedDemo.id)]
           : persistedHistory;
       }
     }
@@ -300,7 +344,7 @@ export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;
 
 export const { login, logout, updateProfileImage, hydrateAuth } = authSlice.actions;
-export const { startSurvey, addNode, cancelSurvey, finishSurvey, clearQueueItem, clearAllCompleted, updateSurveyLineMetadata, updateSurveyNode, hydrateStore } = surveySlice.actions;
+export const { startSurvey, resumeSurvey, addNode, cancelSurvey, finishSurvey, completeSurveyLine, clearQueueItem, clearAllCompleted, updateSurveyLineMetadata, updateSurveyNode, hydrateStore } = surveySlice.actions;
 
 const STORAGE_KEY = 'GIS_SURVEY_APP_STATE';
 

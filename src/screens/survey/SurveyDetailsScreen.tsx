@@ -10,8 +10,9 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
-import { RootState, updateSurveyLineMetadata, updateSurveyNode } from '../../store';
+import { RootState, resumeSurvey, updateSurveyLineMetadata, updateSurveyNode } from '../../store';
 import { useToast } from '../../components/ToastProvider';
+import { useConfirmation } from '../../components/ConfirmationProvider';
 import { getLineTypeLabel } from '../../utils/surveyLabels';
 
 import SurveySvgCanvas from './components/SurveySvgCanvas';
@@ -24,13 +25,15 @@ const SVG_HEIGHT = 240;
 
 export default function SurveyDetailsScreen() {
   const toast = useToast();
+  const { confirm } = useConfirmation();
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const dispatch = useDispatch();
   
-  const { surveyId } = route.params;
+  const { surveyId, editMode = false } = route.params;
   const historyList = useSelector((state: RootState) => state.survey.historyList);
   const survey = historyList.find(l => l.id === surveyId);
+  const isLocked = Boolean(survey?.isCompleted);
 
   const [zoomScale, setZoomScale] = useState(1.0);
 
@@ -121,6 +124,10 @@ export default function SurveyDetailsScreen() {
   });
 
   const handleSelectNode = (node: any, index: number) => {
+    if (isLocked) {
+      toast.info('This completed survey is locked and can only be viewed.', { title: 'Editing unavailable' });
+      return;
+    }
     setSelectedSpanNodeId(null);
     setSelectedNodeId(node.id);
     setNodeName(node.nameLabel);
@@ -138,6 +145,10 @@ export default function SurveyDetailsScreen() {
   };
 
   const handleSelectSpan = (node: any, index: number) => {
+    if (isLocked) {
+      toast.info('This completed survey is locked and can only be viewed.', { title: 'Editing unavailable' });
+      return;
+    }
     setSelectedNodeId(null);
     setSelectedSpanNodeId(node.id);
     setNodeName(node.nameLabel);
@@ -153,6 +164,7 @@ export default function SurveyDetailsScreen() {
   };
 
   const handleSaveNodeUpdates = () => {
+    if (isLocked) return;
     const activeId = selectedNodeId || selectedSpanNodeId;
     if (!activeId) return;
 
@@ -179,6 +191,7 @@ export default function SurveyDetailsScreen() {
   };
 
   const handleSaveMetadata = () => {
+    if (isLocked) return;
     dispatch(updateSurveyLineMetadata({
       id: survey.id,
       contractorName: contractor.trim(),
@@ -189,6 +202,23 @@ export default function SurveyDetailsScreen() {
       preparedBy: preparedBy.trim(),
     }));
     toast.success('Survey metadata parameters saved.');
+  };
+
+  const selectedPole = selectedNodeId
+    ? survey.nodes.find(node => node.id === selectedNodeId && node.nodeType === 'POLE')
+    : undefined;
+
+  const handleContinueFromPole = () => {
+    if (!selectedPole || isLocked) return;
+    confirm({
+      title: 'Continue From This Pole?',
+      message: `New structures will branch from ${selectedPole.nameLabel}. Existing structures and spans remain unchanged.`,
+      confirmLabel: 'CONTINUE LINE',
+      onConfirm: () => {
+        dispatch(resumeSurvey({ lineId: survey.id, parentLabel: selectedPole.nameLabel }));
+        navigation.navigate('ActiveSurvey');
+      },
+    });
   };
 
   return (
@@ -224,16 +254,31 @@ export default function SurveyDetailsScreen() {
 
       {/* 3. SCROLLABLE LAYOUT */}
       <ScrollView style={styles.scrollContainerWrapper} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        {isLocked ? (
+          <View style={styles.lockedBanner}>
+            <Text style={styles.lockedTitle}>COMPLETED SURVEY - VIEW ONLY</Text>
+            <Text style={styles.lockedText}>This line was confirmed as complete and can no longer be edited or continued.</Text>
+          </View>
+        ) : editMode ? (
+          <View style={styles.editGuide}>
+            <Text style={styles.editGuideTitle}>CHOOSE A POLE OR SPAN</Text>
+            <Text style={styles.editGuideText}>Tap a span to edit it, or tap any pole to edit its details or continue the line from that point.</Text>
+          </View>
+        ) : null}
         {/* DIAGRAM CANVAS */}
         <View style={styles.canvasPanel}>
           <View style={styles.panelHeader}>
             <Text style={styles.panelTitle}>LINE ROUTING LAYOUT</Text>
             <View style={styles.liveBadge}>
               <View style={[styles.liveDot, { backgroundColor: accentColor }]} />
-              <Text style={[styles.liveText, { color: accentColor }]}>INTERACTIVE</Text>
+              <Text style={[styles.liveText, { color: isLocked ? '#64748B' : accentColor }]}>
+                {isLocked ? 'VIEW ONLY' : 'INTERACTIVE'}
+              </Text>
             </View>
           </View>
-          <Text style={styles.canvasSubtitle}>Tap poles [📍] or spans [〰️] to edit physical parameters.</Text>
+          <Text style={styles.canvasSubtitle}>
+            {isLocked ? 'Routing layout is permanently locked.' : 'Tap a pole or span to edit physical parameters.'}
+          </Text>
 
           {nodes.length === 0 ? (
             <View style={styles.emptyCanvas}>
@@ -272,7 +317,7 @@ export default function SurveyDetailsScreen() {
         </View>
 
         {/* INLINE ATTRS EDITOR */}
-        <SurveyAttributeEditor
+        {!isLocked && <SurveyAttributeEditor
           selectedNodeId={selectedNodeId}
           selectedSpanNodeId={selectedSpanNodeId}
           nodeName={nodeName}
@@ -297,10 +342,22 @@ export default function SurveyDetailsScreen() {
           setNodeSpanDistance={setNodeSpanDistance}
           onCancel={() => { setSelectedNodeId(null); setSelectedSpanNodeId(null); }}
           onApply={handleSaveNodeUpdates}
-        />
+        />}
+
+        {!isLocked && selectedPole && (
+          <View style={styles.continuationPanel}>
+            <View style={styles.continuationCopy}>
+              <Text style={styles.continuationTitle}>CONTINUE FROM {selectedPole.nameLabel}</Text>
+              <Text style={styles.continuationText}>Capture a new branch or extend the route from this pole.</Text>
+            </View>
+            <TouchableOpacity style={styles.continuationButton} onPress={handleContinueFromPole}>
+              <Text style={styles.continuationButtonText}>START HERE</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* METADATA LEGEND FORM */}
-        <SurveyLegendForm
+        {!isLocked && <SurveyLegendForm
           location={location}
           setLocation={setLocation}
           block={block}
@@ -315,7 +372,7 @@ export default function SurveyDetailsScreen() {
           setRemarks={setRemarks}
           accentColor={accentColor}
           onSave={handleSaveMetadata}
-        />
+        />}
       </ScrollView>
     </View>
   );
@@ -394,6 +451,26 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 40,
   },
+  lockedBanner: {
+    borderWidth: 1.2,
+    borderColor: '#94A3B8',
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    padding: 14,
+    marginBottom: 14,
+  },
+  lockedTitle: { color: '#334155', fontSize: 11, fontWeight: '900', letterSpacing: 1 },
+  lockedText: { color: '#64748B', fontSize: 10.5, lineHeight: 16, marginTop: 4 },
+  editGuide: {
+    borderWidth: 1.2,
+    borderColor: 'rgba(2, 132, 199, 0.25)',
+    borderRadius: 8,
+    backgroundColor: 'rgba(2, 132, 199, 0.06)',
+    padding: 14,
+    marginBottom: 14,
+  },
+  editGuideTitle: { color: '#0369A1', fontSize: 11, fontWeight: '900', letterSpacing: 1 },
+  editGuideText: { color: '#475569', fontSize: 10.5, lineHeight: 16, marginTop: 4 },
   canvasPanel: {
     backgroundColor: 'rgba(255, 255, 255, 0.85)',
     borderColor: 'rgba(255, 255, 255, 0.7)',
@@ -532,4 +609,26 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     marginRight: 6,
   },
+  continuationPanel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.2,
+    borderColor: '#059669',
+    borderRadius: 8,
+    backgroundColor: 'rgba(5, 150, 105, 0.06)',
+    padding: 14,
+    marginBottom: 20,
+  },
+  continuationCopy: { flex: 1, marginRight: 12 },
+  continuationTitle: { color: '#047857', fontSize: 10.5, fontWeight: '900', letterSpacing: 0.8 },
+  continuationText: { color: '#64748B', fontSize: 9.5, lineHeight: 14, marginTop: 3 },
+  continuationButton: {
+    minHeight: 38,
+    borderRadius: 8,
+    backgroundColor: '#059669',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 13,
+  },
+  continuationButtonText: { color: '#FFFFFF', fontSize: 9.5, fontWeight: '900', letterSpacing: 0.8 },
 });

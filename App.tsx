@@ -25,6 +25,7 @@ import SyncQueueScreen from './src/screens/sync/SyncQueueScreen';
 import SurveyDetailsScreen from './src/screens/survey/SurveyDetailsScreen';
 import Theme from './src/theme';
 import { ToastProvider } from './src/components/ToastProvider';
+import { ConfirmationProvider } from './src/components/ConfirmationProvider';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -150,8 +151,9 @@ export default function App() {
     <Provider store={store}>
       <SafeAreaProvider>
         <ToastProvider>
-          <StatusBar style="dark" />
-          <NavigationContainer>
+          <ConfirmationProvider>
+            <StatusBar style="dark" />
+            <NavigationContainer>
           <Stack.Navigator
             screenOptions={{
               headerShown: false,
@@ -166,7 +168,8 @@ export default function App() {
             <Stack.Screen name="SurveySetup" component={SurveySetupScreen} />
             <Stack.Screen name="ErectionSetup" component={ErectionSetupScreen} />
           </Stack.Navigator>
-          </NavigationContainer>
+            </NavigationContainer>
+          </ConfirmationProvider>
         </ToastProvider>
       </SafeAreaProvider>
     </Provider>
