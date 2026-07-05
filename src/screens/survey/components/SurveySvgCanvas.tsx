@@ -20,10 +20,9 @@ const createCoiledPath = (x1: number, y1: number, x2: number, y2: number, numCoi
   const amp = 4.5;
   
   for (let i = 0; i < numCoils; i++) {
-    const tStart = i / numCoils;
     const tEnd = (i + 1) / numCoils;
-    const tA = tStart + 0.25;
-    const tB = tStart + 0.75;
+    const tA = (i + 0.25) / numCoils;
+    const tB = (i + 0.75) / numCoils;
     
     const cx1 = x1 + dx * tA + px * amp;
     const cy1 = y1 + dy * tA + py * amp;
@@ -82,14 +81,15 @@ export default function SurveySvgCanvas({
   const dtrColor = '#8B5CF6';
   const htColor = '#D97706';
   const ltColor = '#0284C7';
+  const renderedScale = Math.max(zoomScale, 0.003);
   
   return (
     <View style={[styles.svgWrapper, { height: SVG_HEIGHT }]}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }} nestedScrollEnabled={true}>
         <ScrollView horizontal showsHorizontalScrollIndicator={true} contentContainerStyle={{ alignItems: 'center', justifyContent: 'center' }}>
           <Svg
-            width={SVG_WIDTH * zoomScale}
-            height={SVG_HEIGHT * zoomScale}
+            width={SVG_WIDTH * renderedScale}
+            height={SVG_HEIGHT * renderedScale}
             viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`}
             style={styles.svgCanvas}
           >
@@ -259,13 +259,23 @@ export default function SurveySvgCanvas({
 
       {/* Zoom controls overlay */}
       <View style={styles.zoomControls}>
-        <TouchableOpacity style={styles.zoomBtn} onPress={handleZoomOut} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={[styles.zoomBtn, zoomScale <= 0 && styles.zoomBtnDisabled]}
+          onPress={handleZoomOut}
+          activeOpacity={0.7}
+          disabled={zoomScale <= 0}
+        >
           <Text style={styles.zoomBtnText}>-</Text>
         </TouchableOpacity>
         <View style={styles.zoomScaleIndicator}>
           <Text style={styles.zoomScaleText}>{Math.round(zoomScale * 100)}%</Text>
         </View>
-        <TouchableOpacity style={styles.zoomBtn} onPress={handleZoomIn} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={[styles.zoomBtn, zoomScale >= 3 && styles.zoomBtnDisabled]}
+          onPress={handleZoomIn}
+          activeOpacity={0.7}
+          disabled={zoomScale >= 3}
+        >
           <Text style={styles.zoomBtnText}>+</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.zoomBtn, { width: 44, marginLeft: 6 }]} onPress={handleResetZoom} activeOpacity={0.7}>
@@ -320,6 +330,9 @@ const styles = StyleSheet.create({
     color: '#0284C7',
     fontSize: 12,
     fontWeight: 'bold',
+  },
+  zoomBtnDisabled: {
+    opacity: 0.35,
   },
   zoomScaleIndicator: {
     paddingHorizontal: 6,

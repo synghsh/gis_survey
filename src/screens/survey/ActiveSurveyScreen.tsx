@@ -16,6 +16,7 @@ import * as Location from 'expo-location';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { RootState, addNode, finishSurvey, cancelSurvey, SurveyNode } from '../../store';
 import { useToast } from '../../components/ToastProvider';
+import { getLineTypeLabel } from '../../utils/surveyLabels';
 
 import ActiveSurveyCamera from './components/ActiveSurveyCamera';
 import ActiveSurveyForm from './components/ActiveSurveyForm';
@@ -299,7 +300,7 @@ export default function ActiveSurveyScreen() {
           </View>
           <View style={[styles.typeBadge, { borderColor: getLineAccent() }]}>
             <Text style={[styles.typeBadgeText, { color: getLineAccent() }]}>
-              {activeLine.lineType.replace('_', ' ')}
+              {getLineTypeLabel(activeLine.lineType)}
             </Text>
           </View>
         </View>
@@ -352,9 +353,9 @@ export default function ActiveSurveyScreen() {
                     ? 'HT TO LT TRANSITION // DTR'
                     : isHtPhase
                       ? currentSeq === 0 ? '11KV HT // TAP POLE' : '11KV HT // POLE'
-                      : '440V LT // POLE'
+                      : 'LT LINE // POLE'
                   : isExistingLtStart
-                    ? currentSeq === 0 ? '440V LT // EXISTING LINE TAP POLE' : '440V LT // POLE'
+                    ? currentSeq === 0 ? 'LT LINE // EXISTING LINE TAP POLE' : 'LT LINE // POLE'
                   : undefined
               }
             />

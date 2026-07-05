@@ -10,7 +10,7 @@ export const Theme = {
     // Line/Voltage specific neon styling
     neon11KV: '#F59E0B',   // Neon Amber (11KV HT)
     neon33KV: '#EF4444',   // Neon Red/Coral (33KV HT)
-    neon440V: '#06B6D4',   // Neon Cyan (440V LT)
+    neon440V: '#06B6D4',   // Neon Cyan (LT line)
     neonDTR: '#8B5CF6',    // Neon Purple (DTR Nodes)
     
     // Status colours

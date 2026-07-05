@@ -12,6 +12,7 @@ import { useRoute, useNavigation } from '@react-navigation/native';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { RootState, updateSurveyLineMetadata, updateSurveyNode } from '../../store';
 import { useToast } from '../../components/ToastProvider';
+import { getLineTypeLabel } from '../../utils/surveyLabels';
 
 import SurveySvgCanvas from './components/SurveySvgCanvas';
 import SurveyAttributeEditor from './components/SurveyAttributeEditor';
@@ -34,7 +35,7 @@ export default function SurveyDetailsScreen() {
   const [zoomScale, setZoomScale] = useState(1.0);
 
   const handleZoomIn = () => setZoomScale(prev => Math.min(prev + 0.25, 3.0));
-  const handleZoomOut = () => setZoomScale(prev => Math.max(prev - 0.25, 1.0));
+  const handleZoomOut = () => setZoomScale(prev => Math.max(prev - 0.25, 0));
   const handleResetZoom = () => setZoomScale(1.0);
 
   // Selected sub-elements
@@ -214,7 +215,7 @@ export default function SurveyDetailsScreen() {
         <Text style={styles.headerTitle}>SURVEY DETAILS</Text>
         <View style={[styles.classBadge, { borderColor: accentColor }]}>
           <Text style={[styles.classBadgeText, { color: accentColor }]}>
-            {survey.lineType.replace('_', ' ')}
+            {getLineTypeLabel(survey.lineType)}
           </Text>
         </View>
       </View>
@@ -264,7 +265,7 @@ export default function SurveyDetailsScreen() {
                   </View>
                   <View style={styles.legendItem}>
                     <View style={[styles.legendDotSym, { backgroundColor: '#0284C7' }]} />
-                    <Text style={styles.legendText}>440V LT Pole / Span</Text>
+                    <Text style={styles.legendText}>LT Line Pole / Span</Text>
                   </View>
                 </>
               )}
@@ -491,12 +492,17 @@ const styles = StyleSheet.create({
   },
   legendGrid: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
+    marginHorizontal: -4,
   },
   legendItem: {
+    width: '50%',
+    minHeight: 30,
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 4,
+    paddingVertical: 5,
   },
   legendSym: {
     width: 20,
@@ -525,9 +531,11 @@ const styles = StyleSheet.create({
     borderWidth: 1.2,
   },
   legendText: {
+    flex: 1,
     color: '#64748B',
     fontSize: 9,
     fontWeight: '500',
+    lineHeight: 13,
   },
   legendWavySym: {
     color: '#0284C7',

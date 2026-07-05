@@ -15,6 +15,7 @@ import { useNavigation } from '@react-navigation/native';
 import Svg, { Circle, Line, G, Defs, LinearGradient, Rect, Stop, RadialGradient } from 'react-native-svg';
 import { RootState, clearQueueItem } from '../../store';
 import { useToast } from '../../components/ToastProvider';
+import { getLineTypeLabel } from '../../utils/surveyLabels';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -124,7 +125,7 @@ export default function SyncQueueScreen() {
       // Process each queue item sequentially
       for (const line of queue) {
         setCurrentSyncingId(line.id);
-        const nameText = `${line.lineType.replace('_', ' ')} // ${line.contractorName}`;
+        const nameText = `${getLineTypeLabel(line.lineType)} // ${line.contractorName}`;
         
         setActiveSyncLogs(prev => [...prev, `\n>> STARTING UPLOAD: ${nameText.toUpperCase()}`]);
         await wait(600);
@@ -347,7 +348,7 @@ export default function SyncQueueScreen() {
                     </View>
                     <View style={[styles.badge, { borderColor: accent + '30', backgroundColor: accent + '08' }]}>
                       <Text style={[styles.badgeText, { color: accent }]}>
-                        {item.lineType.replace('_', ' ')}
+                        {getLineTypeLabel(item.lineType)}
                       </Text>
                     </View>
                   </View>

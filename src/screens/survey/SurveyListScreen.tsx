@@ -14,6 +14,7 @@ import { useNavigation } from '@react-navigation/native';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { RootState, startSurvey, SurveyLine } from '../../store';
 import { useToast } from '../../components/ToastProvider';
+import { getLineTypeLabel } from '../../utils/surveyLabels';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -93,7 +94,7 @@ export default function SurveyListScreen() {
 
   const handleConfirmLtStartingPoint = () => {
     if (!ltStartingPoint) {
-      toast.warning('Choose where this 440V LT survey starts.', { title: 'Starting point required' });
+      toast.warning('Choose where this LT line survey starts.', { title: 'Starting point required' });
       return;
     }
     launchSurvey(ltStartingPoint);
@@ -154,7 +155,7 @@ export default function SurveyListScreen() {
               { label: 'ALL CLASS', value: 'ALL' },
               { label: '11KV HT', value: 'HT_11KV' },
               { label: '33KV HT', value: 'HT_33KV' },
-              { label: '440V LT', value: 'LT_440V' }
+              { label: 'LT LINE', value: 'LT_440V' }
             ] as const).map((opt) => (
               <TouchableOpacity
                 key={opt.value}
@@ -214,7 +215,7 @@ export default function SurveyListScreen() {
                     </View>
                     <View style={[styles.classBadge, { borderColor: accent }]}>
                       <Text style={[styles.classBadgeText, { color: accent }]}>
-                        {item.lineType.replace('_', ' ')}
+                        {getLineTypeLabel(item.lineType)}
                       </Text>
                     </View>
                   </View>
@@ -268,7 +269,7 @@ export default function SurveyListScreen() {
 
             {isChoosingLtStart ? (
               <View style={styles.startingPointStep}>
-                <Text style={styles.stepContext}>440V LT SURVEY</Text>
+                <Text style={styles.stepContext}>LT LINE SURVEY</Text>
                 <Text style={styles.stepPrompt}>Where does this line start?</Text>
 
                 {LT_STARTING_POINTS.map((option) => {
@@ -318,7 +319,7 @@ export default function SurveyListScreen() {
                 {([
                   { label: '11KV HT', value: 'HT_11KV', color: '#F59E0B' },
                   { label: '33KV HT', value: 'HT_33KV', color: '#EF4444' },
-                  { label: '440V LT', value: 'LT_440V', color: '#0284C7' }
+                  { label: 'LT LINE', value: 'LT_440V', color: '#0284C7' }
                 ] as const).map((opt) => (
                   <TouchableOpacity
                     key={opt.value}

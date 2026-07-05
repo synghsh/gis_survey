@@ -132,7 +132,7 @@ const initialHistory: SurveyLine[] = [
     lineType: 'LT_440V',
     ltStartingPoint: 'HT_TAPPING_POINT',
     contractorName: 'Power Grid Corp',
-    remarks: '11KV HT tapping point through DTR to branched 440V LT distribution',
+    remarks: '11KV HT tapping point through DTR to branched LT line distribution',
     startedAt: new Date(Date.now() - 3600000 * 3).toISOString(),
     endedAt: new Date(Date.now() - 3600000 * 3 + 12000).toISOString(),
     status: 'PENDING',
