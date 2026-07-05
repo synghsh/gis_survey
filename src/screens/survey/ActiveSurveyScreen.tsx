@@ -58,6 +58,7 @@ export default function ActiveSurveyScreen() {
 
   const currentSeq = activeLine ? activeLine.nodes.length : 0;
   const isHtTapSurvey = activeLine?.lineType === 'LT_440V' && activeLine.ltStartingPoint === 'HT_TAPPING_POINT';
+  const isExistingLtStart = activeLine?.lineType === 'LT_440V' && activeLine.ltStartingPoint === 'EXISTING_LT_LINE';
   const hasDtr = activeLine?.nodes.some(node => node.nodeType === 'DTR') ?? false;
   const isHtPhase = Boolean(isHtTapSurvey && !hasDtr && !dtrIsNext);
 
@@ -72,6 +73,11 @@ export default function ActiveSurveyScreen() {
         setNodeType('POLE');
         setValue('nameLabel', currentSeq === 0 ? 'TAP-1' : `HT-P-${currentSeq}`);
         setValue('cableSize', '100 sqmm ACSR');
+        setValue('remarks', '');
+      } else if (isExistingLtStart) {
+        setNodeType('POLE');
+        setValue('nameLabel', currentSeq === 0 ? 'LT-TAP-1' : `LT-P-${currentSeq}`);
+        setValue('cableSize', '90 sqmm ABC');
         setValue('remarks', '');
       } else if (currentSeq === 0) {
         setNodeType('DTR');
@@ -88,7 +94,7 @@ export default function ActiveSurveyScreen() {
         setValue('remarks', '');
       }
     }
-  }, [currentSeq, activeLine, surveyStep, dtrIsNext, hasDtr, isHtTapSurvey, setValue]);
+  }, [currentSeq, activeLine, surveyStep, dtrIsNext, hasDtr, isHtTapSurvey, isExistingLtStart, setValue]);
 
   useEffect(() => {
     (async () => {
@@ -190,8 +196,8 @@ export default function ActiveSurveyScreen() {
     const newNode: SurveyNode = {
       id: `node-${Date.now()}`,
       nodeType,
-      lineSection: isHtTapSurvey ? (hasDtr ? 'LT' : 'HT') : undefined,
-      structureRole: isHtTapSurvey && currentSeq === 0 ? 'TAP' : undefined,
+      lineSection: isHtTapSurvey ? (hasDtr ? 'LT' : 'HT') : isExistingLtStart ? 'LT' : undefined,
+      structureRole: (isHtTapSurvey || isExistingLtStart) && currentSeq === 0 ? 'TAP' : undefined,
       sequenceNumber: currentSeq,
       nameLabel: nodeLabel,
       latitude: lat,
@@ -347,6 +353,8 @@ export default function ActiveSurveyScreen() {
                     : isHtPhase
                       ? currentSeq === 0 ? '11KV HT // TAP POLE' : '11KV HT // POLE'
                       : '440V LT // POLE'
+                  : isExistingLtStart
+                    ? currentSeq === 0 ? '440V LT // EXISTING LINE TAP POLE' : '440V LT // POLE'
                   : undefined
               }
             />
