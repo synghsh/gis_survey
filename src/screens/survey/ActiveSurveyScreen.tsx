@@ -44,6 +44,7 @@ export default function ActiveSurveyScreen() {
 
   const [surveyStep, setSurveyStep] = useState<'CAPTURE' | 'DETAILS'>('CAPTURE');
   const [nodeType, setNodeType] = useState<'DTR' | 'POLE'>('POLE');
+  const [dtrIsNext, setDtrIsNext] = useState(false);
 
   const [lat, setLat] = useState<number | null>(null);
   const [lng, setLng] = useState<number | null>(null);
@@ -56,22 +57,38 @@ export default function ActiveSurveyScreen() {
   const cameraRef = useRef<any>(null);
 
   const currentSeq = activeLine ? activeLine.nodes.length : 0;
+  const isHtTapSurvey = activeLine?.lineType === 'LT_440V' && activeLine.ltStartingPoint === 'HT_TAPPING_POINT';
+  const hasDtr = activeLine?.nodes.some(node => node.nodeType === 'DTR') ?? false;
+  const isHtPhase = Boolean(isHtTapSurvey && !hasDtr && !dtrIsNext);
 
   useEffect(() => {
     if (activeLine) {
-      if (currentSeq === 0) {
+      if (isHtTapSurvey && dtrIsNext) {
+        setNodeType('DTR');
+        setValue('nameLabel', 'DTR-TRANS-01');
+        setValue('cableSize', 'Conductor Grid Lead');
+        setValue('remarks', '');
+      } else if (isHtTapSurvey && !hasDtr) {
+        setNodeType('POLE');
+        setValue('nameLabel', currentSeq === 0 ? 'TAP-1' : `HT-P-${currentSeq}`);
+        setValue('cableSize', '100 sqmm ACSR');
+        setValue('remarks', '');
+      } else if (currentSeq === 0) {
         setNodeType('DTR');
         setValue('nameLabel', 'DTR-TRANS-01');
         setValue('cableSize', 'Conductor Grid Lead');
         setValue('remarks', '');
       } else {
         setNodeType('POLE');
-        setValue('nameLabel', `P-${currentSeq}`);
-        setValue('cableSize', '100 sqmm ACSR');
+        const ltSequence = isHtTapSurvey
+          ? activeLine.nodes.filter(node => node.lineSection === 'LT').length + 1
+          : currentSeq;
+        setValue('nameLabel', `P-${ltSequence}`);
+        setValue('cableSize', isHtTapSurvey ? '90 sqmm ABC' : '100 sqmm ACSR');
         setValue('remarks', '');
       }
     }
-  }, [currentSeq, activeLine, surveyStep]);
+  }, [currentSeq, activeLine, surveyStep, dtrIsNext, hasDtr, isHtTapSurvey, setValue]);
 
   useEffect(() => {
     (async () => {
@@ -173,6 +190,8 @@ export default function ActiveSurveyScreen() {
     const newNode: SurveyNode = {
       id: `node-${Date.now()}`,
       nodeType,
+      lineSection: isHtTapSurvey ? (hasDtr ? 'LT' : 'HT') : undefined,
+      structureRole: isHtTapSurvey && currentSeq === 0 ? 'TAP' : undefined,
       sequenceNumber: currentSeq,
       nameLabel: nodeLabel,
       latitude: lat,
@@ -195,6 +214,18 @@ export default function ActiveSurveyScreen() {
 
   const handleAddNew = (data: SurveyNodeFormInputs) => {
     if (commitCurrentNode(data)) {
+      if (nodeType === 'DTR') setDtrIsNext(false);
+      setCapturedPhoto(null);
+      setLat(null);
+      setLng(null);
+      setGpsAccuracy('WAITING...');
+      setSurveyStep('CAPTURE');
+    }
+  };
+
+  const handleAddDtrNext = (data: SurveyNodeFormInputs) => {
+    if (commitCurrentNode(data)) {
+      setDtrIsNext(true);
       setCapturedPhoto(null);
       setLat(null);
       setLng(null);
@@ -307,6 +338,17 @@ export default function ActiveSurveyScreen() {
               onRetakePhoto={() => setSurveyStep('CAPTURE')}
               onSubmitAddNew={handleSubmit(handleAddNew)}
               onSubmitFinish={handleSubmit(handleFinishSurvey)}
+              onSubmitDtrNext={handleSubmit(handleAddDtrNext)}
+              canSetDtrNext={isHtPhase}
+              structureContext={
+                isHtTapSurvey
+                  ? nodeType === 'DTR'
+                    ? 'HT TO LT TRANSITION // DTR'
+                    : isHtPhase
+                      ? currentSeq === 0 ? '11KV HT // TAP POLE' : '11KV HT // POLE'
+                      : '440V LT // POLE'
+                  : undefined
+              }
             />
           </ScrollView>
         )}

@@ -56,6 +56,7 @@ interface SurveySvgCanvasProps {
   selectedNodeId: string | null;
   selectedSpanNodeId: string | null;
   accentColor: string;
+  showMixedVoltage?: boolean;
   zoomScale: number;
   handleSelectNode: (node: any, index: number) => void;
   handleSelectSpan: (node: any, index: number) => void;
@@ -69,6 +70,7 @@ export default function SurveySvgCanvas({
   selectedNodeId,
   selectedSpanNodeId,
   accentColor,
+  showMixedVoltage = false,
   zoomScale,
   handleSelectNode,
   handleSelectSpan,
@@ -78,6 +80,8 @@ export default function SurveySvgCanvas({
 }: SurveySvgCanvasProps) {
   const warningColor = '#D97706';
   const dtrColor = '#8B5CF6';
+  const htColor = '#D97706';
+  const ltColor = '#0284C7';
   
   return (
     <View style={[styles.svgWrapper, { height: SVG_HEIGHT }]}>
@@ -112,6 +116,9 @@ export default function SurveySvgCanvas({
 
               const spanPath = createCoiledPath(parent.x, parent.y, node.x, node.y);
               const isSpanSelected = selectedSpanNodeId === node.id;
+              const spanColor = showMixedVoltage
+                ? node.lineSection === 'LT' ? ltColor : htColor
+                : accentColor;
 
               const midX = (parent.x + node.x) / 2;
               const midY = (parent.y + node.y) / 2;
@@ -139,7 +146,7 @@ export default function SurveySvgCanvas({
                   <Path
                     d={spanPath}
                     fill="none"
-                    stroke={isSpanSelected ? warningColor : accentColor}
+                    stroke={isSpanSelected ? warningColor : spanColor}
                     strokeWidth={isSpanSelected ? 2.5 : 1.5}
                     opacity={isSpanSelected ? 1.0 : 0.8}
                     onPress={() => handleSelectSpan(node, index)}
@@ -167,7 +174,8 @@ export default function SurveySvgCanvas({
             {projectedPoints.map((node, index) => {
               const isDtr = node.nodeType === 'DTR';
               const isSelected = selectedNodeId === node.id;
-              const markerColor = isDtr ? dtrColor : accentColor;
+              const sectionColor = node.lineSection === 'HT' ? htColor : ltColor;
+              const markerColor = isDtr ? dtrColor : showMixedVoltage ? sectionColor : accentColor;
 
               return (
                 <G key={`node-${node.id}`} onPress={() => handleSelectNode(node, index)}>

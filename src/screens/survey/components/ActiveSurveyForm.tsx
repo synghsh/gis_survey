@@ -15,6 +15,9 @@ interface ActiveSurveyFormProps {
   onRetakePhoto: () => void;
   onSubmitAddNew: () => void;
   onSubmitFinish: () => void;
+  onSubmitDtrNext?: () => void;
+  canSetDtrNext?: boolean;
+  structureContext?: string;
 }
 
 export default function ActiveSurveyForm({
@@ -30,11 +33,21 @@ export default function ActiveSurveyForm({
   onRetakePhoto,
   onSubmitAddNew,
   onSubmitFinish,
+  onSubmitDtrNext,
+  canSetDtrNext = false,
+  structureContext,
 }: ActiveSurveyFormProps) {
   return (
     <View style={styles.detailsContainer}>
       <View style={styles.panel}>
         <Text style={styles.panelTitle}>STRUCTURE VERIFICATION</Text>
+        {structureContext && (
+          <View style={[styles.phaseBadge, nodeType === 'DTR' ? styles.phaseBadgeDtr : null]}>
+            <Text style={[styles.phaseBadgeText, nodeType === 'DTR' ? styles.phaseBadgeTextDtr : null]}>
+              {structureContext}
+            </Text>
+          </View>
+        )}
 
         {/* Photo Thumbnail + GPS Overlay */}
         <View style={styles.previewCard}>
@@ -139,6 +152,18 @@ export default function ActiveSurveyForm({
           <Text style={styles.btnSubtext}>Submit line for verification</Text>
         </TouchableOpacity>
       </View>
+      {canSetDtrNext && onSubmitDtrNext && (
+        <TouchableOpacity style={styles.dtrNextBtn} onPress={onSubmitDtrNext} activeOpacity={0.8}>
+          <View style={styles.dtrNextMark}>
+            <Text style={styles.dtrNextMarkText}>D</Text>
+          </View>
+          <View style={styles.dtrNextCopy}>
+            <Text style={styles.dtrNextTitle}>SAVE & CAPTURE DTR NEXT</Text>
+            <Text style={styles.dtrNextSubtitle}>Ends the HT pole section and starts LT distribution</Text>
+          </View>
+          <Text style={styles.dtrNextArrow}>&gt;</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -169,6 +194,29 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1.2,
     paddingBottom: 10,
     marginBottom: 16,
+  },
+  phaseBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(245, 158, 11, 0.10)',
+    borderColor: 'rgba(217, 119, 6, 0.30)',
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginBottom: 14,
+  },
+  phaseBadgeDtr: {
+    backgroundColor: 'rgba(139, 92, 246, 0.09)',
+    borderColor: 'rgba(139, 92, 246, 0.30)',
+  },
+  phaseBadgeText: {
+    color: '#B45309',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  phaseBadgeTextDtr: {
+    color: '#7C3AED',
   },
   previewCard: {
     flexDirection: 'row',
@@ -315,5 +363,49 @@ const styles = StyleSheet.create({
     fontSize: 8,
     marginTop: 2,
     textAlign: 'center',
+  },
+  dtrNextBtn: {
+    minHeight: 64,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderColor: '#8B5CF6',
+    backgroundColor: 'rgba(139, 92, 246, 0.07)',
+    borderWidth: 1.5,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    marginTop: 12,
+  },
+  dtrNextMark: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#8B5CF6',
+  },
+  dtrNextMarkText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  dtrNextCopy: {
+    flex: 1,
+    marginHorizontal: 12,
+  },
+  dtrNextTitle: {
+    color: '#6D28D9',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  dtrNextSubtitle: {
+    color: '#64748B',
+    fontSize: 9,
+    marginTop: 3,
+  },
+  dtrNextArrow: {
+    color: '#7C3AED',
+    fontSize: 20,
+    fontWeight: '700',
   },
 });

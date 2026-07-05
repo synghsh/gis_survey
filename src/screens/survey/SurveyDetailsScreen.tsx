@@ -242,6 +242,7 @@ export default function SurveyDetailsScreen() {
               selectedNodeId={selectedNodeId}
               selectedSpanNodeId={selectedSpanNodeId}
               accentColor={accentColor}
+              showMixedVoltage={survey.lineType === 'LT_440V' && survey.ltStartingPoint === 'HT_TAPPING_POINT'}
               zoomScale={zoomScale}
               handleSelectNode={handleSelectNode}
               handleSelectSpan={handleSelectSpan}
@@ -255,6 +256,18 @@ export default function SurveyDetailsScreen() {
           <View style={styles.legendBox}>
             <Text style={styles.legendTitle}>HUD SYMBOL LEGEND</Text>
             <View style={styles.legendGrid}>
+              {survey.lineType === 'LT_440V' && survey.ltStartingPoint === 'HT_TAPPING_POINT' && (
+                <>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.legendDotSym, { backgroundColor: '#D97706' }]} />
+                    <Text style={styles.legendText}>11KV HT Pole / Span</Text>
+                  </View>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.legendDotSym, { backgroundColor: '#0284C7' }]} />
+                    <Text style={styles.legendText}>440V LT Pole / Span</Text>
+                  </View>
+                </>
+              )}
               <View style={styles.legendItem}>
                 <View style={styles.legendSym}>
                   <View style={styles.legendCircleOverLeft} />

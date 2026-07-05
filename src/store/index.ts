@@ -5,6 +5,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export interface SurveyNode {
   id: string;
   nodeType: 'DTR' | 'POLE';
+  lineSection?: 'HT' | 'LT';
+  structureRole?: 'TAP';
   sequenceNumber: number;
   nameLabel: string;
   latitude: number;
@@ -128,8 +130,9 @@ const initialHistory: SurveyLine[] = [
   {
     id: 'hist-3',
     lineType: 'LT_440V',
+    ltStartingPoint: 'HT_TAPPING_POINT',
     contractorName: 'Power Grid Corp',
-    remarks: 'Sample Branched LT Line Distribution',
+    remarks: '11KV HT tapping point through DTR to branched 440V LT distribution',
     startedAt: new Date(Date.now() - 3600000 * 3).toISOString(),
     endedAt: new Date(Date.now() - 3600000 * 3 + 12000).toISOString(),
     status: 'PENDING',
@@ -138,17 +141,17 @@ const initialHistory: SurveyLine[] = [
     district: 'North Division',
     preparedBy: 'Surveyor Sayan',
     nodes: [
-      { id: 'hn-3-1', nodeType: 'DTR', sequenceNumber: 0, nameLabel: 'DTR 100KVA', latitude: 22.5710, longitude: 88.3620, attributes: { cableSize: 'DTR Lead', poleType: 'Transformer Plt', height: '9m', tilt: '0°', sag: '0m' }, imageUri: null, capturedAt: '' },
-      { id: 'hn-3-2', nodeType: 'POLE', sequenceNumber: 1, nameLabel: 'P1', latitude: 22.5714, longitude: 88.3620, attributes: { cableSize: '90 sqmm ABC', poleType: 'Concrete Pole', height: '9m', tilt: '0°', sag: '0.2m' }, imageUri: null, capturedAt: '', parentLabel: 'DTR 100KVA' },
-      { id: 'hn-3-3', nodeType: 'POLE', sequenceNumber: 2, nameLabel: 'P2', latitude: 22.5718, longitude: 88.3620, attributes: { cableSize: '90 sqmm ABC', poleType: 'Concrete Pole', height: '9m', tilt: '0°', sag: '0.3m' }, imageUri: null, capturedAt: '', parentLabel: 'P1' },
-      { id: 'hn-3-4', nodeType: 'POLE', sequenceNumber: 3, nameLabel: 'P3', latitude: 22.5722, longitude: 88.3622, attributes: { cableSize: '90 sqmm ABC', poleType: 'Concrete Pole', height: '9m', tilt: '0°', sag: '0.3m' }, imageUri: null, capturedAt: '', parentLabel: 'P2' },
-      { id: 'hn-3-5', nodeType: 'POLE', sequenceNumber: 4, nameLabel: 'P4', latitude: 22.5724, longitude: 88.3618, attributes: { cableSize: '50 sqmm ABC', poleType: 'Concrete Pole', height: '9m', tilt: '0°', sag: '0.4m' }, imageUri: null, capturedAt: '', parentLabel: 'P3' },
-      { id: 'hn-3-6', nodeType: 'POLE', sequenceNumber: 5, nameLabel: 'P5', latitude: 22.5727, longitude: 88.3615, attributes: { cableSize: '50 sqmm ABC', poleType: 'Concrete Pole', height: '9m', tilt: '0°', sag: '0.4m' }, imageUri: null, capturedAt: '', parentLabel: 'P4' },
-      { id: 'hn-3-7', nodeType: 'POLE', sequenceNumber: 6, nameLabel: 'P6', latitude: 22.5720, longitude: 88.3628, attributes: { cableSize: '75 sqmm ABC', poleType: 'Concrete Pole', height: '9m', tilt: '1°', sag: '0.2m' }, imageUri: null, capturedAt: '', parentLabel: 'P3' },
-      { id: 'hn-3-8', nodeType: 'POLE', sequenceNumber: 7, nameLabel: 'P7', latitude: 22.5718, longitude: 88.3633, attributes: { cableSize: '75 sqmm ABC', poleType: 'Concrete Pole', height: '9m', tilt: '0°', sag: '0.3m' }, imageUri: null, capturedAt: '', parentLabel: 'P6' },
-      { id: 'hn-3-9', nodeType: 'POLE', sequenceNumber: 8, nameLabel: 'P8', latitude: 22.5715, longitude: 88.3637, attributes: { cableSize: '75 sqmm ABC', poleType: 'Concrete Pole', height: '9m', tilt: '0°', sag: '0.3m' }, imageUri: null, capturedAt: '', parentLabel: 'P7' },
-      { id: 'hn-3-10', nodeType: 'POLE', sequenceNumber: 9, nameLabel: 'P9', latitude: 22.5711, longitude: 88.3640, attributes: { cableSize: '75 sqmm ABC', poleType: 'Concrete Pole', height: '9m', tilt: '0°', sag: '0.3m' }, imageUri: null, capturedAt: '', parentLabel: 'P8' },
-      { id: 'hn-3-11', nodeType: 'POLE', sequenceNumber: 10, nameLabel: 'P10', latitude: 22.5717, longitude: 88.3642, attributes: { cableSize: '50 sqmm ABC', poleType: 'Concrete Pole', height: '9m', tilt: '0°', sag: '0.2m' }, imageUri: null, capturedAt: '', parentLabel: 'P8' }
+      { id: 'hn-3-1', nodeType: 'POLE', lineSection: 'HT', structureRole: 'TAP', sequenceNumber: 0, nameLabel: 'TAP-1', latitude: 22.5710, longitude: 88.3620, attributes: { cableSize: '100 sqmm ACSR', poleType: 'HT Tap Pole', height: '11m', tilt: '0°', sag: '0.3m' }, imageUri: null, capturedAt: '' },
+      { id: 'hn-3-2', nodeType: 'POLE', lineSection: 'HT', sequenceNumber: 1, nameLabel: 'HT-P-1', latitude: 22.5714, longitude: 88.3620, attributes: { cableSize: '100 sqmm ACSR', poleType: 'Concrete HT Pole', height: '11m', tilt: '0°', sag: '0.3m' }, imageUri: null, capturedAt: '', parentLabel: 'TAP-1' },
+      { id: 'hn-3-3', nodeType: 'POLE', lineSection: 'HT', sequenceNumber: 2, nameLabel: 'HT-P-2', latitude: 22.5718, longitude: 88.3620, attributes: { cableSize: '100 sqmm ACSR', poleType: 'Concrete HT Pole', height: '11m', tilt: '0°', sag: '0.4m' }, imageUri: null, capturedAt: '', parentLabel: 'HT-P-1' },
+      { id: 'hn-3-4', nodeType: 'DTR', lineSection: 'HT', sequenceNumber: 3, nameLabel: 'DTR-100KVA', latitude: 22.5722, longitude: 88.3622, attributes: { cableSize: '11KV DTR Lead', poleType: 'Transformer Platform', height: '9m', tilt: '0°', sag: '0m' }, imageUri: null, capturedAt: '', parentLabel: 'HT-P-2' },
+      { id: 'hn-3-5', nodeType: 'POLE', lineSection: 'LT', sequenceNumber: 4, nameLabel: 'LT-P-1', latitude: 22.5724, longitude: 88.3618, attributes: { cableSize: '90 sqmm ABC', poleType: 'Concrete LT Pole', height: '9m', tilt: '0°', sag: '0.4m' }, imageUri: null, capturedAt: '', parentLabel: 'DTR-100KVA' },
+      { id: 'hn-3-6', nodeType: 'POLE', lineSection: 'LT', sequenceNumber: 5, nameLabel: 'LT-P-2', latitude: 22.5727, longitude: 88.3615, attributes: { cableSize: '90 sqmm ABC', poleType: 'Concrete LT Pole', height: '9m', tilt: '0°', sag: '0.4m' }, imageUri: null, capturedAt: '', parentLabel: 'LT-P-1' },
+      { id: 'hn-3-7', nodeType: 'POLE', lineSection: 'LT', sequenceNumber: 6, nameLabel: 'LT-P-3', latitude: 22.5720, longitude: 88.3628, attributes: { cableSize: '75 sqmm ABC', poleType: 'Concrete LT Pole', height: '9m', tilt: '1°', sag: '0.2m' }, imageUri: null, capturedAt: '', parentLabel: 'DTR-100KVA' },
+      { id: 'hn-3-8', nodeType: 'POLE', lineSection: 'LT', sequenceNumber: 7, nameLabel: 'LT-P-4', latitude: 22.5718, longitude: 88.3633, attributes: { cableSize: '75 sqmm ABC', poleType: 'Concrete LT Pole', height: '9m', tilt: '0°', sag: '0.3m' }, imageUri: null, capturedAt: '', parentLabel: 'LT-P-3' },
+      { id: 'hn-3-9', nodeType: 'POLE', lineSection: 'LT', sequenceNumber: 8, nameLabel: 'LT-P-5', latitude: 22.5715, longitude: 88.3637, attributes: { cableSize: '75 sqmm ABC', poleType: 'Concrete LT Pole', height: '9m', tilt: '0°', sag: '0.3m' }, imageUri: null, capturedAt: '', parentLabel: 'LT-P-4' },
+      { id: 'hn-3-10', nodeType: 'POLE', lineSection: 'LT', sequenceNumber: 9, nameLabel: 'LT-P-6', latitude: 22.5711, longitude: 88.3640, attributes: { cableSize: '75 sqmm ABC', poleType: 'Concrete LT Pole', height: '9m', tilt: '0°', sag: '0.3m' }, imageUri: null, capturedAt: '', parentLabel: 'LT-P-5' },
+      { id: 'hn-3-11', nodeType: 'POLE', lineSection: 'LT', sequenceNumber: 10, nameLabel: 'LT-P-7', latitude: 22.5717, longitude: 88.3642, attributes: { cableSize: '50 sqmm ABC', poleType: 'Concrete LT Pole', height: '9m', tilt: '0°', sag: '0.2m' }, imageUri: null, capturedAt: '', parentLabel: 'LT-P-4' }
     ]
   }
 ];
@@ -271,7 +274,11 @@ const surveySlice = createSlice({
         state.activeLine = action.payload.activeLine ?? null;
         state.syncQueue = action.payload.syncQueue ?? [];
         state.completedCount = action.payload.completedCount ?? 2;
-        state.historyList = action.payload.historyList ?? initialHistory;
+        const persistedHistory: SurveyLine[] = action.payload.historyList ?? [];
+        const demoLine = initialHistory.find(line => line.id === 'hist-3');
+        state.historyList = demoLine
+          ? [demoLine, ...persistedHistory.filter(line => line.id !== demoLine.id)]
+          : persistedHistory;
       }
     }
   },
