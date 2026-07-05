@@ -27,6 +27,7 @@ interface SurveyNodeFormInputs {
   nameLabel: string;
   cableSize: string;
   remarks: string;
+  assetStatus: 'OLD' | 'NEW' | '';
 }
 
 export default function ActiveSurveyScreen() {
@@ -40,6 +41,7 @@ export default function ActiveSurveyScreen() {
       nameLabel: '',
       cableSize: '',
       remarks: '',
+      assetStatus: '',
     }
   });
 
@@ -70,21 +72,25 @@ export default function ActiveSurveyScreen() {
         setValue('nameLabel', 'DTR-TRANS-01');
         setValue('cableSize', 'Conductor Grid Lead');
         setValue('remarks', '');
+        setValue('assetStatus', '');
       } else if (isHtTapSurvey && !hasDtr) {
         setNodeType('POLE');
         setValue('nameLabel', currentSeq === 0 ? 'TAP-1' : `HT-P-${currentSeq}`);
         setValue('cableSize', '100 sqmm ACSR');
         setValue('remarks', '');
+        setValue('assetStatus', '');
       } else if (isExistingLtStart) {
         setNodeType('POLE');
         setValue('nameLabel', currentSeq === 0 ? 'LT-TAP-1' : `LT-P-${currentSeq}`);
         setValue('cableSize', '90 sqmm ABC');
         setValue('remarks', '');
+        setValue('assetStatus', '');
       } else if (currentSeq === 0) {
         setNodeType('DTR');
         setValue('nameLabel', 'DTR-TRANS-01');
         setValue('cableSize', 'Conductor Grid Lead');
         setValue('remarks', '');
+        setValue('assetStatus', '');
       } else {
         setNodeType('POLE');
         const ltSequence = isHtTapSurvey
@@ -93,6 +99,7 @@ export default function ActiveSurveyScreen() {
         setValue('nameLabel', `P-${ltSequence}`);
         setValue('cableSize', isHtTapSurvey ? '90 sqmm ABC' : '100 sqmm ACSR');
         setValue('remarks', '');
+        setValue('assetStatus', '');
       }
     }
   }, [currentSeq, activeLine, surveyStep, dtrIsNext, hasDtr, isHtTapSurvey, isExistingLtStart, setValue]);
@@ -197,6 +204,7 @@ export default function ActiveSurveyScreen() {
     const newNode: SurveyNode = {
       id: `node-${Date.now()}`,
       nodeType,
+      assetStatus: data.assetStatus || undefined,
       lineSection: isHtTapSurvey ? (hasDtr ? 'LT' : 'HT') : isExistingLtStart ? 'LT' : undefined,
       structureRole: (isHtTapSurvey || isExistingLtStart) && currentSeq === 0 ? 'TAP' : undefined,
       sequenceNumber: currentSeq,

@@ -255,34 +255,15 @@ export default function SurveyDetailsScreen() {
 
           {/* Canvas Legend Overlay */}
           <View style={styles.legendBox}>
-            <Text style={styles.legendTitle}>HUD SYMBOL LEGEND</Text>
+            <Text style={styles.legendTitle}>STRUCTURE STATUS LEGEND</Text>
             <View style={styles.legendGrid}>
-              {survey.lineType === 'LT_440V' && survey.ltStartingPoint === 'HT_TAPPING_POINT' && (
-                <>
-                  <View style={styles.legendItem}>
-                    <View style={[styles.legendDotSym, { backgroundColor: '#D97706' }]} />
-                    <Text style={styles.legendText}>11KV HT Pole / Span</Text>
-                  </View>
-                  <View style={styles.legendItem}>
-                    <View style={[styles.legendDotSym, { backgroundColor: '#0284C7' }]} />
-                    <Text style={styles.legendText}>LT Line Pole / Span</Text>
-                  </View>
-                </>
-              )}
               <View style={styles.legendItem}>
-                <View style={styles.legendSym}>
-                  <View style={styles.legendCircleOverLeft} />
-                  <View style={styles.legendCircleOverRight} />
-                </View>
-                <Text style={styles.legendText}>DTR Hub</Text>
+                <View style={[styles.legendDotSym, { backgroundColor: '#16A34A' }]} />
+                <Text style={styles.legendText}>New Pole / DTR</Text>
               </View>
               <View style={styles.legendItem}>
-                <Text style={styles.legendWavySym}>〰️〰️</Text>
-                <Text style={styles.legendText}>ABC Cable</Text>
-              </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDotSym, { backgroundColor: accentColor }]} />
-                <Text style={styles.legendText}>Grid Pole</Text>
+                <View style={[styles.legendDotSym, { backgroundColor: '#64748B' }]} />
+                <Text style={styles.legendText}>Old Pole / DTR</Text>
               </View>
             </View>
           </View>

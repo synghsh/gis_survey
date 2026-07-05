@@ -81,6 +81,8 @@ export default function SurveySvgCanvas({
   const dtrColor = '#8B5CF6';
   const htColor = '#D97706';
   const ltColor = '#0284C7';
+  const oldStructureColor = '#64748B';
+  const newStructureColor = '#16A34A';
   const renderedScale = Math.max(zoomScale, 0.003);
   
   return (
@@ -175,7 +177,12 @@ export default function SurveySvgCanvas({
               const isDtr = node.nodeType === 'DTR';
               const isSelected = selectedNodeId === node.id;
               const sectionColor = node.lineSection === 'HT' ? htColor : ltColor;
-              const markerColor = isDtr ? dtrColor : showMixedVoltage ? sectionColor : accentColor;
+              const fallbackMarkerColor = isDtr ? dtrColor : showMixedVoltage ? sectionColor : accentColor;
+              const markerColor = node.assetStatus === 'NEW'
+                ? newStructureColor
+                : node.assetStatus === 'OLD'
+                  ? oldStructureColor
+                  : fallbackMarkerColor;
 
               return (
                 <G key={`node-${node.id}`} onPress={() => handleSelectNode(node, index)}>

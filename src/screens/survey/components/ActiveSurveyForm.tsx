@@ -115,6 +115,47 @@ export default function ActiveSurveyForm({
         </View>
 
         <View style={styles.formGroup}>
+          <Text style={styles.label}>STRUCTURE CONDITION</Text>
+          <Controller
+            control={control}
+            name="assetStatus"
+            rules={{ required: 'Select whether this structure is old or new' }}
+            render={({ field: { onChange, value } }) => (
+              <View style={styles.conditionControl}>
+                {(['OLD', 'NEW'] as const).map(status => {
+                  const selected = value === status;
+                  return (
+                    <TouchableOpacity
+                      key={status}
+                      style={[
+                        styles.conditionOption,
+                        selected && (status === 'NEW' ? styles.conditionNewSelected : styles.conditionOldSelected),
+                      ]}
+                      onPress={() => onChange(status)}
+                      activeOpacity={0.75}
+                    >
+                      <View style={[
+                        styles.conditionDot,
+                        { backgroundColor: status === 'NEW' ? '#16A34A' : '#64748B' },
+                      ]} />
+                      <Text style={[
+                        styles.conditionText,
+                        selected && (status === 'NEW' ? styles.conditionNewText : styles.conditionOldText),
+                      ]}>
+                        {status} STRUCTURE
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+          />
+          {errors.assetStatus && (
+            <Text style={styles.errorFeedback}>{errors.assetStatus.message}</Text>
+          )}
+        </View>
+
+        <View style={styles.formGroup}>
           <Text style={styles.label}>SITE REMARKS</Text>
           <Controller
             control={control}
@@ -307,6 +348,45 @@ const styles = StyleSheet.create({
   remarksTextArea: {
     height: 60,
     textAlignVertical: 'top',
+  },
+  conditionControl: {
+    flexDirection: 'row',
+  },
+  conditionOption: {
+    flex: 1,
+    minHeight: 42,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderColor: 'rgba(100, 116, 139, 0.22)',
+    borderWidth: 1.2,
+    paddingHorizontal: 8,
+  },
+  conditionOldSelected: {
+    borderColor: '#64748B',
+    backgroundColor: 'rgba(100, 116, 139, 0.09)',
+  },
+  conditionNewSelected: {
+    borderColor: '#16A34A',
+    backgroundColor: 'rgba(22, 163, 74, 0.08)',
+  },
+  conditionDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 7,
+  },
+  conditionText: {
+    color: '#64748B',
+    fontSize: 9.5,
+    fontWeight: '800',
+  },
+  conditionOldText: {
+    color: '#475569',
+  },
+  conditionNewText: {
+    color: '#15803D',
   },
   retakePhotoBtn: {
     borderColor: 'rgba(2, 132, 199, 0.25)',

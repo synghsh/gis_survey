@@ -16,6 +16,7 @@ import IntroScreen from './src/screens/auth/IntroScreen';
 import LoginScreen from './src/screens/auth/LoginScreen';
 import DashboardScreen from './src/screens/dashboard/DashboardScreen';
 import SurveyListScreen from './src/screens/survey/SurveyListScreen';
+import ErectionExecutionScreen from './src/screens/survey/ErectionExecutionScreen';
 import ProfileScreen from './src/screens/profile/ProfileScreen';
 import ActiveSurveyScreen from './src/screens/survey/ActiveSurveyScreen';
 import SyncQueueScreen from './src/screens/sync/SyncQueueScreen';
@@ -29,6 +30,13 @@ const Tab = createBottomTabNavigator();
 function MainTabNavigator() {
   const insets = useSafeAreaInsets();
   const queueLength = useSelector((state: RootState) => state.survey.syncQueue.length);
+  const tabLabels: Record<string, string> = {
+    Dashboard: 'DASH\nBOARD',
+    SurveyList: 'SURVEY\nRUNS',
+    ErectionExecution: 'ERECTION\nEXECUTION',
+    SyncQueue: 'SYNC\nTERMINAL',
+    Profile: 'MY\nPROFILE',
+  };
 
   return (
     <Tab.Navigator
@@ -44,16 +52,16 @@ function MainTabNavigator() {
         },
         tabBarActiveTintColor: Theme.colors.glowCyan,
         tabBarInactiveTintColor: '#9CA3AF',
-        tabBarLabelStyle: {
-          fontSize: 9,
-          fontWeight: 'bold',
-          letterSpacing: 0.5,
-          marginTop: 2,
-        },
+        tabBarLabel: ({ color }) => (
+          <Text style={{ color, fontSize: 7.5, fontWeight: 'bold', textAlign: 'center', lineHeight: 9 }}>
+            {tabLabels[route.name] ?? route.name}
+          </Text>
+        ),
         tabBarIcon: ({ color }) => {
           let iconName = '🖥️';
           if (route.name === 'Dashboard') iconName = '🖥️';
           else if (route.name === 'SurveyList') iconName = '📋';
+          else if (route.name === 'ErectionExecution') iconName = '🏗️';
           else if (route.name === 'SyncQueue') iconName = '📡';
           else if (route.name === 'Profile') iconName = '👤';
           return <Text style={{ fontSize: 18, color }}>{iconName}</Text>;
@@ -62,6 +70,11 @@ function MainTabNavigator() {
     >
       <Tab.Screen name="Dashboard" component={DashboardScreen} options={{ title: 'DASHBOARD' }} />
       <Tab.Screen name="SurveyList" component={SurveyListScreen} options={{ title: 'SURVEY RUNS' }} />
+      <Tab.Screen
+        name="ErectionExecution"
+        component={ErectionExecutionScreen}
+        options={{ title: 'ERECTION EXECUTION' }}
+      />
       <Tab.Screen
         name="SyncQueue"
         component={SyncQueueScreen}

@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export interface SurveyNode {
   id: string;
   nodeType: 'DTR' | 'POLE';
+  assetStatus?: 'OLD' | 'NEW';
   lineSection?: 'HT' | 'LT';
   structureRole?: 'TAP';
   sequenceNumber: number;
@@ -141,12 +142,12 @@ const initialHistory: SurveyLine[] = [
     district: 'North Division',
     preparedBy: 'Surveyor Sayan',
     nodes: [
-      { id: 'hn-3-1', nodeType: 'POLE', lineSection: 'HT', structureRole: 'TAP', sequenceNumber: 0, nameLabel: 'TAP-1', latitude: 22.5710, longitude: 88.3620, attributes: { cableSize: '100 sqmm ACSR', poleType: 'HT Tap Pole', height: '11m', tilt: '0°', sag: '0.3m' }, imageUri: null, capturedAt: '' },
-      { id: 'hn-3-2', nodeType: 'POLE', lineSection: 'HT', sequenceNumber: 1, nameLabel: 'HT-P-1', latitude: 22.5714, longitude: 88.3620, attributes: { cableSize: '100 sqmm ACSR', poleType: 'Concrete HT Pole', height: '11m', tilt: '0°', sag: '0.3m' }, imageUri: null, capturedAt: '', parentLabel: 'TAP-1' },
-      { id: 'hn-3-3', nodeType: 'POLE', lineSection: 'HT', sequenceNumber: 2, nameLabel: 'HT-P-2', latitude: 22.5718, longitude: 88.3620, attributes: { cableSize: '100 sqmm ACSR', poleType: 'Concrete HT Pole', height: '11m', tilt: '0°', sag: '0.4m' }, imageUri: null, capturedAt: '', parentLabel: 'HT-P-1' },
-      { id: 'hn-3-4', nodeType: 'DTR', lineSection: 'HT', sequenceNumber: 3, nameLabel: 'DTR-100KVA', latitude: 22.5722, longitude: 88.3622, attributes: { cableSize: '11KV DTR Lead', poleType: 'Transformer Platform', height: '9m', tilt: '0°', sag: '0m' }, imageUri: null, capturedAt: '', parentLabel: 'HT-P-2' },
-      { id: 'hn-3-5', nodeType: 'POLE', lineSection: 'LT', sequenceNumber: 4, nameLabel: 'LT-P-1', latitude: 22.5724, longitude: 88.3618, attributes: { cableSize: '90 sqmm ABC', poleType: 'Concrete LT Pole', height: '9m', tilt: '0°', sag: '0.4m' }, imageUri: null, capturedAt: '', parentLabel: 'DTR-100KVA' },
-      { id: 'hn-3-6', nodeType: 'POLE', lineSection: 'LT', sequenceNumber: 5, nameLabel: 'LT-P-2', latitude: 22.5727, longitude: 88.3615, attributes: { cableSize: '90 sqmm ABC', poleType: 'Concrete LT Pole', height: '9m', tilt: '0°', sag: '0.4m' }, imageUri: null, capturedAt: '', parentLabel: 'LT-P-1' },
+      { id: 'hn-3-1', nodeType: 'POLE', assetStatus: 'OLD', lineSection: 'HT', structureRole: 'TAP', sequenceNumber: 0, nameLabel: 'TAP-1', latitude: 22.5710, longitude: 88.3620, attributes: { cableSize: '100 sqmm ACSR', poleType: 'HT Tap Pole', height: '11m', tilt: '0°', sag: '0.3m' }, imageUri: null, capturedAt: '' },
+      { id: 'hn-3-2', nodeType: 'POLE', assetStatus: 'OLD', lineSection: 'HT', sequenceNumber: 1, nameLabel: 'HT-P-1', latitude: 22.5714, longitude: 88.3620, attributes: { cableSize: '100 sqmm ACSR', poleType: 'Concrete HT Pole', height: '11m', tilt: '0°', sag: '0.3m' }, imageUri: null, capturedAt: '', parentLabel: 'TAP-1' },
+      { id: 'hn-3-3', nodeType: 'POLE', assetStatus: 'NEW', lineSection: 'HT', sequenceNumber: 2, nameLabel: 'HT-P-2', latitude: 22.5718, longitude: 88.3620, attributes: { cableSize: '100 sqmm ACSR', poleType: 'Concrete HT Pole', height: '11m', tilt: '0°', sag: '0.4m' }, imageUri: null, capturedAt: '', parentLabel: 'HT-P-1' },
+      { id: 'hn-3-4', nodeType: 'DTR', assetStatus: 'NEW', lineSection: 'HT', sequenceNumber: 3, nameLabel: 'DTR-100KVA', latitude: 22.5722, longitude: 88.3622, attributes: { cableSize: '11KV DTR Lead', poleType: 'Transformer Platform', height: '9m', tilt: '0°', sag: '0m' }, imageUri: null, capturedAt: '', parentLabel: 'HT-P-2' },
+      { id: 'hn-3-5', nodeType: 'POLE', assetStatus: 'NEW', lineSection: 'LT', sequenceNumber: 4, nameLabel: 'LT-P-1', latitude: 22.5724, longitude: 88.3618, attributes: { cableSize: '90 sqmm ABC', poleType: 'Concrete LT Pole', height: '9m', tilt: '0°', sag: '0.4m' }, imageUri: null, capturedAt: '', parentLabel: 'DTR-100KVA' },
+      { id: 'hn-3-6', nodeType: 'POLE', assetStatus: 'OLD', lineSection: 'LT', sequenceNumber: 5, nameLabel: 'LT-P-2', latitude: 22.5727, longitude: 88.3615, attributes: { cableSize: '90 sqmm ABC', poleType: 'Concrete LT Pole', height: '9m', tilt: '0°', sag: '0.4m' }, imageUri: null, capturedAt: '', parentLabel: 'LT-P-1' },
       { id: 'hn-3-7', nodeType: 'POLE', lineSection: 'LT', sequenceNumber: 6, nameLabel: 'LT-P-3', latitude: 22.5720, longitude: 88.3628, attributes: { cableSize: '75 sqmm ABC', poleType: 'Concrete LT Pole', height: '9m', tilt: '1°', sag: '0.2m' }, imageUri: null, capturedAt: '', parentLabel: 'DTR-100KVA' },
       { id: 'hn-3-8', nodeType: 'POLE', lineSection: 'LT', sequenceNumber: 7, nameLabel: 'LT-P-4', latitude: 22.5718, longitude: 88.3633, attributes: { cableSize: '75 sqmm ABC', poleType: 'Concrete LT Pole', height: '9m', tilt: '0°', sag: '0.3m' }, imageUri: null, capturedAt: '', parentLabel: 'LT-P-3' },
       { id: 'hn-3-9', nodeType: 'POLE', lineSection: 'LT', sequenceNumber: 8, nameLabel: 'LT-P-5', latitude: 22.5715, longitude: 88.3637, attributes: { cableSize: '75 sqmm ABC', poleType: 'Concrete LT Pole', height: '9m', tilt: '0°', sag: '0.3m' }, imageUri: null, capturedAt: '', parentLabel: 'LT-P-4' },
