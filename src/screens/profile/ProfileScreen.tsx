@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Image,
   ScrollView,
-  Alert,
   Dimensions,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
@@ -14,6 +13,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { RootState, updateProfileImage, logout } from '../../store';
 import { useNavigation } from '@react-navigation/native';
+import { useToast } from '../../components/ToastProvider';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -21,6 +21,7 @@ export default function ProfileScreen() {
   const navigation = useNavigation<any>();
   const dispatch = useDispatch();
   const auth = useSelector((state: RootState) => state.auth);
+  const toast = useToast();
 
   const [showSelfieCamera, setShowSelfieCamera] = useState(false);
   const [cameraFlash, setCameraFlash] = useState(false);
@@ -31,7 +32,7 @@ export default function ProfileScreen() {
     if (!cameraPermission || !cameraPermission.granted) {
       const result = await requestCameraPermission();
       if (!result.granted) {
-        Alert.alert('Permission Denied', 'Camera permission is required to capture a profile picture.');
+        toast.error('Camera permission is required to capture a profile picture.', { title: 'Permission denied' });
         return;
       }
     }
@@ -52,12 +53,13 @@ export default function ProfileScreen() {
         if (photo && photo.uri) {
           dispatch(updateProfileImage(photo.uri));
           setShowSelfieCamera(false);
-          Alert.alert('Success', 'Profile avatar updated successfully.');
+          toast.success('Profile avatar updated successfully.');
         }
       } catch (err) {
         console.log('Capture error:', err);
         dispatch(updateProfileImage('https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'));
         setShowSelfieCamera(false);
+        toast.warning('Camera capture failed. A placeholder avatar was applied.');
       }
     } else {
       dispatch(updateProfileImage('https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'));

@@ -7,20 +7,45 @@ import {
   ScrollView,
   TextInput,
   Modal,
-  Alert,
   Dimensions,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { RootState, startSurvey, SurveyLine } from '../../store';
+import { useToast } from '../../components/ToastProvider';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+type LtStartingPoint = NonNullable<SurveyLine['ltStartingPoint']>;
+
+const LT_STARTING_POINTS: ReadonlyArray<{
+  value: LtStartingPoint;
+  title: string;
+  description: string;
+}> = [
+  {
+    value: 'HT_TAPPING_POINT',
+    title: 'Tapping point from an HT line',
+    description: 'Begin where the LT network branches from an HT line.',
+  },
+  {
+    value: 'DTR',
+    title: 'Starting from DTR',
+    description: 'Begin the run directly at the distribution transformer.',
+  },
+  {
+    value: 'EXISTING_LT_LINE',
+    title: 'Starting from existing LT line',
+    description: 'Continue mapping from an existing low-tension line.',
+  },
+];
 
 export default function SurveyListScreen() {
   const navigation = useNavigation<any>();
   const dispatch = useDispatch();
   const historyList = useSelector((state: RootState) => state.survey.historyList);
+  const toast = useToast();
   
   const [voltageFilter, setVoltageFilter] = useState<'ALL' | 'HT_11KV' | 'HT_33KV' | 'LT_440V'>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'SYNCED'>('ALL');
@@ -29,25 +54,55 @@ export default function SurveyListScreen() {
   const [contractor, setContractor] = useState('');
   const [lineType, setLineType] = useState<'HT_11KV' | 'HT_33KV' | 'LT_440V'>('HT_11KV');
   const [remarks, setRemarks] = useState('');
+  const [isChoosingLtStart, setIsChoosingLtStart] = useState(false);
+  const [ltStartingPoint, setLtStartingPoint] = useState<LtStartingPoint | null>(null);
 
   const handleStartNewSurvey = () => {
     if (!contractor.trim()) {
-      Alert.alert('Missing Field', 'Please enter the Contractor Firm Name.');
+      toast.warning('Please enter the contractor firm name.', { title: 'Missing field' });
       return;
     }
+
+    if (lineType === 'LT_440V') {
+      setIsChoosingLtStart(true);
+      return;
+    }
+
+    launchSurvey();
+  };
+
+  const launchSurvey = (startingPoint?: LtStartingPoint) => {
     const uniqueId = `srv-${Date.now().toString(36)}`;
     dispatch(
       startSurvey({
         id: uniqueId,
         lineType,
+        ltStartingPoint: startingPoint,
         contractorName: contractor.trim(),
         remarks: remarks.trim(),
       })
     );
     setContractor('');
     setRemarks('');
+    setLineType('HT_11KV');
+    setLtStartingPoint(null);
+    setIsChoosingLtStart(false);
     setShowAddModal(false);
     navigation.navigate('ActiveSurvey');
+  };
+
+  const handleConfirmLtStartingPoint = () => {
+    if (!ltStartingPoint) {
+      toast.warning('Choose where this 440V LT survey starts.', { title: 'Starting point required' });
+      return;
+    }
+    launchSurvey(ltStartingPoint);
+  };
+
+  const closeAddModal = () => {
+    setShowAddModal(false);
+    setIsChoosingLtStart(false);
+    setLtStartingPoint(null);
   };
 
   const filteredLines = historyList.filter((line: SurveyLine) => {
@@ -198,18 +253,57 @@ export default function SurveyListScreen() {
         visible={showAddModal}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowAddModal(false)}
+        onRequestClose={closeAddModal}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>NEW SURVEY RUN</Text>
-              <TouchableOpacity onPress={() => setShowAddModal(false)}>
+              <Text style={styles.modalTitle}>
+                {isChoosingLtStart ? 'SELECT STARTING POINT' : 'NEW SURVEY RUN'}
+              </Text>
+              <TouchableOpacity onPress={closeAddModal}>
                 <Text style={styles.modalCloseText}>CLOSE</Text>
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalForm} keyboardShouldPersistTaps="handled">
+            {isChoosingLtStart ? (
+              <View style={styles.startingPointStep}>
+                <Text style={styles.stepContext}>440V LT SURVEY</Text>
+                <Text style={styles.stepPrompt}>Where does this line start?</Text>
+
+                {LT_STARTING_POINTS.map((option) => {
+                  const isSelected = ltStartingPoint === option.value;
+                  return (
+                    <TouchableOpacity
+                      key={option.value}
+                      activeOpacity={0.75}
+                      onPress={() => setLtStartingPoint(option.value)}
+                      style={[styles.startingPointOption, isSelected && styles.startingPointOptionSelected]}
+                    >
+                      <View style={[styles.radioOuter, isSelected && styles.radioOuterSelected]}>
+                        {isSelected && <View style={styles.radioInner} />}
+                      </View>
+                      <View style={styles.startingPointCopy}>
+                        <Text style={[styles.startingPointTitle, isSelected && styles.startingPointTitleSelected]}>
+                          {option.title}
+                        </Text>
+                        <Text style={styles.startingPointDescription}>{option.description}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+
+                <View style={styles.stepActions}>
+                  <TouchableOpacity style={styles.backButton} onPress={() => setIsChoosingLtStart(false)}>
+                    <Text style={styles.backButtonText}>BACK</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.continueButton} onPress={handleConfirmLtStartingPoint}>
+                    <Text style={styles.launchSurveyText}>CONTINUE SURVEY</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <ScrollView style={styles.modalForm} keyboardShouldPersistTaps="handled">
               <Text style={styles.formLabel}>CONTRACTOR FIRM NAME</Text>
               <TextInput
                 style={styles.formInput}
@@ -255,7 +349,8 @@ export default function SurveyListScreen() {
               <TouchableOpacity style={styles.launchSurveyBtn} onPress={handleStartNewSurvey}>
                 <Text style={styles.launchSurveyText}>START LINE SURVEY</Text>
               </TouchableOpacity>
-            </ScrollView>
+              </ScrollView>
+            )}
           </View>
         </View>
       </Modal>
@@ -598,5 +693,104 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 12,
     letterSpacing: 1.5,
+  },
+  startingPointStep: {
+    paddingTop: 2,
+  },
+  stepContext: {
+    color: '#0284C7',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+  },
+  stepPrompt: {
+    color: '#0F172A',
+    fontSize: 18,
+    fontWeight: '700',
+    marginTop: 5,
+    marginBottom: 16,
+  },
+  startingPointOption: {
+    minHeight: 72,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.2,
+    borderColor: 'rgba(2, 132, 199, 0.15)',
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    padding: 13,
+    marginBottom: 10,
+  },
+  startingPointOptionSelected: {
+    borderColor: '#0284C7',
+    backgroundColor: 'rgba(2, 132, 199, 0.06)',
+  },
+  radioOuter: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: '#94A3B8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioOuterSelected: {
+    borderColor: '#0284C7',
+  },
+  radioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#0284C7',
+  },
+  startingPointCopy: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  startingPointTitle: {
+    color: '#334155',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  startingPointTitleSelected: {
+    color: '#0369A1',
+  },
+  startingPointDescription: {
+    color: '#64748B',
+    fontSize: 10.5,
+    lineHeight: 15,
+    marginTop: 3,
+  },
+  stepActions: {
+    flexDirection: 'row',
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  backButton: {
+    minWidth: 86,
+    borderWidth: 1.2,
+    borderColor: 'rgba(2, 132, 199, 0.25)',
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  backButtonText: {
+    color: '#475569',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  continueButton: {
+    flex: 1,
+    backgroundColor: '#0284C7',
+    borderRadius: 8,
+    paddingVertical: 13,
+    alignItems: 'center',
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 7,
+    elevation: 3,
   },
 });

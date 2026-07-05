@@ -5,13 +5,13 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
-  Alert,
   Dimensions,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { RootState, updateSurveyLineMetadata, updateSurveyNode } from '../../store';
+import { useToast } from '../../components/ToastProvider';
 
 import SurveySvgCanvas from './components/SurveySvgCanvas';
 import SurveyAttributeEditor from './components/SurveyAttributeEditor';
@@ -22,6 +22,7 @@ const SVG_WIDTH = 320;
 const SVG_HEIGHT = 240;
 
 export default function SurveyDetailsScreen() {
+  const toast = useToast();
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const dispatch = useDispatch();
@@ -171,7 +172,7 @@ export default function SurveyDetailsScreen() {
       }
     }));
 
-    Alert.alert('Success', 'Structure details updated successfully.');
+    toast.success('Structure details updated successfully.');
     setSelectedNodeId(null);
     setSelectedSpanNodeId(null);
   };
@@ -186,7 +187,7 @@ export default function SurveyDetailsScreen() {
       district: district.trim(),
       preparedBy: preparedBy.trim(),
     }));
-    Alert.alert('Success', 'Survey metadata parameters saved.');
+    toast.success('Survey metadata parameters saved.');
   };
 
   return (

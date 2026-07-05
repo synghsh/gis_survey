@@ -21,6 +21,7 @@ import ActiveSurveyScreen from './src/screens/survey/ActiveSurveyScreen';
 import SyncQueueScreen from './src/screens/sync/SyncQueueScreen';
 import SurveyDetailsScreen from './src/screens/survey/SurveyDetailsScreen';
 import Theme from './src/theme';
+import { ToastProvider } from './src/components/ToastProvider';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -133,8 +134,9 @@ export default function App() {
   return (
     <Provider store={store}>
       <SafeAreaProvider>
-        <StatusBar style="dark" />
-        <NavigationContainer>
+        <ToastProvider>
+          <StatusBar style="dark" />
+          <NavigationContainer>
           <Stack.Navigator
             screenOptions={{
               headerShown: false,
@@ -147,7 +149,8 @@ export default function App() {
             <Stack.Screen name="ActiveSurvey" component={ActiveSurveyScreen} />
             <Stack.Screen name="SurveyDetails" component={SurveyDetailsScreen} />
           </Stack.Navigator>
-        </NavigationContainer>
+          </NavigationContainer>
+        </ToastProvider>
       </SafeAreaProvider>
     </Provider>
   );

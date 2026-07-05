@@ -25,6 +25,7 @@ export interface SurveyNode {
 export interface SurveyLine {
   id: string;
   lineType: 'HT_11KV' | 'HT_33KV' | 'LT_440V';
+  ltStartingPoint?: 'HT_TAPPING_POINT' | 'DTR' | 'EXISTING_LT_LINE';
   contractorName: string;
   remarks: string;
   nodes: SurveyNode[];

@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
-  Alert,
   Dimensions,
   Animated,
   Platform,
@@ -15,6 +14,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import Svg, { Circle, Line, G, Defs, LinearGradient, Rect, Stop, RadialGradient } from 'react-native-svg';
 import { RootState, clearQueueItem } from '../../store';
+import { useToast } from '../../components/ToastProvider';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -22,6 +22,7 @@ export default function SyncQueueScreen() {
   const navigation = useNavigation<any>();
   const dispatch = useDispatch();
   const queue = useSelector((state: RootState) => state.survey.syncQueue);
+  const toast = useToast();
 
   // Sync animation states
   const [syncing, setSyncing] = useState(false);
@@ -105,7 +106,7 @@ export default function SyncQueueScreen() {
 
   const startSyncQueue = async () => {
     if (queue.length === 0) {
-      Alert.alert('Queue Empty', 'There are no line survey logs in local queue to sync.');
+      toast.info('There are no line survey logs in the local queue to sync.', { title: 'Queue empty' });
       return;
     }
 
@@ -153,10 +154,11 @@ export default function SyncQueueScreen() {
       setCurrentSyncingId(null);
       setActiveSyncLogs(prev => [...prev, '\n[COMPLETE] ALL LOCAL SURVEY RUNS SYNCHRONIZED. CLOUD ARCHIVE COMPLETE.']);
       setSyncing(false);
-      Alert.alert('Synchronized', 'All lines uploaded to PostGIS server successfully!');
+      toast.success('All lines uploaded to the PostGIS server.', { title: 'Synchronized' });
     } catch (err) {
       setActiveSyncLogs(prev => [...prev, '[ERROR] TRANSMISSION ERROR: SERVER DISCONNECTED.']);
       setSyncing(false);
+      toast.error('The server disconnected before synchronization completed.', { title: 'Sync failed' });
     }
   };
 

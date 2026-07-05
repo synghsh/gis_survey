@@ -15,6 +15,7 @@ import { useForm } from 'react-hook-form';
 import * as Location from 'expo-location';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { RootState, addNode, finishSurvey, cancelSurvey, SurveyNode } from '../../store';
+import { useToast } from '../../components/ToastProvider';
 
 import ActiveSurveyCamera from './components/ActiveSurveyCamera';
 import ActiveSurveyForm from './components/ActiveSurveyForm';
@@ -28,6 +29,7 @@ interface SurveyNodeFormInputs {
 }
 
 export default function ActiveSurveyScreen() {
+  const toast = useToast();
   const navigation = useNavigation<any>();
   const dispatch = useDispatch();
   const activeLine = useSelector((state: RootState) => state.survey.activeLine);
@@ -162,7 +164,7 @@ export default function ActiveSurveyScreen() {
 
   const commitCurrentNode = (data: SurveyNodeFormInputs): boolean => {
     if (!lat || !lng) {
-      Alert.alert('GPS Required', 'Waiting for GPS location lock. Please try capturing coordinates again.');
+      toast.warning('Waiting for GPS location lock. Please capture coordinates again.', { title: 'GPS required' });
       return false;
     }
 
@@ -203,7 +205,7 @@ export default function ActiveSurveyScreen() {
 
   const handleFinishSurvey = (data: SurveyNodeFormInputs) => {
     if (!lat || !lng) {
-      Alert.alert('GPS Required', 'Waiting for GPS location lock. Please try capturing coordinates again.');
+      toast.warning('Waiting for GPS location lock. Please capture coordinates again.', { title: 'GPS required' });
       return;
     }
 
