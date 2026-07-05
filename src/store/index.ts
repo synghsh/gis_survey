@@ -27,6 +27,7 @@ export interface SurveyNode {
 
 export interface SurveyLine {
   id: string;
+  workflowType?: 'SURVEY' | 'ERECTION';
   lineType: 'HT_11KV' | 'HT_33KV' | 'LT_440V';
   ltStartingPoint?: 'HT_TAPPING_POINT' | 'DTR' | 'EXISTING_LT_LINE';
   contractorName: string;
@@ -36,6 +37,8 @@ export interface SurveyLine {
   endedAt?: string;
   status: 'PENDING' | 'SYNCED';
   location?: string;
+  stateName?: string;
+  village?: string;
   block?: string;
   district?: string;
   preparedBy?: string;

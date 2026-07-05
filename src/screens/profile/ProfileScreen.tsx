@@ -85,12 +85,7 @@ export default function ProfileScreen() {
 
       {/* 2. HEADER */}
       <View style={styles.header}>
-        <View style={styles.brandingWrapper}>
-          <Text style={styles.brandingIcon}>👤</Text>
-          <Text style={styles.brandingText}>SURVEYOR GATE</Text>
-        </View>
         <Text style={styles.headerTitle}>SURVEYOR PROFILE</Text>
-        <View style={styles.headerPlaceholder} />
       </View>
 
       {/* 3. SCROLLABLE LAYOUT */}
@@ -210,7 +205,7 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
     borderColor: 'rgba(2, 132, 199, 0.08)',
     borderBottomWidth: 1.2,

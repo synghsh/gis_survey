@@ -18,6 +18,7 @@ interface ActiveSurveyFormProps {
   onSubmitDtrNext?: () => void;
   canSetDtrNext?: boolean;
   structureContext?: string;
+  workflowType?: 'SURVEY' | 'ERECTION';
 }
 
 export default function ActiveSurveyForm({
@@ -36,6 +37,7 @@ export default function ActiveSurveyForm({
   onSubmitDtrNext,
   canSetDtrNext = false,
   structureContext,
+  workflowType = 'SURVEY',
 }: ActiveSurveyFormProps) {
   return (
     <View style={styles.detailsContainer}>
@@ -189,7 +191,7 @@ export default function ActiveSurveyForm({
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.finishSurveyBtn} onPress={onSubmitFinish} activeOpacity={0.8}>
-          <Text style={styles.finishSurveyBtnText}>FINISH SURVEY</Text>
+          <Text style={styles.finishSurveyBtnText}>FINISH {workflowType}</Text>
           <Text style={styles.btnSubtext}>Submit line for verification</Text>
         </TouchableOpacity>
       </View>

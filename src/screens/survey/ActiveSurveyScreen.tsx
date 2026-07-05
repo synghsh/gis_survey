@@ -60,6 +60,7 @@ export default function ActiveSurveyScreen() {
   const cameraRef = useRef<any>(null);
 
   const currentSeq = activeLine ? activeLine.nodes.length : 0;
+  const isErectionFlow = activeLine?.workflowType === 'ERECTION';
   const isHtTapSurvey = activeLine?.lineType === 'LT_440V' && activeLine.ltStartingPoint === 'HT_TAPPING_POINT';
   const isExistingLtStart = activeLine?.lineType === 'LT_440V' && activeLine.ltStartingPoint === 'EXISTING_LT_LINE';
   const hasDtr = activeLine?.nodes.some(node => node.nodeType === 'DTR') ?? false;
@@ -303,7 +304,9 @@ export default function ActiveSurveyScreen() {
       <View style={styles.headerWrapper}>
         <View style={styles.surveyHeader}>
           <View>
-            <Text style={styles.subtitleText}>ACTIVE SURVEY // NODE #{currentSeq}</Text>
+            <Text style={styles.subtitleText}>
+              ACTIVE {isErectionFlow ? 'ERECTION' : 'SURVEY'} // NODE #{currentSeq}
+            </Text>
             <Text style={styles.titleText}>{activeLine.contractorName}</Text>
           </View>
           <View style={[styles.typeBadge, { borderColor: getLineAccent() }]}>
@@ -366,6 +369,7 @@ export default function ActiveSurveyScreen() {
                     ? currentSeq === 0 ? 'LT LINE // EXISTING LINE TAP POLE' : 'LT LINE // POLE'
                   : undefined
               }
+              workflowType={isErectionFlow ? 'ERECTION' : 'SURVEY'}
             />
           </ScrollView>
         )}

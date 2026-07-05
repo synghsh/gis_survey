@@ -16,7 +16,9 @@ import IntroScreen from './src/screens/auth/IntroScreen';
 import LoginScreen from './src/screens/auth/LoginScreen';
 import DashboardScreen from './src/screens/dashboard/DashboardScreen';
 import SurveyListScreen from './src/screens/survey/SurveyListScreen';
+import SurveySetupScreen from './src/screens/survey/SurveySetupScreen';
 import ErectionExecutionScreen from './src/screens/survey/ErectionExecutionScreen';
+import ErectionSetupScreen from './src/screens/erection/ErectionSetupScreen';
 import ProfileScreen from './src/screens/profile/ProfileScreen';
 import ActiveSurveyScreen from './src/screens/survey/ActiveSurveyScreen';
 import SyncQueueScreen from './src/screens/sync/SyncQueueScreen';
@@ -161,6 +163,8 @@ export default function App() {
             <Stack.Screen name="MainTabs" component={MainTabNavigator} />
             <Stack.Screen name="ActiveSurvey" component={ActiveSurveyScreen} />
             <Stack.Screen name="SurveyDetails" component={SurveyDetailsScreen} />
+            <Stack.Screen name="SurveySetup" component={SurveySetupScreen} />
+            <Stack.Screen name="ErectionSetup" component={ErectionSetupScreen} />
           </Stack.Navigator>
           </NavigationContainer>
         </ToastProvider>

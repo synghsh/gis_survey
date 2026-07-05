@@ -107,6 +107,7 @@ export default function ErectionExecutionScreen() {
   };
 
   const filteredLines = historyList.filter((line: SurveyLine) => {
+    if (line.workflowType !== 'ERECTION') return false;
     const matchesVoltage = voltageFilter === 'ALL' || line.lineType === voltageFilter;
     const matchesStatus = statusFilter === 'ALL' || line.status === statusFilter;
     return matchesVoltage && matchesStatus;
@@ -140,12 +141,7 @@ export default function ErectionExecutionScreen() {
       {/* 2. MAIN SCROLL CONTAINER */}
       <View style={styles.mainWrapper}>
         <View style={styles.header}>
-          <View style={styles.brandingWrapper}>
-            <Text style={styles.brandingIcon}>📋</Text>
-            <Text style={styles.brandingText}>ERECTION LOGS</Text>
-          </View>
           <Text style={styles.headerTitle}>ERECTION EXECUTION</Text>
-          <View style={styles.headerPlaceholder} />
         </View>
 
         <View style={styles.filtersContainer}>
@@ -243,7 +239,7 @@ export default function ErectionExecutionScreen() {
       {/* FLOATING ACTION BUTTON */}
       <TouchableOpacity 
         style={styles.fab} 
-        onPress={() => setShowAddModal(true)}
+        onPress={() => navigation.navigate('ErectionSetup')}
         activeOpacity={0.8}
       >
         <Text style={styles.fabIcon}>+</Text>
@@ -370,7 +366,7 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
     borderColor: 'rgba(2, 132, 199, 0.08)',
     borderBottomWidth: 1.2,

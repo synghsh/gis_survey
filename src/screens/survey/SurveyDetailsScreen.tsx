@@ -212,7 +212,9 @@ export default function SurveyDetailsScreen() {
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Text style={styles.backText}>&lt; LOGS</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>SURVEY DETAILS</Text>
+        <Text style={styles.headerTitle}>
+          {survey.workflowType === 'ERECTION' ? 'ERECTION DETAILS' : 'SURVEY DETAILS'}
+        </Text>
         <View style={[styles.classBadge, { borderColor: accentColor }]}>
           <Text style={[styles.classBadgeText, { color: accentColor }]}>
             {getLineTypeLabel(survey.lineType)}
