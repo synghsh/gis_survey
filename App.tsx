@@ -1,6 +1,6 @@
 import React from 'react';
 import { Provider, useSelector, useDispatch } from 'react-redux';
-import { store, RootState, loadPersistedState, hydrateAuth, hydrateStore } from './src/store';
+import { store, RootState, loadPersistedState, hydrateAuth, hydrateStore, login } from './src/store';
 import { StatusBar } from 'expo-status-bar';
 import {
   StyleSheet,
@@ -105,11 +105,33 @@ function LoginScreenWrapper({ navigation }: any) {
   const dispatch = useDispatch();
   return (
     <LoginScreen
-      onLogin={(username, surveyorId, division) => {
-        dispatch({ type: 'auth/login', payload: { name: username, srvId: surveyorId, div: division } });
+      onLogin={(apiData) => {
+        dispatch(login(apiData));
         navigation.replace('MainTabs');
       }}
     />
+  );
+}
+
+function NavigationWrapper() {
+  const isLoggedIn = useSelector((state: RootState) => state.auth.isLoggedIn);
+  return (
+    <NavigationContainer>
+      <Stack.Navigator
+        screenOptions={{
+          headerShown: false,
+        }}
+        initialRouteName={isLoggedIn ? "MainTabs" : "Intro"}
+      >
+        <Stack.Screen name="Intro" component={IntroScreenWrapper} />
+        <Stack.Screen name="Login" component={LoginScreenWrapper} />
+        <Stack.Screen name="MainTabs" component={MainTabNavigator} />
+        <Stack.Screen name="ActiveSurvey" component={ActiveSurveyScreen} />
+        <Stack.Screen name="SurveyDetails" component={SurveyDetailsScreen} />
+        <Stack.Screen name="SurveySetup" component={SurveySetupScreen} />
+        <Stack.Screen name="ErectionSetup" component={ErectionSetupScreen} />
+      </Stack.Navigator>
+    </NavigationContainer>
   );
 }
 
@@ -153,22 +175,7 @@ export default function App() {
         <ToastProvider>
           <ConfirmationProvider>
             <StatusBar style="dark" />
-            <NavigationContainer>
-          <Stack.Navigator
-            screenOptions={{
-              headerShown: false,
-            }}
-            initialRouteName="Intro"
-          >
-            <Stack.Screen name="Intro" component={IntroScreenWrapper} />
-            <Stack.Screen name="Login" component={LoginScreenWrapper} />
-            <Stack.Screen name="MainTabs" component={MainTabNavigator} />
-            <Stack.Screen name="ActiveSurvey" component={ActiveSurveyScreen} />
-            <Stack.Screen name="SurveyDetails" component={SurveyDetailsScreen} />
-            <Stack.Screen name="SurveySetup" component={SurveySetupScreen} />
-            <Stack.Screen name="ErectionSetup" component={ErectionSetupScreen} />
-          </Stack.Navigator>
-            </NavigationContainer>
+            <NavigationWrapper />
           </ConfirmationProvider>
         </ToastProvider>
       </SafeAreaProvider>

@@ -55,6 +55,16 @@ interface AuthState {
   surveyorId: string;
   division: string;
   profileImage: string | null;
+  // API identity details
+  token: string | null;
+  userId: number | null;
+  firstName: string;
+  lastName: string;
+  username: string;
+  phone: string;
+  email: string;
+  roleName: string;
+  designationName: string;
 }
 
 const initialAuthState: AuthState = {
@@ -63,17 +73,49 @@ const initialAuthState: AuthState = {
   surveyorId: '',
   division: '',
   profileImage: null,
+  token: null,
+  userId: null,
+  firstName: '',
+  lastName: '',
+  username: '',
+  phone: '',
+  email: '',
+  roleName: '',
+  designationName: '',
 };
 
 const authSlice = createSlice({
   name: 'auth',
   initialState: initialAuthState,
   reducers: {
-    login: (state, action: PayloadAction<{ name: string; srvId: string; div: string }>) => {
+    login: (
+      state,
+      action: PayloadAction<{
+        token: string;
+        user_id: number;
+        first_name: string;
+        last_name: string;
+        username: string;
+        phone: string;
+        email: string;
+        role_name: string;
+        designation_name: string;
+      }>
+    ) => {
       state.isLoggedIn = true;
-      state.surveyorName = action.payload.name;
-      state.surveyorId = action.payload.srvId;
-      state.division = action.payload.div;
+      state.token = action.payload.token;
+      state.userId = action.payload.user_id;
+      state.firstName = action.payload.first_name;
+      state.lastName = action.payload.last_name;
+      state.username = action.payload.username;
+      state.phone = action.payload.phone;
+      state.email = action.payload.email;
+      state.roleName = action.payload.role_name;
+      state.designationName = action.payload.designation_name;
+      // Map to legacy fields
+      state.surveyorName = `${action.payload.first_name} ${action.payload.last_name}`.trim();
+      state.surveyorId = `SRV-${action.payload.user_id}`;
+      state.division = action.payload.role_name || 'Central Division';
       state.profileImage = null;
     },
     logout: (state) => {
@@ -82,9 +124,21 @@ const authSlice = createSlice({
       state.surveyorId = '';
       state.division = '';
       state.profileImage = null;
+      state.token = null;
+      state.userId = null;
+      state.firstName = '';
+      state.lastName = '';
+      state.username = '';
+      state.phone = '';
+      state.email = '';
+      state.roleName = '';
+      state.designationName = '';
     },
     updateProfileImage: (state, action: PayloadAction<string>) => {
       state.profileImage = action.payload;
+    },
+    updateToken: (state, action: PayloadAction<string>) => {
+      state.token = action.payload;
     },
     hydrateAuth: (state, action: PayloadAction<any>) => {
       if (action.payload) {
@@ -93,6 +147,15 @@ const authSlice = createSlice({
         state.surveyorId = action.payload.surveyorId ?? '';
         state.division = action.payload.division ?? '';
         state.profileImage = action.payload.profileImage ?? null;
+        state.token = action.payload.token ?? null;
+        state.userId = action.payload.userId ?? null;
+        state.firstName = action.payload.firstName ?? '';
+        state.lastName = action.payload.lastName ?? '';
+        state.username = action.payload.username ?? '';
+        state.phone = action.payload.phone ?? '';
+        state.email = action.payload.email ?? '';
+        state.roleName = action.payload.roleName ?? '';
+        state.designationName = action.payload.designationName ?? '';
       }
     },
   },
@@ -343,7 +406,7 @@ export const store = configureStore({
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;
 
-export const { login, logout, updateProfileImage, hydrateAuth } = authSlice.actions;
+export const { login, logout, updateProfileImage, updateToken, hydrateAuth } = authSlice.actions;
 export const { startSurvey, resumeSurvey, addNode, cancelSurvey, finishSurvey, completeSurveyLine, clearQueueItem, clearAllCompleted, updateSurveyLineMetadata, updateSurveyNode, hydrateStore } = surveySlice.actions;
 
 const STORAGE_KEY = 'GIS_SURVEY_APP_STATE';

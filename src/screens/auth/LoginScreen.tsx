@@ -14,11 +14,13 @@ import {
 } from 'react-native';
 import Theme from '../../theme';
 import Svg, { Circle, Line, G, Defs, LinearGradient, Rect, Stop, Path, RadialGradient } from 'react-native-svg';
+import { base64Encode } from '../../utils/base64';
+import { getApiBaseUrl, setApiBaseUrl, DEFAULT_API_BASE } from '../../config';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface LoginScreenProps {
-  onLogin: (username: string, surveyorId: string, division: string) => void;
+  onLogin: (apiData: any) => void;
 }
 
 export default function LoginScreen({ onLogin }: LoginScreenProps) {
@@ -28,6 +30,16 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
   const [logText, setLogText] = useState('READY TO AUTHENTICATE');
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [serverUrl, setServerUrl] = useState('');
+  const [showServerSettings, setShowServerSettings] = useState(false);
+
+  useEffect(() => {
+    async function loadServerUrl() {
+      const url = await getApiBaseUrl();
+      setServerUrl(url);
+    }
+    loadServerUrl();
+  }, []);
 
   // Entrance animations
   const cardFade = useRef(new Animated.Value(0)).current;
@@ -116,21 +128,81 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     ]).start();
   };
 
-  const handleLoginClick = () => {
+  const handleLoginClick = async () => {
+    if (!username.trim()) {
+      setLogText('ERROR: USERNAME CANNOT BE EMPTY');
+      triggerShake();
+      return;
+    }
+    if (!password) {
+      setLogText('ERROR: PASSWORD CANNOT BE EMPTY');
+      triggerShake();
+      return;
+    }
+
     setLoading(true);
     setLogText('INITIALIZING HANDSHAKE...');
-    const finalUsername = username.trim() || 'Surveyor';
-    
-    setTimeout(() => {
+
+    try {
+      const baseApiUrl = await getApiBaseUrl();
+      let normalizedUrl = baseApiUrl.trim();
+      if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+        normalizedUrl = 'http://' + normalizedUrl;
+      }
+      if (!normalizedUrl.includes('/gis/administration')) {
+        normalizedUrl = normalizedUrl.replace(/\/$/, '') + '/gis/administration';
+      }
+      const loginUrl = normalizedUrl.replace(/\/$/, '') + '/admin/login/';
+
+      let host = 'server';
+      const match = normalizedUrl.match(/^(?:https?:\/\/)?([^\/]+)/i);
+      if (match && match[1]) {
+        host = match[1];
+      }
+
+      setLogText(`CONNECTING TO ${host}...`);
+
+      const encodedPassword = base64Encode(password);
+
+      const response = await fetch(loginUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          username: username.trim(),
+          password: encodedPassword,
+        }),
+      });
+
       setLogText('VERIFYING SURVEYOR SIGNATURE...');
-      setTimeout(() => {
+      const responseText = await response.text();
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch (e) {
+        throw new Error('Invalid JSON response from server');
+      }
+
+      if (response.status === 200 && result && !result.Exception && result.Data) {
         setLogText('ESTABLISHING SECURE OFFLINE SESSION...');
         setTimeout(() => {
           setLoading(false);
-          onLogin(finalUsername, 'SRV-2026-OK' + Math.floor(100 + Math.random() * 900), 'Central Division');
-        }, 800);
-      }, 800);
-    }, 800);
+          onLogin(result.Data);
+        }, 600);
+      } else {
+        const errorMsg = result?.Errors || result?.Data?.Message || 'Authentication Failed';
+        setLogText(`ERROR: ${errorMsg.toUpperCase()}`);
+        triggerShake();
+        setLoading(false);
+      }
+    } catch (err: any) {
+      console.warn('Login connection error:', err);
+      setLogText('ERROR: SERVER UNREACHABLE OR PORT CLOSED');
+      triggerShake();
+      setLoading(false);
+    }
   };
 
   const spin = rotateAnim.interpolate({
@@ -292,6 +364,42 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                 {loading ? <ActivityIndicator color="#FFFFFF" size="small" /> : <Text style={styles.loginButtonText}>AUTHORIZE & LINK CHANNEL</Text>}
               </TouchableOpacity>
             </Animated.View>
+
+            {/* Server settings Toggle & Accordion */}
+            <TouchableOpacity
+              style={styles.serverSettingsToggle}
+              onPress={() => setShowServerSettings(!showServerSettings)}
+              activeOpacity={0.7}
+              disabled={loading}
+            >
+              <Text style={styles.serverSettingsToggleText}>
+                {showServerSettings ? '▴ HIDE SERVER CONFIGURATION' : '⚙️ CONFIGURE SERVER URL'}
+              </Text>
+            </TouchableOpacity>
+
+            {showServerSettings && (
+              <View style={styles.serverSettingsPanel}>
+                <Text style={styles.serverLabel}>BACKEND SERVER BASE URL</Text>
+                <View style={styles.serverInputWrapper}>
+                  <TextInput
+                    style={styles.serverInput}
+                    value={serverUrl}
+                    onChangeText={(val) => {
+                      setServerUrl(val);
+                      setApiBaseUrl(val);
+                    }}
+                    placeholder="http://127.0.0.1:8000"
+                    placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    editable={!loading}
+                  />
+                </View>
+                <Text style={styles.serverHelpText}>
+                  Default: {DEFAULT_API_BASE}
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* Handshake logs */}
@@ -359,4 +467,52 @@ const styles = StyleSheet.create({
 
   footerInfo: { marginTop: 30, alignItems: 'center' },
   footerText: { color: '#94A3B8', fontSize: 8.5, fontWeight: '600', letterSpacing: 1 },
+
+  // SERVER SETTINGS STYLES
+  serverSettingsToggle: {
+    marginTop: 15,
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  serverSettingsToggleText: {
+    color: '#0284C7',
+    fontSize: 9.5,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  serverSettingsPanel: {
+    marginTop: 10,
+    backgroundColor: 'rgba(2, 132, 199, 0.03)',
+    borderColor: 'rgba(2, 132, 199, 0.1)',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+  },
+  serverLabel: {
+    color: '#64748B',
+    fontSize: 8,
+    fontWeight: '800',
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  serverInputWrapper: {
+    backgroundColor: '#FFFFFF',
+    borderColor: 'rgba(2, 132, 199, 0.15)',
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+  },
+  serverInput: {
+    paddingVertical: 6,
+    color: '#1E293B',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  serverHelpText: {
+    color: '#94A3B8',
+    fontSize: 7.5,
+    fontWeight: '600',
+    marginTop: 4,
+  },
 });
