@@ -132,7 +132,7 @@ export default function SurveyListScreen() {
     return matchesVoltage && matchesStatus;
   });
 
-  const getLineAccent = (type: string) => {
+  const getLineAccent = (type: string | number) => {
     switch (type) {
       case 'HT_11KV': return '#F59E0B'; // Amber
       case 'HT_33KV': return '#EF4444'; // Red

@@ -10,10 +10,10 @@ import {
   LT_STARTING_POINT_OPTIONS,
 } from '../../data/erectionSetupData';
 import { startSurvey, SurveyLine, RootState } from '../../store';
-import { fetchStatesAction, fetchDistrictsAction, fetchBlocksAction } from '../../store/actions/masterAction';
+import { fetchStatesAction, fetchDistrictsAction, fetchBlocksAction, fetchVillagesAction, fetchContractorsAction, fetchDomainsAction } from '../../store/actions/masterAction';
 
 type LineType = SurveyLine['lineType'];
-type LtStartingPoint = NonNullable<SurveyLine['ltStartingPoint']>;
+type LtStartingPoint = SurveyLine['ltStartingPoint'];
 
 const toOptions = (names: string[]): DropdownOption[] => names.map(name => ({ label: name, value: name }));
 
@@ -34,18 +34,27 @@ export default function SurveySetupScreen() {
   const states = useSelector((state: RootState) => state.master.states);
   const districts = useSelector((state: RootState) => state.master.districts);
   const blocks = useSelector((state: RootState) => state.master.blocks);
+  const villages = useSelector((state: RootState) => state.master.villages) || [];
+  const contractors = useSelector((state: RootState) => state.master.contractors) || [];
+  const domains = useSelector((state: RootState) => state.master.domains) || {};
 
   useEffect(() => {
     dispatch(fetchStatesAction(undefined, (err) => {
       toast.error(err || 'Failed to fetch states from server');
+    }) as any);
+    dispatch(fetchContractorsAction(undefined, (err) => {
+      console.warn('Survey Setup contractors fetch error:', err);
+    }) as any);
+    dispatch(fetchDomainsAction(['type_of_work', 'lt_starting_point'], undefined, (err) => {
+      console.warn('Survey Setup domains fetch error:', err);
     }) as any);
   }, [dispatch]);
 
   const selectedStateObj = states.find(s => s.state_name === stateName);
   const selectedDistrictObj = districts.find(d => d.district_name === district);
 
-  const handleStateChange = (val: string) => {
-    setStateName(val);
+  const handleStateChange = (val: string | number) => {
+    setStateName(String(val));
     setDistrict('');
     setBlock('');
     setVillage('');
@@ -58,8 +67,8 @@ export default function SurveySetupScreen() {
     }
   };
 
-  const handleDistrictChange = (val: string) => {
-    setDistrict(val);
+  const handleDistrictChange = (val: string | number) => {
+    setDistrict(String(val));
     setBlock('');
     setVillage('');
     setContractor('');
@@ -73,51 +82,60 @@ export default function SurveySetupScreen() {
     }
   };
 
-  const handleBlockChange = (val: string) => {
-    setBlock(val);
+  const handleBlockChange = (val: string | number) => {
+    setBlock(String(val));
     setVillage('');
     setContractor('');
+    if (selectedStateObj && selectedStateObj.id && selectedDistrictObj && selectedDistrictObj.id) {
+      const blockObj = blocks.find(b => b.block_name === val);
+      if (blockObj) {
+        dispatch(fetchVillagesAction(selectedStateObj.id, selectedDistrictObj.id, blockObj.id, undefined, (err) => {
+          toast.error(err || 'Failed to fetch villages');
+        }) as any);
+      }
+    }
   };
 
   const stateOptions = useMemo(() => states.map(s => ({ label: s.state_name, value: s.state_name })), [states]);
   const districtOptions = useMemo(() => districts.map(d => ({ label: d.district_name, value: d.district_name })), [districts]);
   const blockOptions = useMemo(() => blocks.map(b => ({ label: b.block_name, value: b.block_name })), [blocks]);
+  const villageOptions = useMemo(() => villages.map(v => ({ label: v.village_name, value: v.village_name })), [villages]);
+  const contractorOptions = useMemo(() => contractors.map(c => ({ label: c.contractor_name, value: c.contractor_name })), [contractors]);
 
-  // Lookup for villages and contractors based on selected block
-  const selectedStateStatic = ERECTION_LOCATION_DATA.find(item => item.name === stateName);
-  const selectedDistrictStatic = selectedStateStatic?.districts.find(item => item.name === district);
-  const selectedBlockStatic = selectedDistrictStatic?.blocks.find(item => item.name === block);
+  const typeOfWorkOptions = useMemo(() => {
+    const types = domains['type_of_work'] || [];
+    return types.map(t => ({ label: t.domain_desc || t.domain_value, value: t.domain_code }));
+  }, [domains]);
 
-  const villageOptions = useMemo(() => {
-    if (selectedBlockStatic) {
-      return toOptions(selectedBlockStatic.villages.map(v => v.name));
-    }
-    return toOptions(['Village A', 'Village B', 'Village C']);
-  }, [selectedBlockStatic]);
-
-  const selectedVillageStatic = selectedBlockStatic?.villages.find(item => item.name === village);
-  const contractorOptions = useMemo(() => {
-    if (selectedVillageStatic) {
-      return toOptions(selectedVillageStatic.contractors);
-    }
-    return toOptions(['Power Grid Corp', 'L&T Power Transmission', 'Techno Electric']);
-  }, [selectedVillageStatic]);
+  const ltStartingPointOptions = useMemo(() => {
+    const pts = domains['lt_starting_point'] || [];
+    return pts.map(p => ({ label: p.domain_desc || p.domain_value, value: p.domain_code }));
+  }, [domains]);
 
   const handleStart = () => {
     if (!stateName || !district || !block || !village || !contractor || !lineType) {
       toast.warning('Complete every required survey detail before continuing.', { title: 'Details required' });
       return;
     }
-    if (lineType === 'LT_440V' && !ltStartingPoint) {
+    const lt440vCode = domains['type_of_work']?.find((d: any) => d.domain_value === 'LT_440V')?.domain_code;
+    
+    if (lineType === lt440vCode && !ltStartingPoint) {
       toast.warning('Choose where the LT line starts.', { title: 'Starting point required' });
       return;
     }
 
+    const getDomainValue = (type: string, code: any) => {
+      if (!code) return '';
+      const arr = domains[type] || [];
+      const found = arr.find((d: any) => d.domain_code === code || d.domain_value === code);
+      return found ? found.domain_value : code;
+    };
+
     dispatch(startSurvey({
       id: `srv-${Date.now().toString(36)}`,
       workflowType: 'SURVEY',
-      lineType,
-      ltStartingPoint: lineType === 'LT_440V' ? ltStartingPoint as LtStartingPoint : undefined,
+      lineType: getDomainValue('type_of_work', lineType),
+      ltStartingPoint: ltStartingPoint ? getDomainValue('lt_starting_point', ltStartingPoint) : undefined,
       contractorName: contractor,
       remarks: remarks.trim(),
       stateName,
@@ -174,7 +192,7 @@ export default function SurveySetupScreen() {
             value={village}
             disabled={!block}
             onChange={value => {
-              setVillage(value);
+              setVillage(String(value));
               setContractor('');
             }}
           />
@@ -188,24 +206,24 @@ export default function SurveySetupScreen() {
             options={contractorOptions}
             value={contractor}
             disabled={!village}
-            onChange={setContractor}
+            onChange={(val) => setContractor(String(val))}
           />
           <Dropdown
-            label="VOLTAGE / CABLE CLASS"
-            placeholder="Choose line class"
-            options={ERECTION_LINE_TYPES}
+            label="TYPE OF WORK"
+            placeholder="Choose work type"
+            options={typeOfWorkOptions}
             value={lineType}
-            onChange={value => {
-              setLineType(value as LineType);
-              setLtStartingPoint('');
+            onChange={(val) => {
+              setLineType(val as LineType);
+              if (val !== lineType) setLtStartingPoint('');
             }}
           />
-          {lineType === 'LT_440V' && (
+          {lineType !== '' && (
             <Dropdown
               label="LT LINE STARTING POINT"
               placeholder="Choose starting point"
-              options={LT_STARTING_POINT_OPTIONS}
-              value={ltStartingPoint}
+              options={ltStartingPointOptions}
+              value={ltStartingPoint || ''}
               onChange={value => setLtStartingPoint(value as LtStartingPoint)}
             />
           )}

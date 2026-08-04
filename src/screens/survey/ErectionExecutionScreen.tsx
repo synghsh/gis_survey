@@ -32,6 +32,9 @@ import {
   fetchStatesAction,
   fetchDistrictsAction,
   fetchBlocksAction,
+  fetchVillagesAction,
+  fetchContractorsAction,
+  fetchDomainsAction,
 } from '../../store/actions/masterAction';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -50,6 +53,11 @@ export default function ErectionExecutionScreen() {
   const states = useSelector((state: RootState) => state.master.states) || [];
   const districts = useSelector((state: RootState) => state.master.districts) || [];
   const blocks = useSelector((state: RootState) => state.master.blocks) || [];
+  const villages = useSelector((state: RootState) => state.master.villages) || [];
+  const contractors = useSelector((state: RootState) => state.master.contractors) || [];
+  const domains = useSelector((state: RootState) => state.master.domains) || {};
+  console.log("domains", domains);
+
 
   const [voltageFilter, setVoltageFilter] = useState<'ALL' | 'HT_11KV' | 'HT_33KV' | 'LT_440V'>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'COMPLETED'>('ALL');
@@ -90,14 +98,20 @@ export default function ErectionExecutionScreen() {
     dispatch(fetchStatesAction(undefined, (err) => {
       console.warn('Erection screen master states fetch error:', err);
     }) as any);
+    dispatch(fetchContractorsAction(undefined, (err) => {
+      console.warn('Erection screen contractors fetch error:', err);
+    }) as any);
+    dispatch(fetchDomainsAction(['type_of_work', 'lt_starting_point'], undefined, (err) => {
+      console.warn('Erection screen domains fetch error:', err);
+    }) as any);
   }, [dispatch]);
 
   // Derived selections for Edit Dropdowns
   const selectedStateObj = states.find(s => s.state_name === stateName);
   const selectedDistrictObj = districts.find(d => d.district_name === district);
 
-  const handleStateChange = (val: string) => {
-    setStateName(val);
+  const handleStateChange = (val: string | number) => {
+    setStateName(String(val));
     setDistrict('');
     setBlock('');
     setVillage('');
@@ -110,8 +124,8 @@ export default function ErectionExecutionScreen() {
     }
   };
 
-  const handleDistrictChange = (val: string) => {
-    setDistrict(val);
+  const handleDistrictChange = (val: string | number) => {
+    setDistrict(String(val));
     setBlock('');
     setVillage('');
     setContractor('');
@@ -125,35 +139,38 @@ export default function ErectionExecutionScreen() {
     }
   };
 
-  const handleBlockChange = (val: string) => {
-    setBlock(val);
+  const handleBlockChange = (val: string | number) => {
+    setBlock(String(val));
     setVillage('');
     setContractor('');
+    if (selectedStateObj && selectedStateObj.id && selectedDistrictObj && selectedDistrictObj.id) {
+      const blockObj = blocks.find(b => b.block_name === val);
+      if (blockObj) {
+        dispatch(fetchVillagesAction(selectedStateObj.id, selectedDistrictObj.id, blockObj.id, undefined, (err) => {
+          toast.error(err || 'Failed to fetch villages');
+        }) as any);
+      }
+    }
   };
 
   const stateOptions = useMemo(() => states.map(s => ({ label: s.state_name, value: s.state_name })), [states]);
   const districtOptions = useMemo(() => districts.map(d => ({ label: d.district_name, value: d.district_name })), [districts]);
   const blockOptions = useMemo(() => blocks.map(b => ({ label: b.block_name, value: b.block_name })), [blocks]);
+  const villageOptions = useMemo(() => villages.map(v => ({ label: v.village_name, value: v.village_name })), [villages]);
+  const contractorOptions = useMemo(() => contractors.map(c => ({ label: c.contractor_name, value: c.contractor_name })), [contractors]);
 
-  // Static options helper
-  const selectedStateStatic = ERECTION_LOCATION_DATA.find(item => item.name === stateName);
-  const selectedDistrictStatic = selectedStateStatic?.districts.find(item => item.name === district);
-  const selectedBlockStatic = selectedDistrictStatic?.blocks.find(item => item.name === block);
+  const typeOfWorkOptions = useMemo(() => {
+    const types = domains['type_of_work'] || [];
+    console.log('types', types);
 
-  const villageOptions = useMemo(() => {
-    if (selectedBlockStatic) {
-      return toOptions(selectedBlockStatic.villages.map(v => v.name));
-    }
-    return toOptions(['Village A', 'Village B', 'Village C']);
-  }, [selectedBlockStatic]);
+    return types.map(t => ({ label: t.domain_desc || t.domain_value, value: t.domain_code }));
+  }, [domains]);
+  console.log('typeOfWorkOptions', typeOfWorkOptions);
 
-  const selectedVillageStatic = selectedBlockStatic?.villages.find(item => item.name === village);
-  const contractorOptions = useMemo(() => {
-    if (selectedVillageStatic) {
-      return toOptions(selectedVillageStatic.contractors);
-    }
-    return toOptions(['Power Grid Corp', 'L&T Power Transmission', 'Techno Electric']);
-  }, [selectedVillageStatic]);
+  const ltStartingPointOptions = useMemo(() => {
+    const pts = domains['lt_starting_point'] || [];
+    return pts.map(p => ({ label: p.domain_desc || p.domain_value, value: p.domain_code }));
+  }, [domains]);
 
   // Open Edit Modal
   const handleOpenEditModal = (item: any) => {
@@ -166,8 +183,15 @@ export default function ErectionExecutionScreen() {
     setBlock(item.block || '');
     setVillage(item.village || '');
     setContractor(item.contractor_name || '');
-    setLineType(item.type_of_work || '');
-    setLtStartingPoint(item.lt_starting_point || '');
+    const getDomainCode = (type: string, val: any) => {
+      if (!val) return '';
+      const arr = domains[type] || [];
+      const found = arr.find((d: any) => d.domain_value === val || d.domain_code === val);
+      return found ? found.domain_code : val;
+    };
+
+    setLineType(getDomainCode('type_of_work', item.type_of_work));
+    setLtStartingPoint(getDomainCode('lt_starting_point', item.lt_starting_point));
     setRemarks(item.remarks || '');
 
     // Fire master updates for current selected fields
@@ -175,6 +199,9 @@ export default function ErectionExecutionScreen() {
       dispatch(fetchDistrictsAction(item.state_id, undefined, () => { }) as any);
       if (item.district_id) {
         dispatch(fetchBlocksAction(item.state_id, item.district_id, undefined, () => { }) as any);
+        if (item.block_id) {
+          dispatch(fetchVillagesAction(item.state_id, item.district_id, item.block_id, undefined, () => { }) as any);
+        }
       }
     }
   };
@@ -189,14 +216,16 @@ export default function ErectionExecutionScreen() {
       toast.warning('Complete every required erection detail before saving.', { title: 'Details required' });
       return;
     }
-    if (lineType === 'LT_440V' && !ltStartingPoint) {
+    const lt440vCode = domains['type_of_work']?.find((d: any) => d.domain_value === 'LT_440V')?.domain_code;
+    
+    if (lineType === lt440vCode && !ltStartingPoint) {
       toast.warning('Choose where the LT line starts.', { title: 'Starting point required' });
       return;
     }
 
     const selectedBlockObj = blocks.find(b => b.block_name === block);
-    const villageIndex = villageOptions.findIndex(opt => opt.value === village);
-    const villageId = villageIndex !== -1 ? villageIndex + 1 : 1;
+    const selectedVillageObj = villages.find(v => v.village_name === village);
+    const selectedContractorObj = contractors.find(c => c.contractor_name === contractor);
 
     setEditLoading(true);
     const updatePayload = {
@@ -211,10 +240,11 @@ export default function ErectionExecutionScreen() {
       state_id: selectedStateObj?.id || null,
       district_id: selectedDistrictObj?.id || null,
       block_id: selectedBlockObj?.id || null,
-      village_id: villageId,
+      village_id: selectedVillageObj?.id || null,
+      contractor_id: selectedContractorObj?.id || null,
       contractor_name: contractor,
       type_of_work: lineType,
-      lt_starting_point: lineType === 'LT_440V' ? ltStartingPoint : null,
+      lt_starting_point: lineType === lt440vCode ? ltStartingPoint : null,
       remarks: remarks.trim() || null,
     };
 
@@ -306,7 +336,7 @@ export default function ErectionExecutionScreen() {
     }) : [];
   }, [erectionList, voltageFilter, statusFilter]);
 
-  const getLineAccent = (type: string) => {
+  const getLineAccent = (type: string | number) => {
     switch (type) {
       case 'HT_11KV': return '#F59E0B'; // Amber
       case 'HT_33KV': return '#EF4444'; // Red
@@ -566,7 +596,7 @@ export default function ErectionExecutionScreen() {
                   label="VILLAGE (MANDATORY)"
                   value={village}
                   options={villageOptions}
-                  onChange={setVillage}
+                  onChange={(val) => setVillage(String(val))}
                   placeholder="Select Village"
                   disabled={!block}
                 />
@@ -577,7 +607,7 @@ export default function ErectionExecutionScreen() {
                   label="CONTRACTOR FIRM"
                   value={contractor}
                   options={contractorOptions}
-                  onChange={setContractor}
+                  onChange={(val) => setContractor(String(val))}
                   placeholder="Select Contractor"
                   disabled={!village}
                 />
@@ -586,19 +616,19 @@ export default function ErectionExecutionScreen() {
               <View style={styles.fieldContainer}>
                 <Text style={styles.formLabel}>TYPE OF WORK</Text>
                 <View style={styles.pillsRow}>
-                  {ERECTION_LINE_TYPES.map((opt) => (
+                  {typeOfWorkOptions.map((opt) => (
                     <TouchableOpacity
                       key={opt.value}
                       style={[
                         styles.pillButton,
-                        lineType === opt.value && { borderColor: getLineAccent(opt.value), backgroundColor: 'rgba(2, 132, 199, 0.05)' }
+                        lineType === opt.value && { borderColor: '#0284C7', backgroundColor: 'rgba(2, 132, 199, 0.05)' }
                       ]}
                       onPress={() => {
-                        setLineType(opt.value);
+                        setLineType(opt.value as any);
                         setLtStartingPoint('');
                       }}
                     >
-                      <Text style={[styles.pillButtonText, lineType === opt.value && { color: getLineAccent(opt.value), fontWeight: 'bold' }]}>
+                      <Text style={[styles.pillButtonText, lineType === opt.value && { color: '#0284C7', fontWeight: 'bold' }]}>
                         {opt.label}
                       </Text>
                     </TouchableOpacity>
@@ -606,11 +636,11 @@ export default function ErectionExecutionScreen() {
                 </View>
               </View>
 
-              {lineType === 'LT_440V' && (
+              {lineType !== '' && ltStartingPointOptions.length > 0 && (
                 <View style={styles.fieldContainer}>
                   <Text style={styles.formLabel}>LT LINE STARTING POINT</Text>
                   <View style={styles.startingPointBox}>
-                    {LT_STARTING_POINT_OPTIONS.map((option) => {
+                    {ltStartingPointOptions.map((option) => {
                       const isSelected = ltStartingPoint === option.value;
                       return (
                         <TouchableOpacity

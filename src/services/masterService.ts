@@ -18,3 +18,18 @@ export const GetBlocksService = (payload: { state_id?: number; district_id?: num
   // Pass a large page_size to retrieve all blocks without UI pagination
   return serviceClient.post(url, { is_active: true, page_size: 10000, ...payload });
 };
+
+export const GetVillagesService = (payload: { state_id?: number; district_id?: number; block_id?: number; page_size?: number; is_active?: boolean }) => {
+  const url = `${apiPrefix}master/village/list/`;
+  return serviceClient.post(url, { is_active: true, page_size: 10000, ...payload });
+};
+
+export const GetContractorsService = (payload?: { page_size?: number; is_active?: boolean }) => {
+  const url = `${apiPrefix}master/contractor/list/`;
+  return serviceClient.post(url, { is_active: true, page_size: 10000, ...payload });
+};
+
+export const GetDomainsService = (domainTypes: string[]) => {
+  const url = `${apiPrefix}master/domainvaluebydomaintype/`;
+  return serviceClient.post(url, { domain_type: domainTypes });
+};

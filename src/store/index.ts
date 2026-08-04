@@ -32,8 +32,8 @@ export interface SurveyLine {
   completedAt?: string;
   editingExisting?: boolean;
   continuationParentLabel?: string;
-  lineType: 'HT_11KV' | 'HT_33KV' | 'LT_440V';
-  ltStartingPoint?: 'HT_TAPPING_POINT' | 'DTR' | 'EXISTING_LT_LINE';
+  lineType: string | number;
+  ltStartingPoint?: string | number;
   contractorName: string;
   remarks: string;
   nodes: SurveyNode[];
@@ -415,12 +415,18 @@ export interface MasterState {
   states: Array<{ id: number; state_code: string; state_name: string }>;
   districts: Array<{ id: number; state_id: number; district_name: string; district_code: string }>;
   blocks: Array<{ id: number; state_id: number; district_id: number; block_name: string; block_code: string }>;
+  villages: Array<{ id: number; state_id: number; district_id: number; block_id: number; village_name: string; village_code: string }>;
+  contractors: Array<{ id: number; contractor_name: string }>;
+  domains: { [key: string]: Array<{ domain_id: number; domain_value: string; domain_code: string; domain_desc: string }> };
 }
 
 const initialMasterState: MasterState = {
   states: [],
   districts: [],
   blocks: [],
+  villages: [],
+  contractors: [],
+  domains: {},
 };
 
 const masterSlice = createSlice({
@@ -436,10 +442,22 @@ const masterSlice = createSlice({
     setBlocks: (state, action: PayloadAction<MasterState['blocks']>) => {
       state.blocks = action.payload;
     },
+    setVillages: (state, action: PayloadAction<MasterState['villages']>) => {
+      state.villages = action.payload;
+    },
+    setContractors: (state, action: PayloadAction<MasterState['contractors']>) => {
+      state.contractors = action.payload;
+    },
+    setDomains: (state, action: PayloadAction<{ [key: string]: any[] }>) => {
+      state.domains = { ...state.domains, ...action.payload };
+    },
     clearMasterData: (state) => {
       state.states = [];
       state.districts = [];
       state.blocks = [];
+      state.villages = [];
+      state.contractors = [];
+      state.domains = {};
     }
   }
 });
@@ -458,7 +476,7 @@ export type AppDispatch = typeof store.dispatch;
 
 export const { login, logout, updateProfileImage, updateToken, hydrateAuth } = authSlice.actions;
 export const { startSurvey, resumeSurvey, addNode, cancelSurvey, finishSurvey, completeSurveyLine, clearQueueItem, clearAllCompleted, updateSurveyLineMetadata, updateSurveyNode, hydrateStore, setErectionList, updateErectionInList } = surveySlice.actions;
-export const { setStates, setDistricts, setBlocks, clearMasterData } = masterSlice.actions;
+export const { setStates, setDistricts, setBlocks, setVillages, setContractors, setDomains, clearMasterData } = masterSlice.actions;
 
 const STORAGE_KEY = 'GIS_SURVEY_APP_STATE';
 

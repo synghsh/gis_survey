@@ -163,7 +163,7 @@ export default function SyncQueueScreen() {
     }
   };
 
-  const getLineAccent = (type: string) => {
+  const getLineAccent = (type: string | number) => {
     switch (type) {
       case 'HT_11KV': return '#D97706'; // High contrast Amber
       case 'HT_33KV': return '#DC2626'; // High contrast Red

@@ -3,19 +3,21 @@ import { FlatList, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } 
 
 export interface DropdownOption {
   label: string;
-  value: string;
+  value: string | number;
 }
 
 interface DropdownProps {
   label: string;
-  placeholder: string;
+  placeholder?: string;
   options: readonly DropdownOption[];
-  value: string;
-  onChange: (value: string) => void;
+  value: string | number;
+  onChange?: (value: string | number) => void;
+  onSelect?: (value: string | number) => void;
   disabled?: boolean;
+  required?: boolean;
 }
 
-export default function Dropdown({ label, placeholder, options, value, onChange, disabled = false }: DropdownProps) {
+export default function Dropdown({ label, placeholder, options, value, onChange, onSelect, disabled = false }: DropdownProps) {
   const [open, setOpen] = useState(false);
   const selectedLabel = options.find(option => option.value === value)?.label;
 
@@ -46,14 +48,15 @@ export default function Dropdown({ label, placeholder, options, value, onChange,
             </View>
             <FlatList
               data={options}
-              keyExtractor={item => item.value}
+              keyExtractor={item => String(item.value)}
               ItemSeparatorComponent={() => <View style={styles.separator} />}
               renderItem={({ item }) => {
                 const selected = item.value === value;
                 return (
                   <TouchableOpacity
                     onPress={() => {
-                      onChange(item.value);
+                      if (onChange) onChange(item.value);
+                      if (onSelect) onSelect(item.value);
                       setOpen(false);
                     }}
                     style={[styles.option, selected && styles.optionSelected]}

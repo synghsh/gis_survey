@@ -1,6 +1,7 @@
 import { UserLoginService } from '../../services/authService';
-import { login } from '../index';
+import { login, logout } from '../index';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { api } from '../../utils/api';
 
 export const userLoginAction = (
   payload: any,
@@ -45,5 +46,26 @@ export const userLoginAction = (
         const errorMsg = error.response?.data?.Message || error.message || 'SERVER UNREACHABLE OR PORT CLOSED';
         errorCallback?.(errorMsg);
       });
+  };
+};
+
+export const userLogoutAction = () => {
+  return async (dispatch: any) => {
+    try {
+      // Notify backend to invalidate the session
+      await api.post('admin/logout/', {});
+    } catch (e) {
+      console.warn('[AuthAction] Backend logout failed:', e);
+    }
+    
+    try {
+      // Clear all local storage
+      await AsyncStorage.clear();
+    } catch (e) {
+      console.warn('[AuthAction] Failed to clear AsyncStorage:', e);
+    }
+    
+    // Clear redux state
+    dispatch(logout());
   };
 };

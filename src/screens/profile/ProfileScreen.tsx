@@ -11,7 +11,8 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
-import { RootState, updateProfileImage, logout } from '../../store';
+import { RootState, updateProfileImage } from '../../store';
+import { userLogoutAction } from '../../store/actions/authAction';
 import { useNavigation } from '@react-navigation/native';
 import { useToast } from '../../components/ToastProvider';
 
@@ -152,7 +153,7 @@ export default function ProfileScreen() {
         <TouchableOpacity 
           style={styles.logoutBtn} 
           onPress={() => {
-            dispatch(logout());
+            dispatch(userLogoutAction() as any);
             navigation.navigate('Login');
           }}
         >

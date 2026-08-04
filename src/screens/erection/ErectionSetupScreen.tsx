@@ -11,10 +11,10 @@ import {
 } from '../../data/erectionSetupData';
 import { startSurvey, SurveyLine, RootState } from '../../store';
 import { startErectionAction, updateErectionAction } from '../../store/actions/erectionAction';
-import { fetchStatesAction, fetchDistrictsAction, fetchBlocksAction } from '../../store/actions/masterAction';
+import { fetchStatesAction, fetchDistrictsAction, fetchBlocksAction, fetchVillagesAction, fetchContractorsAction, fetchDomainsAction } from '../../store/actions/masterAction';
 
 type LineType = SurveyLine['lineType'];
-type LtStartingPoint = NonNullable<SurveyLine['ltStartingPoint']>;
+type LtStartingPoint = SurveyLine['ltStartingPoint'];
 
 const toOptions = (names: string[]): DropdownOption[] => names.map(name => ({ label: name, value: name }));
 
@@ -39,6 +39,9 @@ export default function ErectionSetupScreen({ route }: any) {
   const states = useSelector((state: RootState) => state.master.states);
   const districts = useSelector((state: RootState) => state.master.districts);
   const blocks = useSelector((state: RootState) => state.master.blocks);
+  const villages = useSelector((state: RootState) => state.master.villages) || [];
+  const contractors = useSelector((state: RootState) => state.master.contractors) || [];
+  const domains = useSelector((state: RootState) => state.master.domains) || {};
 
   const [isInitialized, setIsInitialized] = useState(false);
 
@@ -61,6 +64,9 @@ export default function ErectionSetupScreen({ route }: any) {
         dispatch(fetchDistrictsAction(item.state_id, undefined, () => {}) as any);
         if (item.district_id) {
           dispatch(fetchBlocksAction(item.state_id, item.district_id, undefined, () => {}) as any);
+          if (item.block_id) {
+            dispatch(fetchVillagesAction(item.state_id, item.district_id, item.block_id, undefined, () => {}) as any);
+          }
         }
       }
       setIsInitialized(true);
@@ -71,13 +77,19 @@ export default function ErectionSetupScreen({ route }: any) {
     dispatch(fetchStatesAction(undefined, (err) => {
       toast.error(err || 'Failed to fetch states from server');
     }) as any);
+    dispatch(fetchContractorsAction(undefined, (err) => {
+      console.warn('Erection setup contractors fetch error:', err);
+    }) as any);
+    dispatch(fetchDomainsAction(['type_of_work', 'lt_starting_point'], undefined, (err) => {
+      console.warn('Erection setup domains fetch error:', err);
+    }) as any);
   }, [dispatch]);
 
   const selectedStateObj = states.find(s => s.state_name === stateName);
   const selectedDistrictObj = districts.find(d => d.district_name === district);
 
-  const handleStateChange = (val: string) => {
-    setStateName(val);
+  const handleStateChange = (val: string | number) => {
+    setStateName(String(val));
     setDistrict('');
     setBlock('');
     setVillage('');
@@ -90,8 +102,8 @@ export default function ErectionSetupScreen({ route }: any) {
     }
   };
 
-  const handleDistrictChange = (val: string) => {
-    setDistrict(val);
+  const handleDistrictChange = (val: string | number) => {
+    setDistrict(String(val));
     setBlock('');
     setVillage('');
     setContractor('');
@@ -105,35 +117,35 @@ export default function ErectionSetupScreen({ route }: any) {
     }
   };
 
-  const handleBlockChange = (val: string) => {
-    setBlock(val);
+  const handleBlockChange = (val: string | number) => {
+    setBlock(String(val));
     setVillage('');
     setContractor('');
+    if (selectedStateObj && selectedStateObj.id && selectedDistrictObj && selectedDistrictObj.id) {
+      const blockObj = blocks.find(b => b.block_name === val);
+      if (blockObj) {
+        dispatch(fetchVillagesAction(selectedStateObj.id, selectedDistrictObj.id, blockObj.id, undefined, (err) => {
+          toast.error(err || 'Failed to fetch villages');
+        }) as any);
+      }
+    }
   };
 
   const stateOptions = useMemo(() => states.map(s => ({ label: s.state_name, value: s.state_name })), [states]);
   const districtOptions = useMemo(() => districts.map(d => ({ label: d.district_name, value: d.district_name })), [districts]);
   const blockOptions = useMemo(() => blocks.map(b => ({ label: b.block_name, value: b.block_name })), [blocks]);
+  const villageOptions = useMemo(() => villages.map(v => ({ label: v.village_name, value: v.village_name })), [villages]);
+  const contractorOptions = useMemo(() => contractors.map(c => ({ label: c.contractor_name, value: c.contractor_name })), [contractors]);
 
-  // Lookup for villages and contractors based on selected block
-  const selectedStateStatic = ERECTION_LOCATION_DATA.find(item => item.name === stateName);
-  const selectedDistrictStatic = selectedStateStatic?.districts.find(item => item.name === district);
-  const selectedBlockStatic = selectedDistrictStatic?.blocks.find(item => item.name === block);
+  const typeOfWorkOptions = useMemo(() => {
+    const types = domains['type_of_work'] || [];
+    return types.map(t => ({ label: t.domain_desc || t.domain_value, value: t.domain_code }));
+  }, [domains]);
 
-  const villageOptions = useMemo(() => {
-    if (selectedBlockStatic) {
-      return toOptions(selectedBlockStatic.villages.map(v => v.name));
-    }
-    return toOptions(['Village A', 'Village B', 'Village C']);
-  }, [selectedBlockStatic]);
-
-  const selectedVillageStatic = selectedBlockStatic?.villages.find(item => item.name === village);
-  const contractorOptions = useMemo(() => {
-    if (selectedVillageStatic) {
-      return toOptions(selectedVillageStatic.contractors);
-    }
-    return toOptions(['Power Grid Corp', 'L&T Power Transmission', 'Techno Electric']);
-  }, [selectedVillageStatic]);
+  const ltStartingPointOptions = useMemo(() => {
+    const pts = domains['lt_starting_point'] || [];
+    return pts.map(p => ({ label: p.domain_desc || p.domain_value, value: p.domain_code }));
+  }, [domains]);
 
   const handleStart = () => {
     if (!drawingNo) {
@@ -144,7 +156,9 @@ export default function ErectionSetupScreen({ route }: any) {
       toast.warning('Complete every required erection detail before continuing.', { title: 'Details required' });
       return;
     }
-    if (lineType === 'LT_440V' && !ltStartingPoint) {
+    const lt440vCode = domains['type_of_work']?.find((d: any) => d.domain_value === 'LT_440V')?.domain_code;
+
+    if (lineType === lt440vCode && !ltStartingPoint) {
       toast.warning('Choose where the LT line starts.', { title: 'Starting point required' });
       return;
     }
@@ -152,8 +166,8 @@ export default function ErectionSetupScreen({ route }: any) {
     setLoading(true);
     
     const selectedBlockObj = blocks.find(b => b.block_name === block);
-    const villageIndex = villageOptions.findIndex(opt => opt.value === village);
-    const villageId = villageIndex !== -1 ? villageIndex + 1 : 1;
+    const selectedVillageObj = villages.find(v => v.village_name === village);
+    const selectedContractorObj = contractors.find(c => c.contractor_name === contractor);
 
     const apiPayload = {
       feeder_name: feederName.trim() || null,
@@ -166,18 +180,26 @@ export default function ErectionSetupScreen({ route }: any) {
       state_id: selectedStateObj?.id || null,
       district_id: selectedDistrictObj?.id || null,
       block_id: selectedBlockObj?.id || null,
-      village_id: villageId,
+      village_id: selectedVillageObj?.id || null,
+      contractor_id: selectedContractorObj?.id || null,
       contractor_name: contractor,
       type_of_work: lineType,
-      lt_starting_point: lineType === 'LT_440V' ? ltStartingPoint : null,
+      lt_starting_point: ltStartingPoint ? ltStartingPoint : null,
       remarks: remarks.trim() || null,
+    };
+
+    const getDomainValue = (type: string, code: any) => {
+      if (!code) return '';
+      const arr = domains[type] || [];
+      const found = arr.find((d: any) => d.domain_code === code || d.domain_value === code);
+      return found ? found.domain_value : code;
     };
 
     const surveyPayload = {
       id: `erect-${Date.now().toString(36)}`,
       workflowType: 'ERECTION' as const,
-      lineType,
-      ltStartingPoint: lineType === 'LT_440V' ? ltStartingPoint as LtStartingPoint : undefined,
+      lineType: getDomainValue('type_of_work', lineType),
+      ltStartingPoint: ltStartingPoint ? getDomainValue('lt_starting_point', ltStartingPoint) as LtStartingPoint : undefined,
       contractorName: contractor,
       remarks: remarks.trim(),
       stateName,
@@ -308,7 +330,7 @@ export default function ErectionSetupScreen({ route }: any) {
             value={village}
             disabled={loading || !block}
             onChange={value => {
-              setVillage(value);
+              setVillage(String(value));
               setContractor('');
             }}
           />
@@ -322,30 +344,28 @@ export default function ErectionSetupScreen({ route }: any) {
             options={contractorOptions}
             value={contractor}
             disabled={loading || !village}
-            onChange={setContractor}
+            onChange={(val) => setContractor(String(val))}
           />
           <Dropdown
             label="TYPE OF WORK"
-            placeholder="Choose line class"
-            options={ERECTION_LINE_TYPES}
+            options={typeOfWorkOptions}
             value={lineType}
-            disabled={loading}
-            onChange={value => {
-              setLineType(value as LineType);
-              setLtStartingPoint('');
+            onChange={(val) => {
+              setLineType(val as LineType);
+              if (val !== lineType) setLtStartingPoint(''); // Reset LT start on change
             }}
           />
-          {lineType === 'LT_440V' && (
-            <Dropdown
-              label="LT LINE STARTING POINT"
-              placeholder="Choose starting point"
-              options={LT_STARTING_POINT_OPTIONS}
-              value={ltStartingPoint}
-              disabled={loading}
-              onChange={value => setLtStartingPoint(value as LtStartingPoint)}
-            />
-          )}
-          <Text style={styles.fieldLabel}>SITE DESCRIPTION / REMARKS</Text>
+          
+          {lineType !== '' && (
+            <View style={styles.fieldContainer}>
+              <Dropdown
+                label="LT LINE STARTING POINT"
+                options={ltStartingPointOptions}
+                value={ltStartingPoint || ''}
+                onChange={(val) => setLtStartingPoint(val as LtStartingPoint)}
+              />
+            </View>
+          )}<Text style={styles.fieldLabel}>SITE DESCRIPTION / REMARKS</Text>
           <TextInput
             style={styles.remarksInput}
             placeholder="Execution notes, alignment, site access..."

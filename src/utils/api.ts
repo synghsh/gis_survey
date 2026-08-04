@@ -1,5 +1,7 @@
 import { store, updateToken, logout } from '../store';
 import { getApiBaseUrl } from '../config';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { environment } from '../environment';
 
 /**
  * Executes a network fetch request, handles JWT header injection,
@@ -128,6 +130,28 @@ async function request(path: string, options: RequestInit = {}): Promise<Respons
         errorMsg.includes('time out')
       ) {
         console.warn('[API] Token expired or invalid. Terminating active session...');
+        
+        // Call backend logout endpoint to invalidate session if not fully timed out yet
+        try {
+          const apiPrefix = environment.API_PREFIX || '/gis/administration/';
+          const sep = url.endsWith('/') || apiPrefix.startsWith('/') ? '' : '/';
+          const logoutUrl = `${url}${sep}${apiPrefix}${apiPrefix.endsWith('/') ? '' : '/'}admin/logout/`;
+          
+          await fetch(logoutUrl, {
+            method: 'POST',
+            headers,
+          });
+        } catch (e) {
+          console.warn('[API] Backend logout call failed:', e);
+        }
+
+        // Clear all AsyncStorage values
+        try {
+          await AsyncStorage.clear();
+        } catch (e) {
+          console.warn('[API] Failed to clear AsyncStorage:', e);
+        }
+
         store.dispatch(logout());
       }
     } catch (err) {
