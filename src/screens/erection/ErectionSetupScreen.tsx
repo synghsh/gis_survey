@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import Dropdown, { DropdownOption } from '../../components/Dropdown';
 import { useToast } from '../../components/ToastProvider';
 import {
@@ -9,7 +9,9 @@ import {
   ERECTION_LOCATION_DATA,
   LT_STARTING_POINT_OPTIONS,
 } from '../../data/erectionSetupData';
-import { startSurvey, SurveyLine } from '../../store';
+import { startSurvey, SurveyLine, RootState } from '../../store';
+import { startErectionAction } from '../../store/actions/erectionAction';
+import { fetchStatesAction, fetchDistrictsAction, fetchBlocksAction } from '../../store/actions/masterAction';
 
 type LineType = SurveyLine['lineType'];
 type LtStartingPoint = NonNullable<SurveyLine['ltStartingPoint']>;
@@ -29,19 +31,88 @@ export default function ErectionSetupScreen() {
   const [lineType, setLineType] = useState<LineType | ''>('');
   const [ltStartingPoint, setLtStartingPoint] = useState<LtStartingPoint | ''>('');
   const [remarks, setRemarks] = useState('');
+  const [feederName, setFeederName] = useState('');
+  const [dtrCode, setDtrCode] = useState('');
+  const [drawingNo, setDrawingNo] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const selectedState = ERECTION_LOCATION_DATA.find(item => item.name === stateName);
-  const selectedDistrict = selectedState?.districts.find(item => item.name === district);
-  const selectedBlock = selectedDistrict?.blocks.find(item => item.name === block);
-  const selectedVillage = selectedBlock?.villages.find(item => item.name === village);
+  const states = useSelector((state: RootState) => state.master.states);
+  const districts = useSelector((state: RootState) => state.master.districts);
+  const blocks = useSelector((state: RootState) => state.master.blocks);
 
-  const stateOptions = useMemo(() => toOptions(ERECTION_LOCATION_DATA.map(item => item.name)), []);
-  const districtOptions = toOptions(selectedState?.districts.map(item => item.name) ?? []);
-  const blockOptions = toOptions(selectedDistrict?.blocks.map(item => item.name) ?? []);
-  const villageOptions = toOptions(selectedBlock?.villages.map(item => item.name) ?? []);
-  const contractorOptions = toOptions(selectedVillage?.contractors ?? []);
+  useEffect(() => {
+    dispatch(fetchStatesAction(undefined, (err) => {
+      toast.error(err || 'Failed to fetch states from server');
+    }) as any);
+  }, [dispatch]);
+
+  const selectedStateObj = states.find(s => s.state_name === stateName);
+  const selectedDistrictObj = districts.find(d => d.district_name === district);
+
+  const handleStateChange = (val: string) => {
+    setStateName(val);
+    setDistrict('');
+    setBlock('');
+    setVillage('');
+    setContractor('');
+    const stateObj = states.find(s => s.state_name === val);
+    if (stateObj) {
+      dispatch(fetchDistrictsAction(stateObj.id, undefined, (err) => {
+        toast.error(err || 'Failed to fetch districts');
+      }) as any);
+    }
+  };
+
+  const handleDistrictChange = (val: string) => {
+    setDistrict(val);
+    setBlock('');
+    setVillage('');
+    setContractor('');
+    if (selectedStateObj && selectedStateObj.id) {
+      const distObj = districts.find(d => d.district_name === val);
+      if (distObj) {
+        dispatch(fetchBlocksAction(selectedStateObj.id, distObj.id, undefined, (err) => {
+          toast.error(err || 'Failed to fetch blocks');
+        }) as any);
+      }
+    }
+  };
+
+  const handleBlockChange = (val: string) => {
+    setBlock(val);
+    setVillage('');
+    setContractor('');
+  };
+
+  const stateOptions = useMemo(() => states.map(s => ({ label: s.state_name, value: s.state_name })), [states]);
+  const districtOptions = useMemo(() => districts.map(d => ({ label: d.district_name, value: d.district_name })), [districts]);
+  const blockOptions = useMemo(() => blocks.map(b => ({ label: b.block_name, value: b.block_name })), [blocks]);
+
+  // Lookup for villages and contractors based on selected block
+  const selectedStateStatic = ERECTION_LOCATION_DATA.find(item => item.name === stateName);
+  const selectedDistrictStatic = selectedStateStatic?.districts.find(item => item.name === district);
+  const selectedBlockStatic = selectedDistrictStatic?.blocks.find(item => item.name === block);
+
+  const villageOptions = useMemo(() => {
+    if (selectedBlockStatic) {
+      return toOptions(selectedBlockStatic.villages.map(v => v.name));
+    }
+    return toOptions(['Village A', 'Village B', 'Village C']);
+  }, [selectedBlockStatic]);
+
+  const selectedVillageStatic = selectedBlockStatic?.villages.find(item => item.name === village);
+  const contractorOptions = useMemo(() => {
+    if (selectedVillageStatic) {
+      return toOptions(selectedVillageStatic.contractors);
+    }
+    return toOptions(['Power Grid Corp', 'L&T Power Transmission', 'Techno Electric']);
+  }, [selectedVillageStatic]);
 
   const handleStart = () => {
+    if (!drawingNo) {
+      toast.warning('Drawing number is required.', { title: 'Required field' });
+      return;
+    }
     if (!stateName || !district || !block || !village || !contractor || !lineType) {
       toast.warning('Complete every required erection detail before continuing.', { title: 'Details required' });
       return;
@@ -51,9 +122,25 @@ export default function ErectionSetupScreen() {
       return;
     }
 
-    dispatch(startSurvey({
+    setLoading(true);
+    
+    const apiPayload = {
+      feeder_name: feederName.trim() || null,
+      dtr_code: dtrCode.trim() || null,
+      drawing_no: drawingNo.trim(),
+      state_name: stateName,
+      district,
+      block,
+      village,
+      contractor_name: contractor,
+      type_of_work: lineType,
+      lt_starting_point: lineType === 'LT_440V' ? ltStartingPoint : null,
+      remarks: remarks.trim() || null,
+    };
+
+    const surveyPayload = {
       id: `erect-${Date.now().toString(36)}`,
-      workflowType: 'ERECTION',
+      workflowType: 'ERECTION' as const,
       lineType,
       ltStartingPoint: lineType === 'LT_440V' ? ltStartingPoint as LtStartingPoint : undefined,
       contractorName: contractor,
@@ -63,8 +150,24 @@ export default function ErectionSetupScreen() {
       block,
       village,
       location: village,
-    }));
-    navigation.replace('ActiveSurvey');
+      feederName: feederName.trim() || undefined,
+      dtrCode: dtrCode.trim() || undefined,
+      drawingNo: drawingNo.trim(),
+    };
+
+    dispatch(startErectionAction(
+      apiPayload,
+      surveyPayload,
+      () => {
+        setLoading(false);
+        toast.success('Erection execution started successfully.');
+        navigation.replace('ActiveSurvey');
+      },
+      (errorMsg) => {
+        setLoading(false);
+        toast.error(errorMsg, { title: 'Execution failed' });
+      }
+    ) as any);
   };
 
   return (
@@ -81,51 +184,74 @@ export default function ErectionSetupScreen() {
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>LOCATION HIERARCHY</Text>
+          <Text style={styles.sectionTitle}>PROJECT INFORMATION</Text>
+          
+          <View style={styles.fieldContainer}>
+            <Text style={styles.fieldLabel}>11 KV EXISTING FEEDER NAME</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="Enter feeder name"
+              placeholderTextColor="#94A3B8"
+              value={feederName}
+              onChangeText={setFeederName}
+              editable={!loading}
+            />
+          </View>
+
+          <View style={styles.fieldContainer}>
+            <Text style={styles.fieldLabel}>EXISTING DTR CODE</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="Enter DTR code"
+              placeholderTextColor="#94A3B8"
+              value={dtrCode}
+              onChangeText={setDtrCode}
+              editable={!loading}
+            />
+          </View>
+
+          <View style={styles.fieldContainer}>
+            <Text style={styles.fieldLabel}>DRAWING NO. (MANDATORY)</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="Enter drawing number"
+              placeholderTextColor="#94A3B8"
+              value={drawingNo}
+              onChangeText={setDrawingNo}
+              editable={!loading}
+            />
+          </View>
+
           <Dropdown
             label="STATE NAME"
             placeholder="Choose state"
             options={stateOptions}
             value={stateName}
-            onChange={value => {
-              setStateName(value);
-              setDistrict('');
-              setBlock('');
-              setVillage('');
-              setContractor('');
-            }}
+            disabled={loading}
+            onChange={handleStateChange}
           />
           <Dropdown
             label="DISTRICT"
             placeholder="Choose district"
             options={districtOptions}
             value={district}
-            disabled={!stateName}
-            onChange={value => {
-              setDistrict(value);
-              setBlock('');
-              setVillage('');
-              setContractor('');
-            }}
+            disabled={loading || !stateName}
+            onChange={handleDistrictChange}
           />
           <Dropdown
             label="BLOCK"
             placeholder="Choose block"
             options={blockOptions}
             value={block}
-            disabled={!district}
-            onChange={value => {
-              setBlock(value);
-              setVillage('');
-              setContractor('');
-            }}
+            disabled={loading || !district}
+            onChange={handleBlockChange}
           />
           <Dropdown
             label="VILLAGE"
             placeholder="Choose village"
             options={villageOptions}
             value={village}
-            disabled={!block}
+            disabled={loading || !block}
             onChange={value => {
               setVillage(value);
               setContractor('');
@@ -134,20 +260,21 @@ export default function ErectionSetupScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>EXECUTION ASSIGNMENT</Text>
+          <Text style={styles.sectionTitle}>EXECUTION DETAILS</Text>
           <Dropdown
             label="CONTRACTOR / FIRM NAME"
             placeholder="Choose contractor or firm"
             options={contractorOptions}
             value={contractor}
-            disabled={!village}
+            disabled={loading || !village}
             onChange={setContractor}
           />
           <Dropdown
-            label="VOLTAGE / CABLE CLASS"
+            label="TYPE OF WORK"
             placeholder="Choose line class"
             options={ERECTION_LINE_TYPES}
             value={lineType}
+            disabled={loading}
             onChange={value => {
               setLineType(value as LineType);
               setLtStartingPoint('');
@@ -159,6 +286,7 @@ export default function ErectionSetupScreen() {
               placeholder="Choose starting point"
               options={LT_STARTING_POINT_OPTIONS}
               value={ltStartingPoint}
+              disabled={loading}
               onChange={value => setLtStartingPoint(value as LtStartingPoint)}
             />
           )}
@@ -171,11 +299,21 @@ export default function ErectionSetupScreen() {
             onChangeText={setRemarks}
             multiline
             numberOfLines={4}
+            editable={!loading}
           />
         </View>
 
-        <TouchableOpacity style={styles.startButton} onPress={handleStart} activeOpacity={0.8}>
-          <Text style={styles.startButtonText}>START ERECTION EXECUTION</Text>
+        <TouchableOpacity 
+          style={[styles.startButton, loading && styles.startButtonDisabled]} 
+          onPress={handleStart} 
+          disabled={loading}
+          activeOpacity={0.8}
+        >
+          {loading ? (
+            <ActivityIndicator color="#FFFFFF" size="small" />
+          ) : (
+            <Text style={styles.startButtonText}>START ERECTION EXECUTION</Text>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -249,4 +387,18 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   startButtonText: { color: '#FFFFFF', fontSize: 12, fontWeight: '900', letterSpacing: 1.1 },
+  fieldContainer: { marginBottom: 16 },
+  textInput: {
+    minHeight: 48,
+    borderWidth: 1.2,
+    borderColor: 'rgba(2, 132, 199, 0.20)',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    backgroundColor: '#FFFFFF',
+    color: '#0F172A',
+    fontSize: 13,
+  },
+  startButtonDisabled: {
+    backgroundColor: '#94A3B8',
+  },
 });

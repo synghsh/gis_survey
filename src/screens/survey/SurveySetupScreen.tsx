@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import Dropdown, { DropdownOption } from '../../components/Dropdown';
 import { useToast } from '../../components/ToastProvider';
 import {
@@ -9,7 +9,8 @@ import {
   ERECTION_LOCATION_DATA,
   LT_STARTING_POINT_OPTIONS,
 } from '../../data/erectionSetupData';
-import { startSurvey, SurveyLine } from '../../store';
+import { startSurvey, SurveyLine, RootState } from '../../store';
+import { fetchStatesAction, fetchDistrictsAction, fetchBlocksAction } from '../../store/actions/masterAction';
 
 type LineType = SurveyLine['lineType'];
 type LtStartingPoint = NonNullable<SurveyLine['ltStartingPoint']>;
@@ -30,16 +31,77 @@ export default function SurveySetupScreen() {
   const [ltStartingPoint, setLtStartingPoint] = useState<LtStartingPoint | ''>('');
   const [remarks, setRemarks] = useState('');
 
-  const selectedState = ERECTION_LOCATION_DATA.find(item => item.name === stateName);
-  const selectedDistrict = selectedState?.districts.find(item => item.name === district);
-  const selectedBlock = selectedDistrict?.blocks.find(item => item.name === block);
-  const selectedVillage = selectedBlock?.villages.find(item => item.name === village);
+  const states = useSelector((state: RootState) => state.master.states);
+  const districts = useSelector((state: RootState) => state.master.districts);
+  const blocks = useSelector((state: RootState) => state.master.blocks);
 
-  const stateOptions = useMemo(() => toOptions(ERECTION_LOCATION_DATA.map(item => item.name)), []);
-  const districtOptions = toOptions(selectedState?.districts.map(item => item.name) ?? []);
-  const blockOptions = toOptions(selectedDistrict?.blocks.map(item => item.name) ?? []);
-  const villageOptions = toOptions(selectedBlock?.villages.map(item => item.name) ?? []);
-  const contractorOptions = toOptions(selectedVillage?.contractors ?? []);
+  useEffect(() => {
+    dispatch(fetchStatesAction(undefined, (err) => {
+      toast.error(err || 'Failed to fetch states from server');
+    }) as any);
+  }, [dispatch]);
+
+  const selectedStateObj = states.find(s => s.state_name === stateName);
+  const selectedDistrictObj = districts.find(d => d.district_name === district);
+
+  const handleStateChange = (val: string) => {
+    setStateName(val);
+    setDistrict('');
+    setBlock('');
+    setVillage('');
+    setContractor('');
+    const stateObj = states.find(s => s.state_name === val);
+    if (stateObj) {
+      dispatch(fetchDistrictsAction(stateObj.id, undefined, (err) => {
+        toast.error(err || 'Failed to fetch districts');
+      }) as any);
+    }
+  };
+
+  const handleDistrictChange = (val: string) => {
+    setDistrict(val);
+    setBlock('');
+    setVillage('');
+    setContractor('');
+    if (selectedStateObj && selectedStateObj.id) {
+      const distObj = districts.find(d => d.district_name === val);
+      if (distObj) {
+        dispatch(fetchBlocksAction(selectedStateObj.id, distObj.id, undefined, (err) => {
+          toast.error(err || 'Failed to fetch blocks');
+        }) as any);
+      }
+    }
+  };
+
+  const handleBlockChange = (val: string) => {
+    setBlock(val);
+    setVillage('');
+    setContractor('');
+  };
+
+  const stateOptions = useMemo(() => states.map(s => ({ label: s.state_name, value: s.state_name })), [states]);
+  const districtOptions = useMemo(() => districts.map(d => ({ label: d.district_name, value: d.district_name })), [districts]);
+  const blockOptions = useMemo(() => blocks.map(b => ({ label: b.block_name, value: b.block_name })), [blocks]);
+
+  // Lookup for villages and contractors based on selected block
+  const selectedStateStatic = ERECTION_LOCATION_DATA.find(item => item.name === stateName);
+  const selectedDistrictStatic = selectedStateStatic?.districts.find(item => item.name === district);
+  const selectedBlockStatic = selectedDistrictStatic?.blocks.find(item => item.name === block);
+
+  const villageOptions = useMemo(() => {
+    if (selectedBlockStatic) {
+      return toOptions(selectedBlockStatic.villages.map(v => v.name));
+    }
+    return toOptions(['Village A', 'Village B', 'Village C']);
+  }, [selectedBlockStatic]);
+
+  const selectedVillageStatic = selectedBlockStatic?.villages.find(item => item.name === village);
+  const contractorOptions = useMemo(() => {
+    if (selectedVillageStatic) {
+      return toOptions(selectedVillageStatic.contractors);
+    }
+    return toOptions(['Power Grid Corp', 'L&T Power Transmission', 'Techno Electric']);
+  }, [selectedVillageStatic]);
 
   const handleStart = () => {
     if (!stateName || !district || !block || !village || !contractor || !lineType) {
@@ -87,13 +149,7 @@ export default function SurveySetupScreen() {
             placeholder="Choose state"
             options={stateOptions}
             value={stateName}
-            onChange={value => {
-              setStateName(value);
-              setDistrict('');
-              setBlock('');
-              setVillage('');
-              setContractor('');
-            }}
+            onChange={handleStateChange}
           />
           <Dropdown
             label="DISTRICT"
@@ -101,12 +157,7 @@ export default function SurveySetupScreen() {
             options={districtOptions}
             value={district}
             disabled={!stateName}
-            onChange={value => {
-              setDistrict(value);
-              setBlock('');
-              setVillage('');
-              setContractor('');
-            }}
+            onChange={handleDistrictChange}
           />
           <Dropdown
             label="BLOCK"
@@ -114,11 +165,7 @@ export default function SurveySetupScreen() {
             options={blockOptions}
             value={block}
             disabled={!district}
-            onChange={value => {
-              setBlock(value);
-              setVillage('');
-              setContractor('');
-            }}
+            onChange={handleBlockChange}
           />
           <Dropdown
             label="VILLAGE"

@@ -46,6 +46,9 @@ export interface SurveyLine {
   block?: string;
   district?: string;
   preparedBy?: string;
+  feederName?: string;
+  dtrCode?: string;
+  drawingNo?: string;
 }
 
 // Slice 1: Authentication & Profile State
@@ -395,11 +398,46 @@ const surveySlice = createSlice({
   },
 });
 
+// Slice 4: Master management data store
+export interface MasterState {
+  states: Array<{ id: number; state_code: string; state_name: string }>;
+  districts: Array<{ id: number; state_id: number; district_name: string; district_code: string }>;
+  blocks: Array<{ id: number; state_id: number; district_id: number; block_name: string; block_code: string }>;
+}
+
+const initialMasterState: MasterState = {
+  states: [],
+  districts: [],
+  blocks: [],
+};
+
+const masterSlice = createSlice({
+  name: 'master',
+  initialState: initialMasterState,
+  reducers: {
+    setStates: (state, action: PayloadAction<MasterState['states']>) => {
+      state.states = action.payload;
+    },
+    setDistricts: (state, action: PayloadAction<MasterState['districts']>) => {
+      state.districts = action.payload;
+    },
+    setBlocks: (state, action: PayloadAction<MasterState['blocks']>) => {
+      state.blocks = action.payload;
+    },
+    clearMasterData: (state) => {
+      state.states = [];
+      state.districts = [];
+      state.blocks = [];
+    }
+  }
+});
+
 // Root Store
 export const store = configureStore({
   reducer: {
     auth: authSlice.reducer,
     survey: surveySlice.reducer,
+    master: masterSlice.reducer,
   },
 });
 
@@ -408,6 +446,7 @@ export type AppDispatch = typeof store.dispatch;
 
 export const { login, logout, updateProfileImage, updateToken, hydrateAuth } = authSlice.actions;
 export const { startSurvey, resumeSurvey, addNode, cancelSurvey, finishSurvey, completeSurveyLine, clearQueueItem, clearAllCompleted, updateSurveyLineMetadata, updateSurveyNode, hydrateStore } = surveySlice.actions;
+export const { setStates, setDistricts, setBlocks, clearMasterData } = masterSlice.actions;
 
 const STORAGE_KEY = 'GIS_SURVEY_APP_STATE';
 

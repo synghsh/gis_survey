@@ -12,10 +12,12 @@ import {
   ScrollView,
   Dimensions,
 } from 'react-native';
+import { useDispatch } from 'react-redux';
 import Theme from '../../theme';
 import Svg, { Circle, Line, G, Defs, LinearGradient, Rect, Stop, Path, RadialGradient } from 'react-native-svg';
 import { base64Encode } from '../../utils/base64';
 import { getApiBaseUrl, setApiBaseUrl, DEFAULT_API_BASE } from '../../config';
+import { userLoginAction } from '../../store/actions/authAction';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -24,6 +26,7 @@ interface LoginScreenProps {
 }
 
 export default function LoginScreen({ onLogin }: LoginScreenProps) {
+  const dispatch = useDispatch();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -52,7 +55,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
   const blob2X = useRef(new Animated.Value(0)).current;
   const blob2Y = useRef(new Animated.Value(0)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
-  
+
   // Action button breathe animation
   const buttonPulse = useRef(new Animated.Value(1)).current;
 
@@ -143,66 +146,26 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     setLoading(true);
     setLogText('INITIALIZING HANDSHAKE...');
 
-    try {
-      const baseApiUrl = await getApiBaseUrl();
-      let normalizedUrl = baseApiUrl.trim();
-      if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
-        normalizedUrl = 'http://' + normalizedUrl;
-      }
-      if (!normalizedUrl.includes('/gis/administration')) {
-        normalizedUrl = normalizedUrl.replace(/\/$/, '') + '/gis/administration';
-      }
-      const loginUrl = normalizedUrl.replace(/\/$/, '') + '/admin/login/';
+    const encodedPassword = base64Encode(password);
 
-      let host = 'server';
-      const match = normalizedUrl.match(/^(?:https?:\/\/)?([^\/]+)/i);
-      if (match && match[1]) {
-        host = match[1];
-      }
-
-      setLogText(`CONNECTING TO ${host}...`);
-
-      const encodedPassword = base64Encode(password);
-
-      const response = await fetch(loginUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({
-          username: username.trim(),
-          password: encodedPassword,
-        }),
-      });
-
-      setLogText('VERIFYING SURVEYOR SIGNATURE...');
-      const responseText = await response.text();
-      let result;
-      try {
-        result = JSON.parse(responseText);
-      } catch (e) {
-        throw new Error('Invalid JSON response from server');
-      }
-
-      if (response.status === 200 && result && !result.Exception && result.Data) {
+    dispatch(userLoginAction(
+      {
+        username: username.trim(),
+        password: encodedPassword,
+      },
+      (userData) => {
         setLogText('ESTABLISHING SECURE OFFLINE SESSION...');
         setTimeout(() => {
           setLoading(false);
-          onLogin(result.Data);
+          onLogin(userData);
         }, 600);
-      } else {
-        const errorMsg = result?.Errors || result?.Data?.Message || 'Authentication Failed';
+      },
+      (errorMsg) => {
         setLogText(`ERROR: ${errorMsg.toUpperCase()}`);
         triggerShake();
         setLoading(false);
       }
-    } catch (err: any) {
-      console.warn('Login connection error:', err);
-      setLogText('ERROR: SERVER UNREACHABLE OR PORT CLOSED');
-      triggerShake();
-      setLoading(false);
-    }
+    ) as any);
   };
 
   const spin = rotateAnim.interpolate({
@@ -230,14 +193,14 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
       </View>
 
       {/* 2. DRIFTING GLOW SPHERES (radial gradient glow layers) */}
-      <Animated.View 
-        pointerEvents="none" 
+      <Animated.View
+        pointerEvents="none"
         style={[
-          styles.blurBlob, 
-          { 
-            top: SCREEN_HEIGHT * 0.08, 
+          styles.blurBlob,
+          {
+            top: SCREEN_HEIGHT * 0.08,
             left: -60,
-            transform: [{ translateX: blob1X }, { translateY: blob1Y }] 
+            transform: [{ translateX: blob1X }, { translateY: blob1Y }]
           }
         ]}
       >
@@ -253,14 +216,14 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         </Svg>
       </Animated.View>
 
-      <Animated.View 
-        pointerEvents="none" 
+      <Animated.View
+        pointerEvents="none"
         style={[
-          styles.blurBlob, 
-          { 
-            bottom: SCREEN_HEIGHT * 0.08, 
+          styles.blurBlob,
+          {
+            bottom: SCREEN_HEIGHT * 0.08,
             right: -80,
-            transform: [{ translateX: blob2X }, { translateY: blob2Y }] 
+            transform: [{ translateX: blob2X }, { translateY: blob2Y }]
           }
         ]}
       >
@@ -424,7 +387,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
   scrollContainerWrapper: { flex: 1, zIndex: 10 },
   scrollContainer: { flexGrow: 1, justifyContent: 'center', padding: 24, paddingTop: 50 },
-  
+
   // BACKGROUND LAYERS
   blurBlob: { position: 'absolute', width: 300, height: 300, zIndex: 3 },
   gridRotationContainer: { position: 'absolute', top: SCREEN_HEIGHT * 0.05, left: -SCREEN_WIDTH * 0.4, opacity: 0.7, zIndex: 4 },
