@@ -78,6 +78,7 @@ export default function ErectionExecutionScreen() {
   const [remarks, setRemarks] = useState('');
   const [editLoading, setEditLoading] = useState(false);
   const [viewingErection, setViewingErection] = useState<any | null>(null);
+  const [showFilterModal, setShowFilterModal] = useState(false);
 
   // Load Erection List on Focus
   useFocusEffect(
@@ -217,7 +218,7 @@ export default function ErectionExecutionScreen() {
       return;
     }
     const lt440vCode = domains['type_of_work']?.find((d: any) => d.domain_value === 'LT_440V')?.domain_code;
-    
+
     if (lineType === lt440vCode && !ltStartingPoint) {
       toast.warning('Choose where the LT line starts.', { title: 'Starting point required' });
       return;
@@ -362,49 +363,72 @@ export default function ErectionExecutionScreen() {
 
       <View style={styles.mainWrapper}>
         <View style={styles.header}>
+          <View style={{ width: 34 }} />
           <Text style={styles.headerTitle}>ERECTION EXECUTION</Text>
+          <TouchableOpacity onPress={() => setShowFilterModal(true)} style={styles.menuBtn}>
+            <Text style={styles.menuBtnText}>⋮</Text>
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.filtersContainer}>
-          <Text style={styles.filterTitle}>VOLTAGE CLASS</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtersScroll}>
-            {([
-              { label: 'ALL CLASS', value: 'ALL' },
-              { label: '11KV HT', value: 'HT_11KV' },
-              { label: '33KV HT', value: 'HT_33KV' },
-              { label: 'LT LINE', value: 'LT_440V' }
-            ] as const).map((opt) => (
-              <TouchableOpacity
-                key={opt.value}
-                style={[styles.filterTab, voltageFilter === opt.value && styles.filterTabActive]}
-                onPress={() => setVoltageFilter(opt.value)}
-              >
-                <Text style={[styles.filterTabText, voltageFilter === opt.value && styles.filterTabTextActive]}>
-                  {opt.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+        {/* FILTER MODAL */}
+        <Modal
+          visible={showFilterModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowFilterModal(false)}
+        >
+          <TouchableOpacity
+            style={styles.filterModalOverlay}
+            activeOpacity={1}
+            onPress={() => setShowFilterModal(false)}
+          >
+            <View style={styles.filterDrawer} onStartShouldSetResponder={() => true}>
+              <View style={styles.drawerHeader}>
+                <Text style={styles.drawerTitle}>FILTERS</Text>
+                <TouchableOpacity onPress={() => setShowFilterModal(false)} style={styles.drawerCloseBtn}>
+                  <Text style={styles.drawerCloseText}>✕</Text>
+                </TouchableOpacity>
+              </View>
 
-          <Text style={[styles.filterTitle, { marginTop: 12 }]}>EXECUTION STATUS</Text>
-          <View style={styles.statusFiltersRow}>
-            {([
-              { label: 'ALL STATUS', value: 'ALL' },
-              { label: 'PENDING', value: 'PENDING' },
-              { label: 'COMPLETED', value: 'COMPLETED' }
-            ] as const).map((opt) => (
-              <TouchableOpacity
-                key={opt.value}
-                style={[styles.statusTab, statusFilter === opt.value && styles.statusTabActive]}
-                onPress={() => setStatusFilter(opt.value)}
-              >
-                <Text style={[styles.statusTabText, statusFilter === opt.value && styles.statusTabTextActive]}>
-                  {opt.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
+              <ScrollView contentContainerStyle={styles.drawerContent} showsVerticalScrollIndicator={false}>
+                <Text style={styles.drawerSectionTitle}>VOLTAGE CLASS</Text>
+                {([
+                  { label: 'ALL CLASS', value: 'ALL' },
+                  { label: '11KV HT', value: 'HT_11KV' },
+                  { label: '33KV HT', value: 'HT_33KV' },
+                  { label: 'LT LINE', value: 'LT_440V' }
+                ] as const).map((opt) => (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={[styles.drawerFilterTab, voltageFilter === opt.value && styles.drawerFilterTabActive]}
+                    onPress={() => setVoltageFilter(opt.value)}
+                  >
+                    <Text style={[styles.drawerFilterTabText, voltageFilter === opt.value && styles.drawerFilterTabTextActive]}>
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+
+                <Text style={[styles.drawerSectionTitle, { marginTop: 16 }]}>STATUS</Text>
+                {([
+                  { label: 'ALL STATUS', value: 'ALL' },
+                  { label: 'PENDING', value: 'PENDING' },
+                  { label: 'COMPLETED', value: 'COMPLETED' }
+                ] as const).map((opt) => (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={[styles.drawerFilterTab, statusFilter === opt.value && styles.drawerFilterTabActive]}
+                    onPress={() => setStatusFilter(opt.value)}
+                  >
+                    <Text style={[styles.drawerFilterTabText, statusFilter === opt.value && styles.drawerFilterTabTextActive]}>
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </TouchableOpacity>
+        </Modal>
 
         {loading && erectionList.length === 0 ? (
           <View style={styles.loadingContainer}>
@@ -424,73 +448,72 @@ export default function ErectionExecutionScreen() {
                 return (
                   <View key={item.id} style={styles.surveyCard}>
                     <View style={styles.cardHeader}>
-                      <View style={{ flex: 1, paddingRight: 10 }}>
-                        <Text style={styles.contractorName}>{item.contractor_name}</Text>
-                        <Text style={styles.drawingNoText}>Drawing No: {item.drawing_no}</Text>
-                        {item.feeder_name && <Text style={styles.infoRowText}>Feeder: {item.feeder_name}</Text>}
-                        {item.dtr_code && <Text style={styles.infoRowText}>DTR Code: {item.dtr_code}</Text>}
-                        <Text style={styles.timestampText}>
-                          📅 Updated: {item.updated_on || 'N/A'}
+                      <View style={{ flex: 1, paddingRight: 6 }}>
+                        <Text style={styles.contractorName} numberOfLines={1}>{item.contractor_name}</Text>
+                        <Text style={styles.cardMetaText}>
+                          Drawing No.: {item.drawing_no}
+                          {/* {item.feeder_name ? ` • FDR: ${item.feeder_name}` : ''}
+                          {item.dtr_code ? ` • DTR: ${item.dtr_code}` : ''} */}
                         </Text>
                       </View>
-                      <View style={[styles.classBadge, { borderColor: accent }]}>
-                        <Text style={[styles.classBadgeText, { color: accent }]}>
-                          {getLineTypeLabel(item.type_of_work)}
-                        </Text>
+                      <View style={styles.badgeRow}>
+                        <View style={[styles.classBadge, { borderColor: accent, marginRight: 4 }]}>
+                          <Text style={[styles.classBadgeText, { color: accent }]}>
+                            {getLineTypeLabel(item.type_of_work_name)}
+                          </Text>
+                        </View>
+                        <View style={[styles.statusBadge, {
+                          borderColor: item.status === 2 ? '#059669' : '#D97706',
+                          backgroundColor: item.status === 2 ? 'rgba(5, 150, 105, 0.05)' : 'rgba(217, 119, 6, 0.05)'
+                        }]}>
+                          <Text style={[styles.statusBadgeText, { color: item.status === 2 ? '#059669' : '#D97706' }]}>
+                            {item.status === 2 ? 'COMPLETED' : 'PENDING'}
+                          </Text>
+                        </View>
                       </View>
                     </View>
 
-                    <View style={styles.locationDetailsSection}>
-                      <Text style={styles.locationLabel}>LOCATION DETAILS</Text>
-                      <Text style={styles.locationVal}>
-                        {item.village}, {item.block}, {item.district}, {item.state_name}
-                      </Text>
-                    </View>
+                    <Text style={styles.cardLocationText}>
+                      📍 {item.village_name}, {item.block_name}, {item.district_name}
+                    </Text>
 
                     {item.remarks ? (
-                      <Text style={styles.remarksText}>&gt; {item.remarks}</Text>
+                      <Text style={styles.cardRemarksText} numberOfLines={1}>
+                        💬 {item.remarks}
+                      </Text>
                     ) : null}
 
-                    <View style={styles.cardFooter}>
-                      <View style={[styles.statusBadge, {
-                        borderColor: item.status === 2 ? '#059669' : '#D97706',
-                        backgroundColor: item.status === 2 ? 'rgba(5, 150, 105, 0.05)' : 'rgba(217, 119, 6, 0.05)'
-                      }]}>
-                        <Text style={[styles.statusBadgeText, { color: item.status === 2 ? '#059669' : '#D97706' }]}>
-                          {item.status === 2 ? 'COMPLETED' : 'PENDING'}
-                        </Text>
-                      </View>
-                    </View>
+                    <Text style={styles.cardTimestampText}>
+                      📅 Updated: {item.updated_on || 'N/A'}
+                    </Text>
 
                     {item.status === 1 ? (
-                      <View style={styles.buttonsContainer}>
-                        <View style={styles.horizontalButtonsRow}>
-                          <TouchableOpacity
-                            style={styles.editBasicBtn}
-                            onPress={() => handleEditBasicDetails(item)}
-                          >
-                            <Text style={styles.editBasicBtnText}>EDIT BASIC DETAILS</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={styles.updateErectionsBtn}
-                            onPress={() => handleUpdateErectionsClick(item)}
-                          >
-                            <Text style={styles.updateErectionsBtnText}>UPDATE ERECTIONS</Text>
-                          </TouchableOpacity>
-                        </View>
+                      <View style={styles.buttonsRow}>
                         <TouchableOpacity
-                          style={styles.completeErectionBtn}
+                          style={styles.compactBtnEdit}
+                          onPress={() => handleEditBasicDetails(item)}
+                        >
+                          <Text style={styles.compactBtnTextEdit}>EDIT BASIC</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.compactBtnUpdate}
+                          onPress={() => handleUpdateErectionsClick(item)}
+                        >
+                          <Text style={styles.compactBtnTextUpdate}>UPDATE</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.compactBtnComplete}
                           onPress={() => handleCompleteConfirmation(item.id)}
                         >
-                          <Text style={styles.completeErectionBtnText}>COMPLETE ERECTIONS</Text>
+                          <Text style={styles.compactBtnTextComplete}>COMPLETE</Text>
                         </TouchableOpacity>
                       </View>
                     ) : (
                       <TouchableOpacity
-                        style={styles.viewDetailsBtn}
+                        style={styles.compactBtnView}
                         onPress={() => setViewingErection(item)}
                       >
-                        <Text style={styles.viewDetailsBtnText}>VIEW DETAILS</Text>
+                        <Text style={styles.compactBtnTextView}>VIEW DETAILS</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -799,7 +822,7 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     alignItems: 'center',
     borderColor: 'rgba(2, 132, 199, 0.08)',
     borderBottomWidth: 1.2,
@@ -812,6 +835,91 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     letterSpacing: 2,
+  },
+  menuBtn: {
+    padding: 8,
+  },
+  menuBtnText: {
+    color: '#0284C7',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  filterModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.3)',
+    justifyContent: 'flex-end',
+    flexDirection: 'row',
+  },
+  filterDrawer: {
+    width: '45%',
+    height: '100%',
+    backgroundColor: '#FFFFFF',
+    borderLeftWidth: 1,
+    borderLeftColor: 'rgba(2, 132, 199, 0.15)',
+    paddingTop: 50,
+    paddingHorizontal: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: -4, height: 0 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 16,
+  },
+  drawerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomColor: 'rgba(2, 132, 199, 0.08)',
+    borderBottomWidth: 1.2,
+    paddingBottom: 8,
+    marginBottom: 12,
+  },
+  drawerTitle: {
+    color: '#0F172A',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  drawerCloseBtn: {
+    padding: 4,
+  },
+  drawerCloseText: {
+    color: '#EF4444',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  drawerContent: {
+    flexGrow: 1,
+  },
+  drawerSectionTitle: {
+    color: '#64748B',
+    fontSize: 8.5,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+    marginBottom: 6,
+  },
+  drawerFilterTab: {
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    borderRadius: 6,
+    borderWidth: 1.2,
+    borderColor: 'rgba(2, 132, 199, 0.12)',
+    backgroundColor: '#FFFFFF',
+    marginBottom: 6,
+    alignItems: 'center',
+  },
+  drawerFilterTabActive: {
+    borderColor: '#0284C7',
+    backgroundColor: 'rgba(2, 132, 199, 0.05)',
+  },
+  drawerFilterTabText: {
+    color: '#64748B',
+    fontSize: 8.5,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  drawerFilterTabTextActive: {
+    color: '#0284C7',
+    fontWeight: 'bold',
   },
   filtersContainer: {
     paddingHorizontal: 20,
@@ -909,9 +1017,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.85)',
     borderColor: 'rgba(255, 255, 255, 0.7)',
     borderWidth: 1.5,
-    borderRadius: 16,
-    marginBottom: 16,
-    padding: 16,
+    borderRadius: 12,
+    marginBottom: 10,
+    padding: 10,
     shadowColor: '#0284C7',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.06,
@@ -925,7 +1033,99 @@ const styles = StyleSheet.create({
   },
   contractorName: {
     color: '#0F172A',
-    fontSize: 14,
+    fontSize: 13,
+    fontWeight: 'bold',
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cardMetaText: {
+    color: '#64748B',
+    fontSize: 10,
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  cardLocationText: {
+    color: '#475569',
+    fontSize: 10.5,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  cardRemarksText: {
+    color: '#D97706',
+    fontSize: 10,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  cardTimestampText: {
+    color: '#64748B',
+    fontSize: 9,
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  buttonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  compactBtnEdit: {
+    flex: 1.2,
+    height: 30,
+    backgroundColor: 'rgba(6, 182, 212, 0.05)',
+    borderWidth: 1.2,
+    borderColor: '#06B6D4',
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 4,
+  },
+  compactBtnTextEdit: {
+    color: '#06B6D4',
+    fontSize: 8.5,
+    fontWeight: 'bold',
+  },
+  compactBtnUpdate: {
+    flex: 1.2,
+    height: 30,
+    backgroundColor: '#0284C7',
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 4,
+  },
+  compactBtnTextUpdate: {
+    color: '#FFFFFF',
+    fontSize: 8.5,
+    fontWeight: 'bold',
+  },
+  compactBtnComplete: {
+    flex: 1.5,
+    height: 30,
+    backgroundColor: '#DC2626',
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  compactBtnTextComplete: {
+    color: '#FFFFFF',
+    fontSize: 8.5,
+    fontWeight: 'bold',
+  },
+  compactBtnView: {
+    width: '100%',
+    height: 30,
+    backgroundColor: 'rgba(6, 182, 212, 0.06)',
+    borderWidth: 1.2,
+    borderColor: '#06B6D4',
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 6,
+  },
+  compactBtnTextView: {
+    color: '#06B6D4',
+    fontSize: 9.5,
     fontWeight: 'bold',
   },
   drawingNoText: {

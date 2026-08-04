@@ -52,26 +52,38 @@ export default function ErectionSetupScreen({ route }: any) {
       setFeederName(item.feeder_name || '');
       setDtrCode(item.dtr_code || '');
       setStateName(item.state_name || '');
-      setDistrict(item.district || '');
-      setBlock(item.block || '');
-      setVillage(item.village || '');
+      setDistrict(item.district_name || item.district || '');
+      setBlock(item.block_name || item.block || '');
+      setVillage(item.village_name || item.village || '');
       setContractor(item.contractor_name || '');
-      setLineType(item.type_of_work || '');
-      setLtStartingPoint(item.lt_starting_point || '');
       setRemarks(item.remarks || '');
-      
+
       if (item.state_id) {
-        dispatch(fetchDistrictsAction(item.state_id, undefined, () => {}) as any);
+        dispatch(fetchDistrictsAction(item.state_id, undefined, () => { }) as any);
         if (item.district_id) {
-          dispatch(fetchBlocksAction(item.state_id, item.district_id, undefined, () => {}) as any);
+          dispatch(fetchBlocksAction(item.state_id, item.district_id, undefined, () => { }) as any);
           if (item.block_id) {
-            dispatch(fetchVillagesAction(item.state_id, item.district_id, item.block_id, undefined, () => {}) as any);
+            dispatch(fetchVillagesAction(item.state_id, item.district_id, item.block_id, undefined, () => { }) as any);
           }
         }
       }
       setIsInitialized(true);
     }
   }, [route.params, isInitialized, dispatch]);
+
+  useEffect(() => {
+    if (route.params?.isEdit && route.params?.erectionItem && domains['type_of_work']) {
+      const item = route.params.erectionItem;
+      const getDomainCode = (type: string, val: any) => {
+        if (!val) return '';
+        const arr = domains[type] || [];
+        const found = arr.find((d: any) => d.domain_value === val || d.domain_code === val);
+        return found ? found.domain_code : val;
+      };
+      setLineType(getDomainCode('type_of_work', item.type_of_work));
+      setLtStartingPoint(getDomainCode('lt_starting_point', item.lt_starting_point));
+    }
+  }, [domains, route.params]);
 
   useEffect(() => {
     dispatch(fetchStatesAction(undefined, (err) => {
@@ -164,7 +176,7 @@ export default function ErectionSetupScreen({ route }: any) {
     }
 
     setLoading(true);
-    
+
     const selectedBlockObj = blocks.find(b => b.block_name === block);
     const selectedVillageObj = villages.find(v => v.village_name === village);
     const selectedContractorObj = contractors.find(c => c.contractor_name === contractor);
@@ -262,7 +274,7 @@ export default function ErectionSetupScreen({ route }: any) {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>PROJECT INFORMATION</Text>
-          
+
           <View style={styles.fieldContainer}>
             <Text style={styles.fieldLabel}>11 KV EXISTING FEEDER NAME</Text>
             <TextInput
@@ -355,7 +367,7 @@ export default function ErectionSetupScreen({ route }: any) {
               if (val !== lineType) setLtStartingPoint(''); // Reset LT start on change
             }}
           />
-          
+
           {lineType !== '' && (
             <View style={styles.fieldContainer}>
               <Dropdown
@@ -378,9 +390,9 @@ export default function ErectionSetupScreen({ route }: any) {
           />
         </View>
 
-        <TouchableOpacity 
-          style={[styles.startButton, loading && styles.startButtonDisabled]} 
-          onPress={handleStart} 
+        <TouchableOpacity
+          style={[styles.startButton, loading && styles.startButtonDisabled]}
+          onPress={handleStart}
           disabled={loading}
           activeOpacity={0.8}
         >
