@@ -399,7 +399,7 @@ export default function ErectionSetupScreen({ route }: any) {
           {loading ? (
             <ActivityIndicator color="#FFFFFF" size="small" />
           ) : (
-            <Text style={styles.startButtonText}>{route.params?.isEdit ? 'SAVE UPDATES' : 'START ERECTION EXECUTION'}</Text>
+            <Text style={styles.startButtonText}>{route.params?.isEdit ? 'SAVE UPDATES' : 'SAVE ERECTION DETAILS'}</Text>
           )}
         </TouchableOpacity>
       </ScrollView>
