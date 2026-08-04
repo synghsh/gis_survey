@@ -9,11 +9,12 @@ import {
   Modal,
   Dimensions,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
-import { RootState, SurveyLine } from '../../store';
+import { RootState, SurveyLine, startSurvey } from '../../store';
 import { useToast } from '../../components/ToastProvider';
 import { getLineTypeLabel } from '../../utils/surveyLabels';
 import Dropdown, { DropdownOption } from '../../components/Dropdown';
@@ -68,6 +69,7 @@ export default function ErectionExecutionScreen() {
   const [ltStartingPoint, setLtStartingPoint] = useState<LtStartingPoint | ''>('');
   const [remarks, setRemarks] = useState('');
   const [editLoading, setEditLoading] = useState(false);
+  const [viewingErection, setViewingErection] = useState<any | null>(null);
 
   // Load Erection List on Focus
   useFocusEffect(
@@ -250,6 +252,49 @@ export default function ErectionExecutionScreen() {
     ) as any);
   };
 
+  // Edit Basic Details Screen Navigation
+  const handleEditBasicDetails = (item: any) => {
+    navigation.navigate('ErectionSetup', { isEdit: true, erectionItem: item });
+  };
+
+  // Launch Active Survey Mapping flow for this Erection
+  const handleUpdateErectionsClick = (item: any) => {
+    dispatch(startSurvey({
+      id: `erect-${item.id}`,
+      workflowType: 'ERECTION',
+      lineType: item.type_of_work,
+      ltStartingPoint: item.lt_starting_point,
+      contractorName: item.contractor_name,
+      remarks: item.remarks,
+      stateName: item.state_name,
+      district: item.district,
+      block: item.block,
+      village: item.village,
+      location: item.village,
+      feederName: item.feeder_name,
+      dtrCode: item.dtr_code,
+      drawingNo: item.drawing_no,
+    }));
+    navigation.navigate('ActiveSurvey');
+  };
+
+  // Safe confirm prompt before complete API call
+  const handleCompleteConfirmation = (id: number) => {
+    Alert.alert(
+      'Confirm Completion',
+      'Are you sure you want to mark this erection execution as completed? This action is irreversible and the execution details will become read-only.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Complete',
+          style: 'destructive',
+          onPress: () => handleCompleteClick(id),
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
   // List Filters mapping
   const filteredErections = useMemo(() => {
     return erectionList && erectionList.length > 0 ? erectionList?.filter((item: any) => {
@@ -385,24 +430,39 @@ export default function ErectionExecutionScreen() {
                           {item.status === 2 ? 'COMPLETED' : 'PENDING'}
                         </Text>
                       </View>
+                    </View>
 
-                      {item.status === 1 && (
-                        <View style={styles.actionButtonsRow}>
+                    {item.status === 1 ? (
+                      <View style={styles.buttonsContainer}>
+                        <View style={styles.horizontalButtonsRow}>
                           <TouchableOpacity
-                            style={styles.editButton}
-                            onPress={() => handleOpenEditModal(item)}
+                            style={styles.editBasicBtn}
+                            onPress={() => handleEditBasicDetails(item)}
                           >
-                            <Text style={styles.editButtonText}>EDIT</Text>
+                            <Text style={styles.editBasicBtnText}>EDIT BASIC DETAILS</Text>
                           </TouchableOpacity>
                           <TouchableOpacity
-                            style={styles.completeButton}
-                            onPress={() => handleCompleteClick(item.id)}
+                            style={styles.updateErectionsBtn}
+                            onPress={() => handleUpdateErectionsClick(item)}
                           >
-                            <Text style={styles.completeButtonText}>COMPLETE</Text>
+                            <Text style={styles.updateErectionsBtnText}>UPDATE ERECTIONS</Text>
                           </TouchableOpacity>
                         </View>
-                      )}
-                    </View>
+                        <TouchableOpacity
+                          style={styles.completeErectionBtn}
+                          onPress={() => handleCompleteConfirmation(item.id)}
+                        >
+                          <Text style={styles.completeErectionBtnText}>COMPLETE ERECTIONS</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        style={styles.viewDetailsBtn}
+                        onPress={() => setViewingErection(item)}
+                      >
+                        <Text style={styles.viewDetailsBtnText}>VIEW DETAILS</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 );
               })
@@ -594,6 +654,102 @@ export default function ErectionExecutionScreen() {
                   <Text style={styles.launchSurveyText}>SAVE UPDATES</Text>
                 </TouchableOpacity>
               )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Read-Only Details Modal for Completed Erections */}
+      <Modal
+        visible={!!viewingErection}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setViewingErection(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>VIEW ERECTION DETAILS</Text>
+              <TouchableOpacity onPress={() => setViewingErection(null)}>
+                <Text style={styles.modalCloseText}>CLOSE</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalForm} keyboardShouldPersistTaps="handled">
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>DRAWING NO</Text>
+                <Text style={styles.detailValue}>{viewingErection?.drawing_no || 'N/A'}</Text>
+              </View>
+
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>11 KV EXISTING FEEDER NAME</Text>
+                <Text style={styles.detailValue}>{viewingErection?.feeder_name || 'N/A'}</Text>
+              </View>
+
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>EXISTING DTR CODE</Text>
+                <Text style={styles.detailValue}>{viewingErection?.dtr_code || 'N/A'}</Text>
+              </View>
+
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>STATE NAME</Text>
+                <Text style={styles.detailValue}>{viewingErection?.state_name || 'N/A'}</Text>
+              </View>
+
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>DISTRICT</Text>
+                <Text style={styles.detailValue}>{viewingErection?.district || 'N/A'}</Text>
+              </View>
+
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>BLOCK</Text>
+                <Text style={styles.detailValue}>{viewingErection?.block || 'N/A'}</Text>
+              </View>
+
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>VILLAGE</Text>
+                <Text style={styles.detailValue}>{viewingErection?.village || 'N/A'}</Text>
+              </View>
+
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>CONTRACTOR / FIRM NAME</Text>
+                <Text style={styles.detailValue}>{viewingErection?.contractor_name || 'N/A'}</Text>
+              </View>
+
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>TYPE OF WORK</Text>
+                <Text style={styles.detailValue}>
+                  {viewingErection ? getLineTypeLabel(viewingErection.type_of_work) : 'N/A'}
+                </Text>
+              </View>
+
+              {viewingErection?.type_of_work === 'LT_440V' && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>LT LINE STARTING POINT</Text>
+                  <Text style={styles.detailValue}>{viewingErection?.lt_starting_point || 'N/A'}</Text>
+                </View>
+              )}
+
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>REMARKS</Text>
+                <Text style={styles.detailValue}>{viewingErection?.remarks || 'None'}</Text>
+              </View>
+
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>LAST UPDATED ON</Text>
+                <Text style={styles.detailValue}>{viewingErection?.updated_on || 'N/A'}</Text>
+              </View>
+
+              <View style={[styles.detailRow, { borderBottomWidth: 0 }]}>
+                <Text style={styles.detailLabel}>EXECUTION STATUS</Text>
+                <Text style={[styles.detailValue, { color: '#059669', fontWeight: 'bold' }]}>COMPLETED (LOCKED)</Text>
+              </View>
+
+              <View style={styles.lockedAlertBox}>
+                <Text style={styles.lockedAlertText}>
+                  🔒 This erection execution is marked as completed and is locked. Editing or mapping modifications are disabled.
+                </Text>
+              </View>
             </ScrollView>
           </View>
         </View>
@@ -817,31 +973,116 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     letterSpacing: 0.5,
   },
-  actionButtonsRow: {
+  buttonsContainer: {
+    marginTop: 12,
+    width: '100%',
+  },
+  horizontalButtonsRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
   },
-  editButton: {
+  editBasicBtn: {
+    flex: 1,
+    height: 36,
+    backgroundColor: 'rgba(6, 182, 212, 0.05)',
+    borderWidth: 1.2,
+    borderColor: '#06B6D4',
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 4,
+  },
+  editBasicBtnText: {
+    color: '#06B6D4',
+    fontSize: 9,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
+  },
+  updateErectionsBtn: {
+    flex: 1,
+    height: 36,
     backgroundColor: '#0284C7',
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    marginRight: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 4,
   },
-  editButtonText: {
+  updateErectionsBtnText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
+  },
+  completeErectionBtn: {
+    width: '100%',
+    height: 38,
+    backgroundColor: '#DC2626',
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  completeErectionBtnText: {
     color: '#FFFFFF',
     fontSize: 10,
     fontWeight: 'bold',
+    letterSpacing: 1,
   },
-  completeButton: {
-    backgroundColor: '#059669',
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+  viewDetailsBtn: {
+    width: '100%',
+    height: 38,
+    backgroundColor: 'rgba(6, 182, 212, 0.06)',
+    borderWidth: 1.2,
+    borderColor: '#06B6D4',
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
   },
-  completeButtonText: {
-    color: '#FFFFFF',
+  viewDetailsBtnText: {
+    color: '#06B6D4',
     fontSize: 10,
     fontWeight: 'bold',
+    letterSpacing: 1,
+  },
+  // Modal detail display styles
+  detailRow: {
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(2, 132, 199, 0.08)',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  detailLabel: {
+    color: '#64748B',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+    flex: 1,
+  },
+  detailValue: {
+    color: '#1E293B',
+    fontSize: 12,
+    fontWeight: '600',
+    flex: 1.5,
+    textAlign: 'right',
+  },
+  lockedAlertBox: {
+    backgroundColor: 'rgba(5, 150, 105, 0.05)',
+    borderColor: 'rgba(5, 150, 105, 0.15)',
+    borderWidth: 1.2,
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  lockedAlertText: {
+    color: '#065F46',
+    fontSize: 10.5,
+    lineHeight: 16,
+    textAlign: 'center',
+    fontWeight: '600',
   },
   fab: {
     position: 'absolute',

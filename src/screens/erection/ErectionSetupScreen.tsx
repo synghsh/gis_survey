@@ -10,7 +10,7 @@ import {
   LT_STARTING_POINT_OPTIONS,
 } from '../../data/erectionSetupData';
 import { startSurvey, SurveyLine, RootState } from '../../store';
-import { startErectionAction } from '../../store/actions/erectionAction';
+import { startErectionAction, updateErectionAction } from '../../store/actions/erectionAction';
 import { fetchStatesAction, fetchDistrictsAction, fetchBlocksAction } from '../../store/actions/masterAction';
 
 type LineType = SurveyLine['lineType'];
@@ -18,7 +18,7 @@ type LtStartingPoint = NonNullable<SurveyLine['ltStartingPoint']>;
 
 const toOptions = (names: string[]): DropdownOption[] => names.map(name => ({ label: name, value: name }));
 
-export default function ErectionSetupScreen() {
+export default function ErectionSetupScreen({ route }: any) {
   const navigation = useNavigation<any>();
   const dispatch = useDispatch();
   const toast = useToast();
@@ -39,6 +39,33 @@ export default function ErectionSetupScreen() {
   const states = useSelector((state: RootState) => state.master.states);
   const districts = useSelector((state: RootState) => state.master.districts);
   const blocks = useSelector((state: RootState) => state.master.blocks);
+
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  useEffect(() => {
+    if (route.params?.isEdit && route.params?.erectionItem && !isInitialized) {
+      const item = route.params.erectionItem;
+      setDrawingNo(item.drawing_no || '');
+      setFeederName(item.feeder_name || '');
+      setDtrCode(item.dtr_code || '');
+      setStateName(item.state_name || '');
+      setDistrict(item.district || '');
+      setBlock(item.block || '');
+      setVillage(item.village || '');
+      setContractor(item.contractor_name || '');
+      setLineType(item.type_of_work || '');
+      setLtStartingPoint(item.lt_starting_point || '');
+      setRemarks(item.remarks || '');
+      
+      if (item.state_id) {
+        dispatch(fetchDistrictsAction(item.state_id, undefined, () => {}) as any);
+        if (item.district_id) {
+          dispatch(fetchBlocksAction(item.state_id, item.district_id, undefined, () => {}) as any);
+        }
+      }
+      setIsInitialized(true);
+    }
+  }, [route.params, isInitialized, dispatch]);
 
   useEffect(() => {
     dispatch(fetchStatesAction(undefined, (err) => {
@@ -163,6 +190,26 @@ export default function ErectionSetupScreen() {
       drawingNo: drawingNo.trim(),
     };
 
+    if (route.params?.isEdit) {
+      const updatePayload = {
+        id: route.params.erectionItem.id,
+        ...apiPayload,
+      };
+      dispatch(updateErectionAction(
+        updatePayload,
+        () => {
+          setLoading(false);
+          toast.success('Erection details updated successfully.');
+          navigation.goBack();
+        },
+        (errorMsg) => {
+          setLoading(false);
+          toast.error(errorMsg, { title: 'Update failed' });
+        }
+      ) as any);
+      return;
+    }
+
     dispatch(startErectionAction(
       apiPayload,
       surveyPayload,
@@ -185,7 +232,7 @@ export default function ErectionSetupScreen() {
           <Text style={styles.backText}>&lt;</Text>
         </TouchableOpacity>
         <View style={styles.headerCopy}>
-          <Text style={styles.headerTitle}>NEW ERECTION EXECUTION</Text>
+          <Text style={styles.headerTitle}>{route.params?.isEdit ? 'EDIT ERECTION DETAILS' : 'NEW ERECTION EXECUTION'}</Text>
           <Text style={styles.headerSubtitle}>PROJECT LOCATION & ASSIGNMENT</Text>
         </View>
       </View>
@@ -320,7 +367,7 @@ export default function ErectionSetupScreen() {
           {loading ? (
             <ActivityIndicator color="#FFFFFF" size="small" />
           ) : (
-            <Text style={styles.startButtonText}>START ERECTION EXECUTION</Text>
+            <Text style={styles.startButtonText}>{route.params?.isEdit ? 'SAVE UPDATES' : 'START ERECTION EXECUTION'}</Text>
           )}
         </TouchableOpacity>
       </ScrollView>
