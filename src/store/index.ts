@@ -453,10 +453,41 @@ const STORAGE_KEY = 'GIS_SURVEY_APP_STATE';
 export const loadPersistedState = async () => {
   try {
     const serializedState = await AsyncStorage.getItem(STORAGE_KEY);
-    if (serializedState === null) {
-      return undefined;
+    let state = serializedState ? JSON.parse(serializedState) : undefined;
+
+    // Check direct 'user' and 'token' in AsyncStorage
+    const userStr = await AsyncStorage.getItem('user');
+    const token = await AsyncStorage.getItem('token');
+
+    if (userStr && token) {
+      const parsedUser = JSON.parse(userStr);
+      const userDetails = parsedUser?.Data?.user_details || {};
+      
+      if (!state) {
+        state = {
+          auth: {},
+          survey: { activeLine: null, syncQueue: [], completedCount: 0, historyList: [] }
+        };
+      }
+      
+      state.auth = {
+        isLoggedIn: true,
+        token: token,
+        userId: userDetails.id || null,
+        firstName: userDetails.first_name || '',
+        lastName: userDetails.last_name || '',
+        username: userDetails.username || '',
+        phone: userDetails.phone || '',
+        email: userDetails.email || '',
+        roleName: userDetails.role_name || '',
+        designationName: userDetails.designation_name || '',
+        surveyorName: `${userDetails.first_name || ''} ${userDetails.last_name || ''}`.trim(),
+        surveyorId: `SRV-${userDetails.id || ''}`,
+        division: userDetails.role_name || 'Central Division',
+        profileImage: null
+      };
     }
-    return JSON.parse(serializedState);
+    return state;
   } catch (err) {
     console.error('Failed to load state:', err);
     return undefined;
@@ -465,12 +496,18 @@ export const loadPersistedState = async () => {
 
 const saveState = async (state: any) => {
   try {
-    const stateToSave = {
-      auth: state.auth,
-      survey: state.survey,
-    };
-    const serializedState = JSON.stringify(stateToSave);
-    await AsyncStorage.setItem(STORAGE_KEY, serializedState);
+    if (!state.auth.isLoggedIn) {
+      await AsyncStorage.removeItem(STORAGE_KEY);
+      await AsyncStorage.removeItem('user');
+      await AsyncStorage.removeItem('token');
+    } else {
+      const stateToSave = {
+        auth: state.auth,
+        survey: state.survey,
+      };
+      const serializedState = JSON.stringify(stateToSave);
+      await AsyncStorage.setItem(STORAGE_KEY, serializedState);
+    }
   } catch (err) {
     console.error('Failed to save state:', err);
   }

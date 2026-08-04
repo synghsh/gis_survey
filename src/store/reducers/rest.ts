@@ -1,4 +1,5 @@
 import axios, { AxiosRequestConfig, AxiosInstance } from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { store, updateToken, logout } from '../index';
 import { getApiBaseUrl } from '../../config';
 
@@ -16,39 +17,68 @@ export default class RestService {
         }
         config.baseURL = url;
 
-        const token = store.getState().auth.token;
+        const token = await AsyncStorage.getItem('token') || store.getState().auth.token;
         if (token && !!config.headers) {
-          config.headers['Authorization'] = token;
+          if (typeof config.headers.set === 'function') {
+            config.headers.set('Authorization', token);
+          } else {
+            config.headers['Authorization'] = token;
+          }
         }
+
+        const fullUrl = `${config.baseURL.replace(/\/$/, '')}/${(config.url || '').replace(/^\//, '')}`;
+        console.log(`[AXIOS REQUEST] => ${config.method?.toUpperCase()} ${fullUrl}`);
+        if (config.data) {
+          console.log(`[AXIOS REQUEST PAYLOAD] =>`, config.data);
+        }
+
         return config;
       },
       error => {
+        console.error('[AXIOS REQUEST ERROR] =>', error);
         return Promise.reject(error);
       }
     );
 
     this.client.interceptors.response.use(
       async response => {
+        const config = response.config;
+        const fullUrl = `${config.baseURL?.replace(/\/$/, '')}/${(config.url || '').replace(/^\//, '')}`;
+        console.log(`[AXIOS RESPONSE] <= Status ${response.status} | URL: ${fullUrl}`);
+        console.log(`[AXIOS RESPONSE BODY] <=`, response.data);
         return response;
       },
       async error => {
         const response = error.response;
-        const originalRequest = error.config;
+        const config = error.config || {};
+        const fullUrl = `${config.baseURL?.replace(/\/$/, '')}/${(config.url || '').replace(/^\//, '')}`;
+        
+        console.error(`[AXIOS ERROR RESPONSE] <= Status ${response?.status || 'network_error'} | URL: ${fullUrl}`);
+        if (response?.data) {
+          console.error(`[AXIOS ERROR RESPONSE BODY] <=`, response.data);
+        } else {
+          console.error(`[AXIOS ERROR MESSAGE] <=`, error.message || error);
+        }
 
         if (response) {
           // Handle Token Refresh window (Status 408)
-          if (response.status === 408 && !originalRequest._retry) {
-            originalRequest._retry = true;
+          if (response.status === 408 && !config._retry) {
+            config._retry = true;
             try {
               const body = response.data;
               const newToken = body?.Token || body?.token;
               if (newToken) {
                 console.log('[Axios] JWT refresh window hit. Dispatching updated token to storage...');
                 store.dispatch(updateToken(newToken));
-                if (originalRequest.headers) {
-                  originalRequest.headers['Authorization'] = newToken;
+                await AsyncStorage.setItem('token', newToken);
+                if (config.headers) {
+                  if (typeof config.headers.set === 'function') {
+                    config.headers.set('Authorization', newToken);
+                  } else {
+                    config.headers['Authorization'] = newToken;
+                  }
                 }
-                return this.client(originalRequest);
+                return this.client(config);
               }
             } catch (err) {
               console.warn('[Axios] Failed to handle 408 token refresh:', err);
