@@ -124,6 +124,10 @@ export default function ErectionSetupScreen() {
 
     setLoading(true);
     
+    const selectedBlockObj = blocks.find(b => b.block_name === block);
+    const villageIndex = villageOptions.findIndex(opt => opt.value === village);
+    const villageId = villageIndex !== -1 ? villageIndex + 1 : 1;
+
     const apiPayload = {
       feeder_name: feederName.trim() || null,
       dtr_code: dtrCode.trim() || null,
@@ -132,6 +136,10 @@ export default function ErectionSetupScreen() {
       district,
       block,
       village,
+      state_id: selectedStateObj?.id || null,
+      district_id: selectedDistrictObj?.id || null,
+      block_id: selectedBlockObj?.id || null,
+      village_id: villageId,
       contractor_name: contractor,
       type_of_work: lineType,
       lt_starting_point: lineType === 'LT_440V' ? ltStartingPoint : null,

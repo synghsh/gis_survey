@@ -172,6 +172,7 @@ interface SurveyState {
   syncQueue: SurveyLine[];
   completedCount: number;
   historyList: SurveyLine[];
+  erectionList: any[];
 }
 
 const initialHistory: SurveyLine[] = [
@@ -237,6 +238,7 @@ const surveySlice = createSlice({
     syncQueue: [],
     completedCount: 2,
     historyList: initialHistory,
+    erectionList: [],
   } as SurveyState,
   reducers: {
     startSurvey: (state, action: PayloadAction<Omit<SurveyLine, 'nodes' | 'startedAt' | 'status'>>) => {
@@ -384,6 +386,7 @@ const surveySlice = createSlice({
         state.activeLine = action.payload.activeLine ?? null;
         state.syncQueue = action.payload.syncQueue ?? [];
         state.completedCount = action.payload.completedCount ?? 2;
+        state.erectionList = action.payload.erectionList ?? [];
         const persistedHistory: SurveyLine[] = action.payload.historyList ?? [];
         const demoLine = initialHistory.find(line => line.id === 'hist-3');
         const persistedDemo = persistedHistory.find(line => line.id === demoLine?.id);
@@ -393,6 +396,15 @@ const surveySlice = createSlice({
         state.historyList = refreshedDemo
           ? [refreshedDemo, ...persistedHistory.filter(line => line.id !== refreshedDemo.id)]
           : persistedHistory;
+      }
+    },
+    setErectionList: (state, action: PayloadAction<any[]>) => {
+      state.erectionList = action.payload;
+    },
+    updateErectionInList: (state, action: PayloadAction<any>) => {
+      const idx = state.erectionList.findIndex(item => item.id === action.payload.id);
+      if (idx !== -1) {
+        state.erectionList[idx] = { ...state.erectionList[idx], ...action.payload };
       }
     }
   },
@@ -445,7 +457,7 @@ export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;
 
 export const { login, logout, updateProfileImage, updateToken, hydrateAuth } = authSlice.actions;
-export const { startSurvey, resumeSurvey, addNode, cancelSurvey, finishSurvey, completeSurveyLine, clearQueueItem, clearAllCompleted, updateSurveyLineMetadata, updateSurveyNode, hydrateStore } = surveySlice.actions;
+export const { startSurvey, resumeSurvey, addNode, cancelSurvey, finishSurvey, completeSurveyLine, clearQueueItem, clearAllCompleted, updateSurveyLineMetadata, updateSurveyNode, hydrateStore, setErectionList, updateErectionInList } = surveySlice.actions;
 export const { setStates, setDistricts, setBlocks, clearMasterData } = masterSlice.actions;
 
 const STORAGE_KEY = 'GIS_SURVEY_APP_STATE';
@@ -466,7 +478,7 @@ export const loadPersistedState = async () => {
       if (!state) {
         state = {
           auth: {},
-          survey: { activeLine: null, syncQueue: [], completedCount: 0, historyList: [] }
+          survey: { activeLine: null, syncQueue: [], completedCount: 0, historyList: [], erectionList: [] }
         };
       }
       
