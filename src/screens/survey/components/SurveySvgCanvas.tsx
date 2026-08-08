@@ -165,7 +165,7 @@ export default function SurveySvgCanvas({
                       fontFamily="System"
                       textAnchor="middle"
                     >
-                      {`${node.attributes.cableSize ? node.attributes.cableSize.replace(' sqmm ABC', 'sq') : 'Cable'} (${node.attributes.spanDistance || `${calculateDistanceMeters(parent.latitude, parent.longitude, node.latitude, node.longitude)}m`})`}
+                      {`${(node.attributes.cableSize && typeof node.attributes.cableSize === 'string') ? node.attributes.cableSize.replace(' sqmm ABC', 'sq') : (node.attributes.cableSize || 'Cable')} (${node.attributes.spanDistance || `${calculateDistanceMeters(parent.latitude, parent.longitude, node.latitude, node.longitude)}m`})`}
                     </SvgText>
                   </G>
                 </G>

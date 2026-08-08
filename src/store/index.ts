@@ -406,6 +406,16 @@ const surveySlice = createSlice({
       if (idx !== -1) {
         state.erectionList[idx] = { ...state.erectionList[idx], ...action.payload };
       }
+    },
+    injectHistoryLine: (state, action: PayloadAction<SurveyLine>) => {
+      const exists = state.historyList.some(l => l.id === action.payload.id);
+      if (!exists) {
+        state.historyList.unshift(action.payload);
+      } else {
+        state.historyList = state.historyList.map(l => 
+          l.id === action.payload.id ? action.payload : l
+        );
+      }
     }
   },
 });
@@ -493,7 +503,7 @@ export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;
 
 export const { login, logout, updateProfileImage, updateToken, hydrateAuth } = authSlice.actions;
-export const { startSurvey, resumeSurvey, addNode, cancelSurvey, finishSurvey, completeSurveyLine, clearQueueItem, clearAllCompleted, updateSurveyLineMetadata, updateSurveyNode, hydrateStore, setErectionList, updateErectionInList } = surveySlice.actions;
+export const { startSurvey, resumeSurvey, addNode, cancelSurvey, finishSurvey, completeSurveyLine, clearQueueItem, clearAllCompleted, updateSurveyLineMetadata, updateSurveyNode, hydrateStore, setErectionList, updateErectionInList, injectHistoryLine } = surveySlice.actions;
 export const { setStates, setDistricts, setBlocks, setVillages, setContractors, setDomains, setTransformers, setConductors, setPoles, clearMasterData } = masterSlice.actions;
 
 

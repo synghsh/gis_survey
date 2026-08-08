@@ -14,7 +14,7 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
-import { RootState, SurveyLine, startSurvey } from '../../store';
+import { RootState, SurveyLine, startSurvey, injectHistoryLine } from '../../store';
 import { useToast } from '../../components/ToastProvider';
 import { getLineTypeLabel } from '../../utils/surveyLabels';
 import Dropdown, { DropdownOption } from '../../components/Dropdown';
@@ -290,8 +290,47 @@ export default function ErectionExecutionScreen() {
 
   // Launch Active Survey Mapping flow for this Erection
   const handleUpdateErectionsClick = (item: any) => {
+    const surveyId = `erect-${item.id}`;
+
+    // If any data is saved against this erection, open the summary details page
+    if (item.nodes && item.nodes.length > 0) {
+      const surveyLine: SurveyLine = {
+        id: surveyId,
+        lineType: item.type_of_work,
+        ltStartingPoint: item.lt_starting_point,
+        contractorName: item.contractor_name,
+        remarks: item.remarks,
+        startedAt: item.created_on || new Date().toISOString(),
+        endedAt: item.updated_on || new Date().toISOString(),
+        status: item.status === 2 ? 'SYNCED' : 'PENDING',
+        isCompleted: item.status === 2,
+        completedAt: item.status === 2 ? item.updated_on : undefined,
+        location: item.village,
+        block: item.block,
+        district: item.district,
+        village: item.village,
+        preparedBy: 'Surveyor',
+        nodes: item.nodes.map((node: any) => ({
+          id: String(node.id),
+          nodeType: node.nodeType,
+          sequenceNumber: node.sequenceNumber,
+          nameLabel: node.nameLabel,
+          latitude: node.latitude,
+          longitude: node.longitude,
+          attributes: node.attributes || {},
+          imageUri: node.imageUri || null,
+          capturedAt: node.capturedAt || '',
+          parentLabel: node.parentLabel,
+        })),
+      };
+
+      dispatch(injectHistoryLine(surveyLine));
+      navigation.navigate('SurveyDetails', { surveyId });
+      return;
+    }
+
     dispatch(startSurvey({
-      id: `erect-${item.id}`,
+      id: surveyId,
       workflowType: 'ERECTION',
       lineType: item.type_of_work,
       ltStartingPoint: item.lt_starting_point,

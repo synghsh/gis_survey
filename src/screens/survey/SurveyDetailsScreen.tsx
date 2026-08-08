@@ -133,12 +133,12 @@ export default function SurveyDetailsScreen() {
     setNodeName(node.nameLabel);
     setNodeLat(node.latitude.toString());
     setNodeLng(node.longitude.toString());
-    setNodeCableSize(node.attributes.cableSize || '');
-    setNodePoleType(node.attributes.poleType || '');
-    setNodeHeight(node.attributes.height || '');
-    setNodeTilt(node.attributes.tilt || '');
-    setNodeSag(node.attributes.sag || '');
-    setNodeSpanDistance(node.attributes.spanDistance || '');
+    setNodeCableSize(node.attributes.cableSize !== undefined && node.attributes.cableSize !== null ? String(node.attributes.cableSize) : '');
+    setNodePoleType(node.attributes.poleType !== undefined && node.attributes.poleType !== null ? String(node.attributes.poleType) : '');
+    setNodeHeight(node.attributes.height !== undefined && node.attributes.height !== null ? String(node.attributes.height) : '');
+    setNodeTilt(node.attributes.tilt !== undefined && node.attributes.tilt !== null ? String(node.attributes.tilt) : '');
+    setNodeSag(node.attributes.sag !== undefined && node.attributes.sag !== null ? String(node.attributes.sag) : '');
+    setNodeSpanDistance(node.attributes.spanDistance !== undefined && node.attributes.spanDistance !== null ? String(node.attributes.spanDistance) : '');
     
     let resolvedParent = node.parentLabel || (index > 0 ? projectedPoints[index - 1]?.nameLabel : '');
     setNodeParentLabel(resolvedParent);
@@ -152,12 +152,12 @@ export default function SurveyDetailsScreen() {
     setSelectedNodeId(null);
     setSelectedSpanNodeId(node.id);
     setNodeName(node.nameLabel);
-    setNodeCableSize(node.attributes.cableSize || '');
-    setNodePoleType(node.attributes.poleType || '');
-    setNodeHeight(node.attributes.height || '');
-    setNodeTilt(node.attributes.tilt || '');
-    setNodeSag(node.attributes.sag || '');
-    setNodeSpanDistance(node.attributes.spanDistance || '');
+    setNodeCableSize(node.attributes.cableSize !== undefined && node.attributes.cableSize !== null ? String(node.attributes.cableSize) : '');
+    setNodePoleType(node.attributes.poleType !== undefined && node.attributes.poleType !== null ? String(node.attributes.poleType) : '');
+    setNodeHeight(node.attributes.height !== undefined && node.attributes.height !== null ? String(node.attributes.height) : '');
+    setNodeTilt(node.attributes.tilt !== undefined && node.attributes.tilt !== null ? String(node.attributes.tilt) : '');
+    setNodeSag(node.attributes.sag !== undefined && node.attributes.sag !== null ? String(node.attributes.sag) : '');
+    setNodeSpanDistance(node.attributes.spanDistance !== undefined && node.attributes.spanDistance !== null ? String(node.attributes.spanDistance) : '');
     
     let resolvedParent = node.parentLabel || (index > 0 ? projectedPoints[index - 1]?.nameLabel : '');
     setNodeParentLabel(resolvedParent);
