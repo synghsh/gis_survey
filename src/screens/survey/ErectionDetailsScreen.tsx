@@ -25,14 +25,14 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SVG_WIDTH = 320;
 const SVG_HEIGHT = 240;
 
-export default function SurveyDetailsScreen() {
+export default function ErectionDetailsScreen() {
   const toast = useToast();
   const { confirm } = useConfirmation();
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const dispatch = useDispatch();
   
-  const { surveyId, editMode = false } = route.params;
+  const { surveyId } = route.params;
   const historyList = useSelector((state: RootState) => state.survey.historyList);
   const survey = historyList.find(l => l.id === surveyId);
   const isLocked = Boolean(survey?.isCompleted);
@@ -93,7 +93,7 @@ export default function SurveyDetailsScreen() {
   if (!survey) {
     return (
       <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>Survey line not found.</Text>
+        <Text style={styles.errorText}>Erection details not found.</Text>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Text style={styles.backBtnText}>GO BACK</Text>
         </TouchableOpacity>
@@ -139,7 +139,7 @@ export default function SurveyDetailsScreen() {
 
   const handleSelectNode = (node: any, index: number) => {
     if (isLocked) {
-      toast.info('This completed survey is locked and can only be viewed.', { title: 'Editing unavailable' });
+      toast.info('This completed erection is locked and can only be viewed.', { title: 'Editing unavailable' });
       return;
     }
     setSelectedSpanNodeId(null);
@@ -160,7 +160,7 @@ export default function SurveyDetailsScreen() {
 
   const handleSelectSpan = (node: any, index: number) => {
     if (isLocked) {
-      toast.info('This completed survey is locked and can only be viewed.', { title: 'Editing unavailable' });
+      toast.info('This completed erection is locked and can only be viewed.', { title: 'Editing unavailable' });
       return;
     }
     setSelectedNodeId(null);
@@ -215,7 +215,7 @@ export default function SurveyDetailsScreen() {
       district: district.trim(),
       preparedBy: preparedBy.trim(),
     }));
-    toast.success('Survey metadata parameters saved.');
+    toast.success('Erection metadata parameters saved.');
   };
 
   const selectedPole = selectedNodeId
@@ -227,7 +227,7 @@ export default function SurveyDetailsScreen() {
     confirm({
       title: 'Continue From This Pole?',
       message: `New structures will branch from ${selectedPole.nameLabel}. Existing structures and spans remain unchanged.`,
-      confirmLabel: 'CONTINUE LINE',
+      confirmLabel: 'CONTINUE ERECTION',
       onConfirm: () => {
         dispatch(resumeSurvey({ lineId: survey.id, parentLabel: selectedPole.nameLabel }));
         navigation.navigate('ActiveSurvey');
@@ -256,9 +256,7 @@ export default function SurveyDetailsScreen() {
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Text style={styles.backText}>&lt; LOGS</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>
-          {survey.workflowType === 'ERECTION' ? 'ERECTION DETAILS' : 'SURVEY DETAILS'}
-        </Text>
+        <Text style={styles.headerTitle}>ERECTION DETAILS</Text>
         <View style={[styles.classBadge, { borderColor: accentColor }]}>
           <Text style={[styles.classBadgeText, { color: accentColor }]}>
             {getLineTypeLabel(survey.lineType)}
@@ -270,15 +268,15 @@ export default function SurveyDetailsScreen() {
       <ScrollView style={styles.scrollContainerWrapper} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         {isLocked ? (
           <View style={styles.lockedBanner}>
-            <Text style={styles.lockedTitle}>COMPLETED SURVEY - VIEW ONLY</Text>
+            <Text style={styles.lockedTitle}>COMPLETED ERECTION - VIEW ONLY</Text>
             <Text style={styles.lockedText}>This line was confirmed as complete and can no longer be edited or continued.</Text>
           </View>
-        ) : editMode ? (
+        ) : (
           <View style={styles.editGuide}>
             <Text style={styles.editGuideTitle}>CHOOSE A POLE OR SPAN</Text>
             <Text style={styles.editGuideText}>Tap a span to edit it, or tap any pole to edit its details or continue the line from that point.</Text>
           </View>
-        ) : null}
+        )}
         {/* DIAGRAM CANVAS */}
         <View style={styles.canvasPanel}>
           <View style={styles.panelHeader}>
@@ -411,7 +409,7 @@ export default function SurveyDetailsScreen() {
           <Pressable style={styles.confirmCard} onPress={e => e.stopPropagation()}>
             <View style={styles.confirmHeader}>
               <Text style={styles.confirmIcon}>✏️</Text>
-              <Text style={styles.confirmTitle}>RESUME MAPPING</Text>
+              <Text style={styles.confirmTitle}>RESUME ERECTION</Text>
             </View>
             <Text style={styles.confirmBodyText}>
               Would you like to resume mapping and editing this line? You will be able to capture new structures, update attributes, and edit existing routes.

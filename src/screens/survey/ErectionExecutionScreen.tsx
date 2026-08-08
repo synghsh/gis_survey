@@ -325,7 +325,7 @@ export default function ErectionExecutionScreen() {
       };
 
       dispatch(injectHistoryLine(surveyLine));
-      navigation.navigate('SurveyDetails', { surveyId });
+      navigation.navigate('ErectionDetails', { surveyId });
       return;
     }
 

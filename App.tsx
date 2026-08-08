@@ -23,6 +23,7 @@ import ProfileScreen from './src/screens/profile/ProfileScreen';
 import ActiveSurveyScreen from './src/screens/survey/ActiveSurveyScreen';
 import SyncQueueScreen from './src/screens/sync/SyncQueueScreen';
 import SurveyDetailsScreen from './src/screens/survey/SurveyDetailsScreen';
+import ErectionDetailsScreen from './src/screens/survey/ErectionDetailsScreen';
 import Theme from './src/theme';
 import { ToastProvider } from './src/components/ToastProvider';
 import { ConfirmationProvider } from './src/components/ConfirmationProvider';
@@ -128,6 +129,7 @@ function NavigationWrapper() {
         <Stack.Screen name="MainTabs" component={MainTabNavigator} />
         <Stack.Screen name="ActiveSurvey" component={ActiveSurveyScreen} />
         <Stack.Screen name="SurveyDetails" component={SurveyDetailsScreen} />
+        <Stack.Screen name="ErectionDetails" component={ErectionDetailsScreen} />
         <Stack.Screen name="SurveySetup" component={SurveySetupScreen} />
         <Stack.Screen name="ErectionSetup" component={ErectionSetupScreen} />
       </Stack.Navigator>
