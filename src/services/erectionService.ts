@@ -22,3 +22,9 @@ export const CompleteErectionService = (data: any) => {
   const url = `${apiPrefix}erection/complete/`;
   return serviceClient.post(url, data);
 };
+
+export const SaveErectionNodeService = (data: any) => {
+  const url = `${apiPrefix}erection/node/save/`;
+  return serviceClient.post(url, data);
+};
+

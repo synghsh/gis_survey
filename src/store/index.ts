@@ -418,6 +418,9 @@ export interface MasterState {
   villages: Array<{ id: number; state_id: number; district_id: number; block_id: number; village_name: string; village_code: string }>;
   contractors: Array<{ id: number; contractor_name: string }>;
   domains: { [key: string]: Array<{ domain_id: number; domain_value: string; domain_code: string; domain_desc: string }> };
+  transformers: Array<{ id: number; transformer_name: string; transformer_code: string }>;
+  conductors: Array<{ id: number; conductor_name: string; conductor_code: string }>;
+  poles: Array<{ id: number; pole_name: string; pole_code: string }>;
 }
 
 const initialMasterState: MasterState = {
@@ -427,6 +430,9 @@ const initialMasterState: MasterState = {
   villages: [],
   contractors: [],
   domains: {},
+  transformers: [],
+  conductors: [],
+  poles: [],
 };
 
 const masterSlice = createSlice({
@@ -451,6 +457,15 @@ const masterSlice = createSlice({
     setDomains: (state, action: PayloadAction<{ [key: string]: any[] }>) => {
       state.domains = { ...state.domains, ...action.payload };
     },
+    setTransformers: (state, action: PayloadAction<MasterState['transformers']>) => {
+      state.transformers = action.payload;
+    },
+    setConductors: (state, action: PayloadAction<MasterState['conductors']>) => {
+      state.conductors = action.payload;
+    },
+    setPoles: (state, action: PayloadAction<MasterState['poles']>) => {
+      state.poles = action.payload;
+    },
     clearMasterData: (state) => {
       state.states = [];
       state.districts = [];
@@ -458,6 +473,9 @@ const masterSlice = createSlice({
       state.villages = [];
       state.contractors = [];
       state.domains = {};
+      state.transformers = [];
+      state.conductors = [];
+      state.poles = [];
     }
   }
 });
@@ -476,7 +494,8 @@ export type AppDispatch = typeof store.dispatch;
 
 export const { login, logout, updateProfileImage, updateToken, hydrateAuth } = authSlice.actions;
 export const { startSurvey, resumeSurvey, addNode, cancelSurvey, finishSurvey, completeSurveyLine, clearQueueItem, clearAllCompleted, updateSurveyLineMetadata, updateSurveyNode, hydrateStore, setErectionList, updateErectionInList } = surveySlice.actions;
-export const { setStates, setDistricts, setBlocks, setVillages, setContractors, setDomains, clearMasterData } = masterSlice.actions;
+export const { setStates, setDistricts, setBlocks, setVillages, setContractors, setDomains, setTransformers, setConductors, setPoles, clearMasterData } = masterSlice.actions;
+
 
 const STORAGE_KEY = 'GIS_SURVEY_APP_STATE';
 

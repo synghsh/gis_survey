@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useCameraPermissions } from 'expo-camera';
@@ -17,6 +18,8 @@ import { RootState, addNode, finishSurvey, cancelSurvey, SurveyNode } from '../.
 import { useToast } from '../../components/ToastProvider';
 import { useConfirmation } from '../../components/ConfirmationProvider';
 import { getLineTypeLabel } from '../../utils/surveyLabels';
+import { fetchDomainsAction, fetchTransformersAction, fetchConductorsAction, fetchPolesAction } from '../../store/actions/masterAction';
+import { SaveErectionNodeService } from '../../services/erectionService';
 
 import ActiveSurveyCamera from './components/ActiveSurveyCamera';
 import ActiveSurveyForm from './components/ActiveSurveyForm';
@@ -28,6 +31,22 @@ interface SurveyNodeFormInputs {
   cableSize: string;
   remarks: string;
   assetStatus: 'OLD' | 'NEW' | '';
+  dtrCapacity: string;
+  conductor: string;
+  earthingUsed: string;
+  earthingQuantity: string;
+  staySetUsed: string;
+  staySetQuantity: string;
+  poleDbTypes: string[];
+  poleDbQuantities: Record<string, string>;
+  poleType: string;
+  poleQty: string;
+  deadEndClampQty: string;
+  suspensionClampQty: string;
+  poleClampQty: string;
+  ipcQty: string;
+  serviceConnectionQty: string;
+  extraConsumption: string;
 }
 
 export default function ActiveSurveyScreen() {
@@ -36,6 +55,11 @@ export default function ActiveSurveyScreen() {
   const navigation = useNavigation<any>();
   const dispatch = useDispatch();
   const activeLine = useSelector((state: RootState) => state.survey.activeLine);
+  const userId = useSelector((state: RootState) => state.auth.userId);
+  const domains = useSelector((state: RootState) => state.master.domains) || {};
+  const transformers = useSelector((state: RootState) => state.master.transformers) || [];
+  const conductors = useSelector((state: RootState) => state.master.conductors) || [];
+  const poles = useSelector((state: RootState) => state.master.poles) || [];
 
   const { control, handleSubmit, setValue, formState: { errors } } = useForm<SurveyNodeFormInputs>({
     defaultValues: {
@@ -43,6 +67,22 @@ export default function ActiveSurveyScreen() {
       cableSize: '',
       remarks: '',
       assetStatus: '',
+      dtrCapacity: '',
+      conductor: '',
+      poleType: '',
+      poleQty: '',
+      earthingUsed: '',
+      earthingQuantity: '',
+      staySetUsed: '',
+      staySetQuantity: '',
+      poleDbTypes: [],
+      poleDbQuantities: {},
+      deadEndClampQty: '',
+      suspensionClampQty: '',
+      poleClampQty: '',
+      ipcQty: '',
+      serviceConnectionQty: '',
+      extraConsumption: '',
     }
   });
 
@@ -69,6 +109,24 @@ export default function ActiveSurveyScreen() {
 
   useEffect(() => {
     if (activeLine) {
+      // Clear/Reset all the new conditional structure verification fields first
+      setValue('dtrCapacity', '');
+      setValue('conductor', '');
+      setValue('poleType', '');
+      setValue('poleQty', '');
+      setValue('earthingUsed', '');
+      setValue('earthingQuantity', '');
+      setValue('staySetUsed', '');
+      setValue('staySetQuantity', '');
+      setValue('poleDbTypes', []);
+      setValue('poleDbQuantities', {});
+      setValue('deadEndClampQty', '');
+      setValue('suspensionClampQty', '');
+      setValue('poleClampQty', '');
+      setValue('ipcQty', '');
+      setValue('serviceConnectionQty', '');
+      setValue('extraConsumption', '');
+
       if (isHtTapSurvey && dtrIsNext) {
         setNodeType('DTR');
         setValue('nameLabel', 'DTR-TRANS-01');
@@ -113,7 +171,13 @@ export default function ActiveSurveyScreen() {
       }
       await Location.requestForegroundPermissionsAsync();
     })();
-  }, []);
+
+    // Fetch master list data for transformers, conductors, poles, and domains via Redux thunk actions
+    dispatch(fetchTransformersAction(undefined, (err) => console.warn('fetchTransformersAction error:', err)) as any);
+    dispatch(fetchConductorsAction(undefined, (err) => console.warn('fetchConductorsAction error:', err)) as any);
+    dispatch(fetchPolesAction(undefined, (err) => console.warn('fetchPolesAction error:', err)) as any);
+    dispatch(fetchDomainsAction(['type_of_work', 'lt_starting_point', 'earthing', 'stay_set', 'pole_db']) as any);
+  }, [dispatch]);
 
   if (!activeLine) {
     return (
@@ -204,6 +268,14 @@ export default function ActiveSurveyScreen() {
     const nodeLabel = data.nameLabel.trim() || (nodeType === 'DTR' ? 'DTR-0' : `P-${currentSeq}`);
     const parentNode = currentSeq > 0 ? activeLine.nodes[currentSeq - 1] : null;
     const parentLabel = activeLine.continuationParentLabel || parentNode?.nameLabel;
+
+    const lt440vCode = domains['type_of_work']?.find((d: any) => d.domain_value === 'LT_440V')?.domain_code;
+    const dtrCodeVal = domains['lt_starting_point']?.find((d: any) => d.domain_value === 'DTR')?.domain_code;
+
+    const isNewLtFromDtr = activeLine.workflowType === 'ERECTION' &&
+      (activeLine.lineType === 'LT_440V' || activeLine.lineType === lt440vCode) &&
+      (activeLine.ltStartingPoint === 'DTR' || activeLine.ltStartingPoint === dtrCodeVal);
+
     const newNode: SurveyNode = {
       id: `node-${Date.now()}`,
       nodeType,
@@ -215,11 +287,28 @@ export default function ActiveSurveyScreen() {
       latitude: lat,
       longitude: lng,
       attributes: {
-        cableSize: data.cableSize.trim() || '100 sqmm ACSR',
-        poleType: nodeType === 'DTR' ? 'Transformer platform' : 'Concrete',
+        cableSize: isNewLtFromDtr ? (data.conductor || '100 sqmm ACSR') : (data.cableSize.trim() || '100 sqmm ACSR'),
+        poleType: nodeType === 'DTR' ? (data.assetStatus === 'NEW' ? (data.poleType || 'Concrete') : 'Transformer platform') : (isNewLtFromDtr ? (data.poleType || 'Concrete') : 'Concrete'),
         height: '9m',
         tilt: '0°',
         sag: '0.4m',
+        ...(isNewLtFromDtr ? {
+          dtrCapacity: data.dtrCapacity || '',
+          conductor: data.conductor || '',
+          earthingUsed: data.earthingUsed || '',
+          earthingQuantity: data.earthingQuantity || '',
+          staySetUsed: data.staySetUsed || '',
+          staySetQuantity: data.staySetQuantity || '',
+          poleDbTypes: data.poleDbTypes || [],
+          poleDbQuantities: data.poleDbQuantities || {},
+          deadEndClampQty: data.deadEndClampQty || '',
+          suspensionClampQty: data.suspensionClampQty || '',
+          poleClampQty: data.poleClampQty || '',
+          ipcQty: data.ipcQty || '',
+          serviceConnectionQty: data.serviceConnectionQty || '',
+          extraConsumption: data.extraConsumption || '',
+          poleQty: (nodeType === 'DTR' && data.assetStatus === 'NEW') ? data.poleQty || '' : '',
+        } : {}),
       },
       imageUri: capturedPhoto,
       capturedAt: new Date().toISOString(),
@@ -230,25 +319,130 @@ export default function ActiveSurveyScreen() {
     return true;
   };
 
+  const [savingNode, setSavingNode] = useState(false);
+
+  const saveErectionNodeToServer = (data: SurveyNodeFormInputs, onSuccess: () => void) => {
+    if (!lat || !lng) {
+      toast.warning('Waiting for GPS location lock. Please capture coordinates again.', { title: 'GPS required' });
+      return;
+    }
+
+    const nodeLabel = data.nameLabel.trim() || (nodeType === 'DTR' ? 'DTR-0' : `P-${currentSeq}`);
+    
+    // Build attributes
+    const lt440vCode = domains['type_of_work']?.find((d: any) => d.domain_value === 'LT_440V')?.domain_code;
+    const dtrCodeVal = domains['lt_starting_point']?.find((d: any) => d.domain_value === 'DTR')?.domain_code;
+
+    const isNewLtFromDtr = activeLine.workflowType === 'ERECTION' &&
+      (activeLine.lineType === 'LT_440V' || activeLine.lineType === lt440vCode) &&
+      (activeLine.ltStartingPoint === 'DTR' || activeLine.ltStartingPoint === dtrCodeVal);
+
+    const mappedAttrs: any = {
+      height: '9m',
+      tilt: '0°',
+      sag: '0.4m',
+      poleType: nodeType === 'DTR' ? (data.assetStatus === 'NEW' ? (data.poleType || 'Concrete') : 'Transformer platform') : (isNewLtFromDtr ? (data.poleType || 'Concrete') : 'Concrete'),
+    };
+
+    if (isNewLtFromDtr) {
+      mappedAttrs.cableSize = data.conductor || '100 sqmm ACSR';
+      mappedAttrs.conductor = data.conductor;
+      mappedAttrs.earthingUsed = data.earthingUsed || null;
+      mappedAttrs.earthingQuantity = data.earthingQuantity || null;
+      mappedAttrs.staySetUsed = data.staySetUsed || null;
+      mappedAttrs.staySetQuantity = data.staySetQuantity || null;
+
+      // Pole DB Type mapping
+      mappedAttrs.poleDbTypes = data.poleDbTypes.length > 0 ? JSON.stringify(data.poleDbTypes) : null;
+      const qtyMap: Record<string, string> = {};
+      data.poleDbTypes.forEach((type) => {
+        qtyMap[type] = data.poleDbQuantities[type] || '0';
+      });
+      mappedAttrs.poleDbQuantities = data.poleDbTypes.length > 0 ? JSON.stringify(qtyMap) : null;
+
+      mappedAttrs.deadEndClampQty = data.deadEndClampQty || null;
+      mappedAttrs.suspensionClampQty = data.suspensionClampQty || null;
+      mappedAttrs.poleClampQty = data.poleClampQty || null;
+      mappedAttrs.ipcQty = data.ipcQty || null;
+      mappedAttrs.serviceConnectionQty = data.serviceConnectionQty || null;
+      mappedAttrs.extraConsumption = data.extraConsumption || null;
+
+      if (nodeType === 'DTR') {
+        mappedAttrs.dtrCapacity = data.dtrCapacity || null;
+        if (data.assetStatus === 'NEW') {
+          mappedAttrs.poleQty = data.poleQty || null;
+        }
+      }
+    } else {
+      mappedAttrs.cableSize = data.cableSize.trim() || '100 sqmm ACSR';
+    }
+
+    const payload = {
+      erection_execution_id: activeLine.id.replace('erect-', ''),
+      node_type: nodeType,
+      sequence_number: currentSeq,
+      name_label: nodeLabel,
+      latitude: lat,
+      longitude: lng,
+      attributes: mappedAttrs,
+      captured_at: new Date().toISOString(),
+      user_id: userId || null,
+    };
+
+    setSavingNode(true);
+    SaveErectionNodeService(payload)
+      .then((res: any) => {
+        setSavingNode(false);
+        if (res.status === 200 && res.data && !res.data.Exception) {
+          toast.success(res.data.Message || 'Structure saved successfully to server.');
+          onSuccess();
+        } else {
+          const errorMsg = res.data?.Message || 'Failed to save structure';
+          toast.error(errorMsg, { title: 'Server error' });
+        }
+      })
+      .catch((err: any) => {
+        setSavingNode(false);
+        console.warn('Save erection node error:', err);
+        toast.error(err.message || 'Server connection error', { title: 'Network error' });
+      });
+  };
+
   const handleAddNew = (data: SurveyNodeFormInputs) => {
-    if (commitCurrentNode(data)) {
-      if (nodeType === 'DTR') setDtrIsNext(false);
-      setCapturedPhoto(null);
-      setLat(null);
-      setLng(null);
-      setGpsAccuracy('WAITING...');
-      setSurveyStep('CAPTURE');
+    const proceed = () => {
+      if (commitCurrentNode(data)) {
+        if (nodeType === 'DTR') setDtrIsNext(false);
+        setCapturedPhoto(null);
+        setLat(null);
+        setLng(null);
+        setGpsAccuracy('WAITING...');
+        setSurveyStep('CAPTURE');
+      }
+    };
+
+    if (isErectionFlow) {
+      saveErectionNodeToServer(data, proceed);
+    } else {
+      proceed();
     }
   };
 
   const handleAddDtrNext = (data: SurveyNodeFormInputs) => {
-    if (commitCurrentNode(data)) {
-      setDtrIsNext(true);
-      setCapturedPhoto(null);
-      setLat(null);
-      setLng(null);
-      setGpsAccuracy('WAITING...');
-      setSurveyStep('CAPTURE');
+    const proceed = () => {
+      if (commitCurrentNode(data)) {
+        setDtrIsNext(true);
+        setCapturedPhoto(null);
+        setLat(null);
+        setLng(null);
+        setGpsAccuracy('WAITING...');
+        setSurveyStep('CAPTURE');
+      }
+    };
+
+    if (isErectionFlow) {
+      saveErectionNodeToServer(data, proceed);
+    } else {
+      proceed();
     }
   };
 
@@ -265,9 +459,17 @@ export default function ActiveSurveyScreen() {
       confirmLabel: 'FINISH LINE',
       tone: 'warning',
       onConfirm: () => {
-        if (commitCurrentNode(data)) {
-          dispatch(finishSurvey());
-          navigation.navigate('MainTabs');
+        const proceed = () => {
+          if (commitCurrentNode(data)) {
+            dispatch(finishSurvey());
+            navigation.navigate('MainTabs');
+          }
+        };
+
+        if (isErectionFlow) {
+          saveErectionNodeToServer(data, proceed);
+        } else {
+          proceed();
         }
       },
     });
@@ -367,10 +569,22 @@ export default function ActiveSurveyScreen() {
                   : undefined
               }
               workflowType={isErectionFlow ? 'ERECTION' : 'SURVEY'}
+              lineType={activeLine.lineType}
+              ltStartingPoint={activeLine.ltStartingPoint}
+              transformers={transformers}
+              conductors={conductors}
+              poles={poles}
+              domains={domains}
             />
           </ScrollView>
         )}
       </View>
+      {savingNode && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#0284C7" />
+          <Text style={styles.loadingOverlayText}>Saving structure...</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -456,5 +670,18 @@ const styles = StyleSheet.create({
   detailsContent: {
     padding: 20,
     paddingBottom: 40,
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  loadingOverlayText: {
+    marginTop: 12,
+    color: '#0F172A',
+    fontWeight: 'bold',
+    fontSize: 14,
   },
 });

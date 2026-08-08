@@ -33,3 +33,19 @@ export const GetDomainsService = (domainTypes: string[]) => {
   const url = `${apiPrefix}master/domainvaluebydomaintype/`;
   return serviceClient.post(url, { domain_type: domainTypes });
 };
+
+export const GetTransformersService = (payload?: any) => {
+  const url = `${apiPrefix}master/transformer/list/`;
+  return serviceClient.post(url, { is_active: true, page_size: 10000, ...payload });
+};
+
+export const GetConductorsService = (payload?: any) => {
+  const url = `${apiPrefix}master/conductor/list/`;
+  return serviceClient.post(url, { is_active: true, page_size: 10000, ...payload });
+};
+
+export const GetPolesService = (payload?: any) => {
+  const url = `${apiPrefix}master/pole/list/`;
+  return serviceClient.post(url, { is_active: true, page_size: 10000, ...payload });
+};
+

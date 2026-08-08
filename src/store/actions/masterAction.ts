@@ -1,5 +1,5 @@
-import { GetStatesService, GetDistrictsService, GetBlocksService, GetVillagesService, GetContractorsService, GetDomainsService } from '../../services/masterService';
-import { setStates, setDistricts, setBlocks, setVillages, setContractors, setDomains } from '../index';
+import { GetStatesService, GetDistrictsService, GetBlocksService, GetVillagesService, GetContractorsService, GetDomainsService, GetTransformersService, GetConductorsService, GetPolesService } from '../../services/masterService';
+import { setStates, setDistricts, setBlocks, setVillages, setContractors, setDomains, setTransformers, setConductors, setPoles } from '../index';
 
 export const fetchStatesAction = (
   successCallback?: (data: any) => void,
@@ -145,5 +145,78 @@ export const fetchDomainsAction = (
       });
   };
 };
+
+export const fetchTransformersAction = (
+  successCallback?: (data: any) => void,
+  errorCallback?: (error: any) => void
+) => {
+  return (dispatch: any) => {
+    return GetTransformersService()
+      .then((response: any) => {
+        const payload = response.data?.Data || response.data;
+        if (response.status === 200 && response.data && !response.data.Exception && payload && payload.transformers) {
+          const transformersList = payload.transformers || [];
+          dispatch(setTransformers(transformersList));
+          successCallback?.(transformersList);
+        } else {
+          const errorMsg = response.data?.Message || payload?.Message || 'Failed to retrieve transformers';
+          errorCallback?.(errorMsg);
+        }
+      })
+      .catch((error: any) => {
+        console.warn('Get transformers error:', error);
+        errorCallback?.(error.message || 'Server connection error');
+      });
+  };
+};
+
+export const fetchConductorsAction = (
+  successCallback?: (data: any) => void,
+  errorCallback?: (error: any) => void
+) => {
+  return (dispatch: any) => {
+    return GetConductorsService()
+      .then((response: any) => {
+        const payload = response.data?.Data || response.data;
+        if (response.status === 200 && response.data && !response.data.Exception && payload && payload.conductors) {
+          const conductorsList = payload.conductors || [];
+          dispatch(setConductors(conductorsList));
+          successCallback?.(conductorsList);
+        } else {
+          const errorMsg = response.data?.Message || payload?.Message || 'Failed to retrieve conductors';
+          errorCallback?.(errorMsg);
+        }
+      })
+      .catch((error: any) => {
+        console.warn('Get conductors error:', error);
+        errorCallback?.(error.message || 'Server connection error');
+      });
+  };
+};
+
+export const fetchPolesAction = (
+  successCallback?: (data: any) => void,
+  errorCallback?: (error: any) => void
+) => {
+  return (dispatch: any) => {
+    return GetPolesService()
+      .then((response: any) => {
+        const payload = response.data?.Data || response.data;
+        if (response.status === 200 && response.data && !response.data.Exception && payload && payload.poles) {
+          const polesList = payload.poles || [];
+          dispatch(setPoles(polesList));
+          successCallback?.(polesList);
+        } else {
+          const errorMsg = response.data?.Message || payload?.Message || 'Failed to retrieve poles';
+          errorCallback?.(errorMsg);
+        }
+      })
+      .catch((error: any) => {
+        console.warn('Get poles error:', error);
+        errorCallback?.(error.message || 'Server connection error');
+      });
+  };
+};
+
 
 
