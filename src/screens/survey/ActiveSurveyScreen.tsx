@@ -40,6 +40,7 @@ interface SurveyNodeFormInputs {
   poleDbTypes: string[];
   poleDbQuantities: Record<string, string>;
   poleType: string;
+  poleMaster: string;
   poleQty: string;
   deadEndClampQty: string;
   suspensionClampQty: string;
@@ -70,6 +71,7 @@ export default function ActiveSurveyScreen() {
       dtrCapacity: '',
       conductor: '',
       poleType: '',
+      poleMaster: '',
       poleQty: '',
       earthingUsed: '',
       earthingQuantity: '',
@@ -95,7 +97,7 @@ export default function ActiveSurveyScreen() {
   const [gpsAccuracy, setGpsAccuracy] = useState('WAITING...');
   const [acquiringGps, setAcquiringGps] = useState(false);
 
-  const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
+  const [capturedPhotos, setCapturedPhotos] = useState<string[]>([]);
   const [cameraFlash, setCameraFlash] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const cameraRef = useRef<any>(null);
@@ -107,12 +109,30 @@ export default function ActiveSurveyScreen() {
   const hasDtr = activeLine?.nodes.some(node => node.nodeType === 'DTR') ?? false;
   const isHtPhase = Boolean(isHtTapSurvey && !hasDtr && !dtrIsNext);
 
+  const lt440vCode = domains['type_of_work']?.find((d: any) => d.domain_value === 'LT_440V')?.domain_code;
+  const ht11kvCode = domains['type_of_work']?.find((d: any) => d.domain_value === 'HT_11KV')?.domain_code;
+  const ht33kvCode = domains['type_of_work']?.find((d: any) => d.domain_value === 'HT_33KV')?.domain_code;
+
+  const isLt440v = activeLine?.lineType === 'LT_440V' || activeLine?.lineType === lt440vCode;
+  const isHt11kv = activeLine?.lineType === 'HT_11KV' || activeLine?.lineType === ht11kvCode;
+  const isHt33kv = activeLine?.lineType === 'HT_33KV' || activeLine?.lineType === ht33kvCode;
+
+  const existingLtCodeVal = domains['lt_starting_point']?.find((d: any) => d.domain_value === 'EXISTING_LT_LINE')?.domain_code;
+  const isExistingLt = activeLine?.ltStartingPoint === 'EXISTING_LT_LINE' || activeLine?.ltStartingPoint === existingLtCodeVal;
+
+  const lineSectionVal = (isHt11kv || isHt33kv)
+    ? 'HT'
+    : (isLt440v
+        ? (isExistingLt ? 'LT' : (hasDtr ? 'LT' : 'HT'))
+        : undefined);
+
   useEffect(() => {
     if (activeLine) {
       // Clear/Reset all the new conditional structure verification fields first
       setValue('dtrCapacity', '');
       setValue('conductor', '');
       setValue('poleType', '');
+      setValue('poleMaster', '');
       setValue('poleQty', '');
       setValue('earthingUsed', '');
       setValue('earthingQuantity', '');
@@ -127,42 +147,70 @@ export default function ActiveSurveyScreen() {
       setValue('serviceConnectionQty', '');
       setValue('extraConsumption', '');
 
-      if (isHtTapSurvey && dtrIsNext) {
-        setNodeType('DTR');
-        setValue('nameLabel', 'DTR-TRANS-01');
-        setValue('cableSize', 'Conductor Grid Lead');
-        setValue('remarks', '');
-        setValue('assetStatus', '');
-      } else if (isHtTapSurvey && !hasDtr) {
+      const lt440vCode = domains['type_of_work']?.find((d: any) => d.domain_value === 'LT_440V')?.domain_code;
+      const ht11kvCode = domains['type_of_work']?.find((d: any) => d.domain_value === 'HT_11KV')?.domain_code;
+      const ht33kvCode = domains['type_of_work']?.find((d: any) => d.domain_value === 'HT_33KV')?.domain_code;
+
+      const isLt440v = activeLine.lineType === 'LT_440V' || activeLine.lineType === lt440vCode;
+      const isHt11kv = activeLine.lineType === 'HT_11KV' || activeLine.lineType === ht11kvCode;
+      const isHt33kv = activeLine.lineType === 'HT_33KV' || activeLine.lineType === ht33kvCode;
+
+      if (isLt440v) {
+        if (isHtTapSurvey && dtrIsNext) {
+          setNodeType('DTR');
+          setValue('nameLabel', 'DTR-TRANS-01');
+          setValue('cableSize', 'Conductor Grid Lead');
+          setValue('remarks', '');
+          setValue('assetStatus', '');
+        } else if (isHtTapSurvey && !hasDtr) {
+          setNodeType('POLE');
+          setValue('nameLabel', currentSeq === 0 ? 'TAP-1' : `HT-P-${currentSeq}`);
+          setValue('cableSize', '100 sqmm ACSR');
+          setValue('remarks', '');
+          setValue('assetStatus', '');
+        } else if (isExistingLtStart) {
+          setNodeType('POLE');
+          setValue('nameLabel', currentSeq === 0 ? 'LT-TAP-1' : `LT-P-${currentSeq}`);
+          setValue('cableSize', '90 sqmm ABC');
+          setValue('remarks', '');
+          setValue('assetStatus', '');
+        } else if (currentSeq === 0) {
+          setNodeType('DTR');
+          setValue('nameLabel', 'DTR-TRANS-01');
+          setValue('cableSize', 'Conductor Grid Lead');
+          setValue('remarks', '');
+          setValue('assetStatus', '');
+        } else {
+          setNodeType('POLE');
+          const ltSequence = isHtTapSurvey
+            ? activeLine.nodes.filter(node => node.lineSection === 'LT').length + 1
+            : currentSeq;
+          setValue('nameLabel', `P-${ltSequence}`);
+          setValue('cableSize', isHtTapSurvey ? '90 sqmm ABC' : '100 sqmm ACSR');
+          setValue('remarks', '');
+          setValue('assetStatus', '');
+        }
+      } else if (isHt11kv || isHt33kv) {
         setNodeType('POLE');
-        setValue('nameLabel', currentSeq === 0 ? 'TAP-1' : `HT-P-${currentSeq}`);
+        setValue('nameLabel', `HT-P-${currentSeq}`);
         setValue('cableSize', '100 sqmm ACSR');
         setValue('remarks', '');
         setValue('assetStatus', '');
-      } else if (isExistingLtStart) {
-        setNodeType('POLE');
-        setValue('nameLabel', currentSeq === 0 ? 'LT-TAP-1' : `LT-P-${currentSeq}`);
-        setValue('cableSize', '90 sqmm ABC');
-        setValue('remarks', '');
-        setValue('assetStatus', '');
-      } else if (currentSeq === 0) {
-        setNodeType('DTR');
-        setValue('nameLabel', 'DTR-TRANS-01');
-        setValue('cableSize', 'Conductor Grid Lead');
-        setValue('remarks', '');
-        setValue('assetStatus', '');
       } else {
-        setNodeType('POLE');
-        const ltSequence = isHtTapSurvey
-          ? activeLine.nodes.filter(node => node.lineSection === 'LT').length + 1
-          : currentSeq;
-        setValue('nameLabel', `P-${ltSequence}`);
-        setValue('cableSize', isHtTapSurvey ? '90 sqmm ABC' : '100 sqmm ACSR');
+        if (currentSeq === 0) {
+          setNodeType('DTR');
+          setValue('nameLabel', 'DTR-TRANS-01');
+          setValue('cableSize', 'Conductor Grid Lead');
+        } else {
+          setNodeType('POLE');
+          setValue('nameLabel', `P-${currentSeq}`);
+          setValue('cableSize', '100 sqmm ACSR');
+        }
         setValue('remarks', '');
         setValue('assetStatus', '');
       }
     }
-  }, [currentSeq, activeLine, surveyStep, dtrIsNext, hasDtr, isHtTapSurvey, isExistingLtStart, setValue]);
+  }, [currentSeq, activeLine, surveyStep, dtrIsNext, hasDtr, isHtTapSurvey, isExistingLtStart, setValue, domains]);
 
   useEffect(() => {
     (async () => {
@@ -176,7 +224,7 @@ export default function ActiveSurveyScreen() {
     dispatch(fetchTransformersAction(undefined, (err) => console.warn('fetchTransformersAction error:', err)) as any);
     dispatch(fetchConductorsAction(undefined, (err) => console.warn('fetchConductorsAction error:', err)) as any);
     dispatch(fetchPolesAction(undefined, (err) => console.warn('fetchPolesAction error:', err)) as any);
-    dispatch(fetchDomainsAction(['type_of_work', 'lt_starting_point', 'earthing', 'stay_set', 'pole_db']) as any);
+    dispatch(fetchDomainsAction(['type_of_work', 'lt_starting_point', 'earthing', 'stay_set', 'pole_db', 'pole_type']) as any);
   }, [dispatch]);
 
   if (!activeLine) {
@@ -243,20 +291,24 @@ export default function ActiveSurveyScreen() {
         });
         
         if (photo && photo.uri) {
-          setCapturedPhoto(photo.uri);
+          setCapturedPhotos(prev => [...prev, photo.uri]);
           setSurveyStep('DETAILS');
         }
       } catch (err) {
         console.log('Camera capture error, falling back to mock:', err);
-        setCapturedPhoto('https://images.unsplash.com/photo-1548676924-48e71ceac151?w=400');
+        setCapturedPhotos(prev => [...prev, 'https://images.unsplash.com/photo-1548676924-48e71ceac151?w=400']);
         setSurveyStep('DETAILS');
       }
     } else {
       setCameraFlash(true);
       setTimeout(() => setCameraFlash(false), 150);
-      setCapturedPhoto('https://images.unsplash.com/photo-1548676924-48e71ceac151?w=400');
+      setCapturedPhotos(prev => [...prev, 'https://images.unsplash.com/photo-1548676924-48e71ceac151?w=400']);
       setSurveyStep('DETAILS');
     }
+  };
+
+  const handleDeletePhoto = (index: number) => {
+    setCapturedPhotos(prev => prev.filter((_, i) => i !== index));
   };
 
   const commitCurrentNode = (data: SurveyNodeFormInputs): boolean => {
@@ -265,52 +317,63 @@ export default function ActiveSurveyScreen() {
       return false;
     }
 
+    if (capturedPhotos.length === 0) {
+      toast.warning('At least 1 compliance image is required to save.', { title: 'Image required' });
+      return false;
+    }
+
     const nodeLabel = data.nameLabel.trim() || (nodeType === 'DTR' ? 'DTR-0' : `P-${currentSeq}`);
     const parentNode = currentSeq > 0 ? activeLine.nodes[currentSeq - 1] : null;
     const parentLabel = activeLine.continuationParentLabel || parentNode?.nameLabel;
 
-    const lt440vCode = domains['type_of_work']?.find((d: any) => d.domain_value === 'LT_440V')?.domain_code;
-    const dtrCodeVal = domains['lt_starting_point']?.find((d: any) => d.domain_value === 'DTR')?.domain_code;
-
-    const isNewLtFromDtr = activeLine.workflowType === 'ERECTION' &&
-      (activeLine.lineType === 'LT_440V' || activeLine.lineType === lt440vCode) &&
-      (activeLine.ltStartingPoint === 'DTR' || activeLine.ltStartingPoint === dtrCodeVal);
+    // lineSectionVal is resolved globally at component level
 
     const newNode: SurveyNode = {
       id: `node-${Date.now()}`,
       nodeType,
       assetStatus: data.assetStatus || undefined,
-      lineSection: isHtTapSurvey ? (hasDtr ? 'LT' : 'HT') : isExistingLtStart ? 'LT' : undefined,
+      lineSection: lineSectionVal,
       structureRole: (isHtTapSurvey || isExistingLtStart) && currentSeq === 0 ? 'TAP' : undefined,
       sequenceNumber: currentSeq,
       nameLabel: nodeLabel,
       latitude: lat,
       longitude: lng,
       attributes: {
-        cableSize: isNewLtFromDtr ? (data.conductor || '100 sqmm ACSR') : (data.cableSize.trim() || '100 sqmm ACSR'),
-        poleType: nodeType === 'DTR' ? (data.assetStatus === 'NEW' ? (data.poleType || 'Concrete') : 'Transformer platform') : (isNewLtFromDtr ? (data.poleType || 'Concrete') : 'Concrete'),
         height: '9m',
         tilt: '0°',
         sag: '0.4m',
-        ...(isNewLtFromDtr ? {
-          dtrCapacity: data.dtrCapacity || '',
-          conductor: data.conductor || '',
-          earthingUsed: data.earthingUsed || '',
-          earthingQuantity: data.earthingQuantity || '',
-          staySetUsed: data.staySetUsed || '',
-          staySetQuantity: data.staySetQuantity || '',
-          poleDbTypes: data.poleDbTypes || [],
-          poleDbQuantities: data.poleDbQuantities || {},
-          deadEndClampQty: data.deadEndClampQty || '',
-          suspensionClampQty: data.suspensionClampQty || '',
-          poleClampQty: data.poleClampQty || '',
-          ipcQty: data.ipcQty || '',
-          serviceConnectionQty: data.serviceConnectionQty || '',
-          extraConsumption: data.extraConsumption || '',
-          poleQty: (nodeType === 'DTR' && data.assetStatus === 'NEW') ? data.poleQty || '' : '',
-        } : {}),
+        poleType: nodeType === 'DTR'
+          ? (data.assetStatus === 'NEW' ? (data.poleType ? Number(data.poleType) : null) : 'Transformer platform')
+          : (data.poleType ? Number(data.poleType) : null),
+        poleMaster: data.poleMaster ? Number(data.poleMaster) : null,
+        cableSize: (() => {
+          const selectedConductor = conductors.find(c => String(c.id) === String(data.conductor));
+          return selectedConductor ? selectedConductor.conductor_name : (data.conductor || '100 sqmm ACSR');
+        })(),
+        conductor: data.conductor ? Number(data.conductor) : null,
+        earthingUsed: data.earthingUsed || null,
+        earthingQuantity: data.earthingQuantity ? Number(data.earthingQuantity) : null,
+        staySetUsed: data.staySetUsed || null,
+        staySetQuantity: data.staySetQuantity ? Number(data.staySetQuantity) : null,
+        poleDbTypes: data.poleDbTypes.length > 0 ? JSON.stringify(data.poleDbTypes) : null,
+        poleDbQuantities: (() => {
+          const qtyMap: Record<string, string> = {};
+          data.poleDbTypes.forEach((type) => {
+            qtyMap[type] = data.poleDbQuantities[type] || '0';
+          });
+          return data.poleDbTypes.length > 0 ? JSON.stringify(qtyMap) : null;
+        })(),
+        deadEndClampQty: data.deadEndClampQty ? Number(data.deadEndClampQty) : null,
+        suspensionClampQty: data.suspensionClampQty ? Number(data.suspensionClampQty) : null,
+        poleClampQty: data.poleClampQty ? Number(data.poleClampQty) : null,
+        ipcQty: data.ipcQty ? Number(data.ipcQty) : null,
+        serviceConnectionQty: data.serviceConnectionQty ? Number(data.serviceConnectionQty) : null,
+        extraConsumption: data.extraConsumption ? Number(data.extraConsumption) : null,
+        dtrCapacity: nodeType === 'DTR' ? (data.dtrCapacity ? Number(data.dtrCapacity) : null) : null,
+        poleQty: (nodeType === 'DTR' && data.assetStatus === 'NEW') ? (data.poleQty ? Number(data.poleQty) : null) : null,
       },
-      imageUri: capturedPhoto,
+      imageUri: capturedPhotos[0] || null,
+      imageUris: capturedPhotos,
       capturedAt: new Date().toISOString(),
       parentLabel,
     };
@@ -327,30 +390,45 @@ export default function ActiveSurveyScreen() {
       return;
     }
 
-    const nodeLabel = data.nameLabel.trim() || (nodeType === 'DTR' ? 'DTR-0' : `P-${currentSeq}`);
-    
-    // Build attributes
-    const lt440vCode = domains['type_of_work']?.find((d: any) => d.domain_value === 'LT_440V')?.domain_code;
-    const dtrCodeVal = domains['lt_starting_point']?.find((d: any) => d.domain_value === 'DTR')?.domain_code;
+    if (capturedPhotos.length === 0) {
+      toast.warning('At least 1 compliance image is required to save.', { title: 'Image required' });
+      return;
+    }
 
-    const isNewLtFromDtr = activeLine.workflowType === 'ERECTION' &&
-      (activeLine.lineType === 'LT_440V' || activeLine.lineType === lt440vCode) &&
-      (activeLine.ltStartingPoint === 'DTR' || activeLine.ltStartingPoint === dtrCodeVal);
+    const nodeLabel = data.nameLabel.trim() || (nodeType === 'DTR' ? 'DTR-0' : `P-${currentSeq}`);
+    const isErectionFlow = activeLine.workflowType === 'ERECTION';
 
     const mappedAttrs: any = {
       height: '9m',
       tilt: '0°',
       sag: '0.4m',
-      poleType: nodeType === 'DTR' ? (data.assetStatus === 'NEW' ? (data.poleType || 'Concrete') : 'Transformer platform') : (isNewLtFromDtr ? (data.poleType || 'Concrete') : 'Concrete'),
     };
 
-    if (isNewLtFromDtr) {
-      mappedAttrs.cableSize = data.conductor || '100 sqmm ACSR';
-      mappedAttrs.conductor = data.conductor;
+    if (isErectionFlow) {
+      mappedAttrs.lineSection = lineSectionVal;
+      if (nodeType === 'DTR') {
+        mappedAttrs.poleType = data.assetStatus === 'NEW' 
+          ? (data.poleType ? Number(data.poleType) : null) 
+          : 'Transformer platform';
+        mappedAttrs.poleMaster = data.poleMaster ? Number(data.poleMaster) : null;
+        mappedAttrs.dtrCapacity = data.dtrCapacity ? Number(data.dtrCapacity) : null;
+        if (data.assetStatus === 'NEW') {
+          mappedAttrs.poleQty = data.poleQty ? Number(data.poleQty) : null;
+        }
+      } else {
+        mappedAttrs.poleType = data.poleType ? Number(data.poleType) : null;
+        mappedAttrs.poleMaster = data.poleMaster ? Number(data.poleMaster) : null;
+      }
+
+      // Conductor mapping
+      const selectedConductor = conductors.find(c => String(c.id) === String(data.conductor));
+      mappedAttrs.cableSize = selectedConductor ? selectedConductor.conductor_name : (data.conductor || '100 sqmm ACSR');
+      mappedAttrs.conductor = data.conductor ? Number(data.conductor) : null;
+      
       mappedAttrs.earthingUsed = data.earthingUsed || null;
-      mappedAttrs.earthingQuantity = data.earthingQuantity || null;
+      mappedAttrs.earthingQuantity = data.earthingQuantity ? Number(data.earthingQuantity) : null;
       mappedAttrs.staySetUsed = data.staySetUsed || null;
-      mappedAttrs.staySetQuantity = data.staySetQuantity || null;
+      mappedAttrs.staySetQuantity = data.staySetQuantity ? Number(data.staySetQuantity) : null;
 
       // Pole DB Type mapping
       mappedAttrs.poleDbTypes = data.poleDbTypes.length > 0 ? JSON.stringify(data.poleDbTypes) : null;
@@ -360,20 +438,16 @@ export default function ActiveSurveyScreen() {
       });
       mappedAttrs.poleDbQuantities = data.poleDbTypes.length > 0 ? JSON.stringify(qtyMap) : null;
 
-      mappedAttrs.deadEndClampQty = data.deadEndClampQty || null;
-      mappedAttrs.suspensionClampQty = data.suspensionClampQty || null;
-      mappedAttrs.poleClampQty = data.poleClampQty || null;
-      mappedAttrs.ipcQty = data.ipcQty || null;
-      mappedAttrs.serviceConnectionQty = data.serviceConnectionQty || null;
-      mappedAttrs.extraConsumption = data.extraConsumption || null;
-
-      if (nodeType === 'DTR') {
-        mappedAttrs.dtrCapacity = data.dtrCapacity || null;
-        if (data.assetStatus === 'NEW') {
-          mappedAttrs.poleQty = data.poleQty || null;
-        }
-      }
+      mappedAttrs.deadEndClampQty = data.deadEndClampQty ? Number(data.deadEndClampQty) : null;
+      mappedAttrs.suspensionClampQty = data.suspensionClampQty ? Number(data.suspensionClampQty) : null;
+      mappedAttrs.poleClampQty = data.poleClampQty ? Number(data.poleClampQty) : null;
+      mappedAttrs.ipcQty = data.ipcQty ? Number(data.ipcQty) : null;
+      mappedAttrs.serviceConnectionQty = data.serviceConnectionQty ? Number(data.serviceConnectionQty) : null;
+      mappedAttrs.extraConsumption = data.extraConsumption ? Number(data.extraConsumption) : null;
+      
+      mappedAttrs.assetStatus = data.assetStatus || null;
     } else {
+      mappedAttrs.poleType = 'Concrete';
       mappedAttrs.cableSize = data.cableSize.trim() || '100 sqmm ACSR';
     }
 
@@ -385,6 +459,7 @@ export default function ActiveSurveyScreen() {
       latitude: lat,
       longitude: lng,
       attributes: mappedAttrs,
+      images: capturedPhotos,
       captured_at: new Date().toISOString(),
       user_id: userId || null,
     };
@@ -412,7 +487,7 @@ export default function ActiveSurveyScreen() {
     const proceed = () => {
       if (commitCurrentNode(data)) {
         if (nodeType === 'DTR') setDtrIsNext(false);
-        setCapturedPhoto(null);
+        setCapturedPhotos([]);
         setLat(null);
         setLng(null);
         setGpsAccuracy('WAITING...');
@@ -431,7 +506,7 @@ export default function ActiveSurveyScreen() {
     const proceed = () => {
       if (commitCurrentNode(data)) {
         setDtrIsNext(true);
-        setCapturedPhoto(null);
+        setCapturedPhotos([]);
         setLat(null);
         setLng(null);
         setGpsAccuracy('WAITING...');
@@ -549,7 +624,9 @@ export default function ActiveSurveyScreen() {
               lat={lat}
               lng={lng}
               gpsAccuracy={gpsAccuracy}
-              capturedPhoto={capturedPhoto}
+              capturedPhotos={capturedPhotos}
+              onDeletePhoto={handleDeletePhoto}
+              lineSection={lineSectionVal}
               acquiringGps={acquiringGps}
               onAcquireGps={acquireGps}
               onRetakePhoto={() => setSurveyStep('CAPTURE')}

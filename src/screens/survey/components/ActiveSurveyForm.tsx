@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, TextInput, Image, Modal, Pressable } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, TextInput, Image, Modal, Pressable, ScrollView } from 'react-native';
 import { Controller, useWatch } from 'react-hook-form';
 import Dropdown from '../../../components/Dropdown';
 
@@ -10,7 +10,9 @@ interface ActiveSurveyFormProps {
   lat: number | null;
   lng: number | null;
   gpsAccuracy: string;
-  capturedPhoto: string | null;
+  capturedPhotos: string[];
+  onDeletePhoto: (index: number) => void;
+  lineSection?: 'HT' | 'LT';
   acquiringGps: boolean;
   onAcquireGps: () => void;
   onRetakePhoto: () => void;
@@ -35,7 +37,9 @@ export default function ActiveSurveyForm({
   lat,
   lng,
   gpsAccuracy,
-  capturedPhoto,
+  capturedPhotos = [],
+  onDeletePhoto,
+  lineSection,
   acquiringGps,
   onAcquireGps,
   onRetakePhoto,
@@ -64,6 +68,7 @@ export default function ActiveSurveyForm({
   const selectedEarthing = useWatch({ control, name: 'earthingUsed' });
   const selectedStaySet = useWatch({ control, name: 'staySetUsed' });
   const assetStatus = useWatch({ control, name: 'assetStatus' });
+  const showLtAccessories = nodeType === 'DTR' || (nodeType === 'POLE' && lineSection === 'LT');
 
   const getPoleDbLabel = (code: string) => {
     const arr = domains?.['pole_db'] || [];
@@ -86,6 +91,20 @@ export default function ActiveSurveyForm({
   }, [conductors]);
 
   const poleOptions = useMemo(() => {
+    const arr = domains?.['pole_type'] || [];
+    if (arr.length > 0) {
+      return arr.map((d: any) => ({
+        label: d.domain_desc || d.domain_value,
+        value: d.domain_code,
+      }));
+    }
+    return poles.map((p: any) => ({
+      label: p.pole_name,
+      value: p.id,
+    }));
+  }, [domains, poles]);
+
+  const poleMasterOptions = useMemo(() => {
     return poles.map((p: any) => ({
       label: p.pole_name,
       value: p.id,
@@ -130,8 +149,31 @@ export default function ActiveSurveyForm({
         {/* Photo Thumbnail + GPS Overlay */}
         <View style={styles.previewCard}>
           <View style={styles.thumbnailWrapper}>
-            {capturedPhoto ? (
-              <Image source={{ uri: capturedPhoto }} style={styles.previewThumbnail} />
+            {capturedPhotos && capturedPhotos.length > 0 ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                {capturedPhotos.map((photo, index) => (
+                  <View key={index} style={{ width: 100, height: 100, position: 'relative' }}>
+                    <Image source={{ uri: photo }} style={styles.previewThumbnail} />
+                    <TouchableOpacity
+                      style={{
+                        position: 'absolute',
+                        top: 4,
+                        right: 4,
+                        backgroundColor: 'rgba(239, 68, 68, 0.9)',
+                        borderRadius: 10,
+                        width: 20,
+                        height: 20,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        zIndex: 10,
+                      }}
+                      onPress={() => onDeletePhoto(index)}
+                    >
+                      <Text style={{ color: '#FFFFFF', fontSize: 10, fontWeight: 'bold' }}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </ScrollView>
             ) : (
               <View style={styles.placeholderThumbnail} />
             )}
@@ -147,7 +189,7 @@ export default function ActiveSurveyForm({
           </View>
         </View>
 
-        {isNewLtFromDtr ? (
+        {true ? (
           <>
             {nodeType === 'DTR' ? (
               <>
@@ -156,7 +198,7 @@ export default function ActiveSurveyForm({
                   <Controller
                     control={control}
                     name="dtrCapacity"
-                    rules={{ required: (isNewLtFromDtr && nodeType === 'DTR') ? 'DTR Capacity is required' : false }}
+                    rules={{ required: nodeType === 'DTR' ? 'DTR Capacity is required' : false }}
                     render={({ field: { onChange, value } }) => (
                       <Dropdown
                         label="DTR CAPACITY"
@@ -178,7 +220,7 @@ export default function ActiveSurveyForm({
                   <Controller
                     control={control}
                     name="nameLabel"
-                    rules={{ required: (isNewLtFromDtr && nodeType === 'DTR') ? 'DTR identifier is required' : false }}
+                    rules={{ required: nodeType === 'DTR' ? 'DTR identifier is required' : false }}
                     render={({ field: { onChange, onBlur, value } }) => (
                       <TextInput
                         style={[styles.input, errors.nameLabel && styles.inputError]}
@@ -203,7 +245,7 @@ export default function ActiveSurveyForm({
                       <Controller
                         control={control}
                         name="poleType"
-                        rules={{ required: (isNewLtFromDtr && nodeType === 'DTR' && assetStatus === 'NEW') ? 'Pole Type is required' : false }}
+                        rules={{ required: (nodeType === 'DTR' && assetStatus === 'NEW') ? 'Pole Type is required' : false }}
                         render={({ field: { onChange, value } }) => (
                           <Dropdown
                             label="POLE TYPE"
@@ -219,13 +261,34 @@ export default function ActiveSurveyForm({
                       )}
                     </View>
 
+                    {/* Pole Master Dropdown */}
+                    <View style={styles.formGroup}>
+                      <Controller
+                        control={control}
+                        name="poleMaster"
+                        rules={{ required: (nodeType === 'DTR' && assetStatus === 'NEW') ? 'Pole Master specification is required' : false }}
+                        render={({ field: { onChange, value } }) => (
+                          <Dropdown
+                            label="POLE MASTER"
+                            placeholder="Select Pole Master Specification"
+                            options={poleMasterOptions}
+                            value={value}
+                            onChange={onChange}
+                          />
+                        )}
+                      />
+                      {errors.poleMaster && (
+                        <Text style={styles.errorFeedback}>{errors.poleMaster.message}</Text>
+                      )}
+                    </View>
+
                     {/* Pole Qty Input */}
                     <View style={styles.formGroup}>
                       <Text style={styles.label}>POLE QTY</Text>
                       <Controller
                         control={control}
                         name="poleQty"
-                        rules={{ required: (isNewLtFromDtr && nodeType === 'DTR' && assetStatus === 'NEW') ? 'Pole quantity is required' : false }}
+                        rules={{ required: (nodeType === 'DTR' && assetStatus === 'NEW') ? 'Pole quantity is required' : false }}
                         render={({ field: { onChange, onBlur, value } }) => (
                           <TextInput
                             style={[styles.input, errors.poleQty && styles.inputError]}
@@ -252,7 +315,7 @@ export default function ActiveSurveyForm({
                   <Controller
                     control={control}
                     name="poleType"
-                    rules={{ required: (isNewLtFromDtr && nodeType === 'POLE') ? 'Pole Type specification is required' : false }}
+                    rules={{ required: nodeType === 'POLE' ? 'Pole Type specification is required' : false }}
                     render={({ field: { onChange, value } }) => (
                       <Dropdown
                         label="POLE TYPE"
@@ -268,13 +331,34 @@ export default function ActiveSurveyForm({
                   )}
                 </View>
 
+                {/* Pole Master Dropdown */}
+                <View style={styles.formGroup}>
+                  <Controller
+                    control={control}
+                    name="poleMaster"
+                    rules={{ required: nodeType === 'POLE' ? 'Pole Master specification is required' : false }}
+                    render={({ field: { onChange, value } }) => (
+                      <Dropdown
+                        label="POLE MASTER"
+                        placeholder="Select Pole Master Specification"
+                        options={poleMasterOptions}
+                        value={value}
+                        onChange={onChange}
+                      />
+                    )}
+                  />
+                  {errors.poleMaster && (
+                    <Text style={styles.errorFeedback}>{errors.poleMaster.message}</Text>
+                  )}
+                </View>
+
                 {/* Pole No. */}
                 <View style={styles.formGroup}>
                   <Text style={styles.label}>POLE NO.</Text>
                   <Controller
                     control={control}
                     name="nameLabel"
-                    rules={{ required: (isNewLtFromDtr && nodeType === 'POLE') ? 'Pole identifier is required' : false }}
+                    rules={{ required: nodeType === 'POLE' ? 'Pole identifier is required' : false }}
                     render={({ field: { onChange, onBlur, value } }) => (
                       <TextInput
                         style={[styles.input, errors.nameLabel && styles.inputError]}
@@ -298,7 +382,7 @@ export default function ActiveSurveyForm({
               <Controller
                 control={control}
                 name="conductor"
-                rules={{ required: isNewLtFromDtr ? 'Conductor specification is required' : false }}
+                rules={{ required: 'Conductor specification is required' }}
                 render={({ field: { onChange, value } }) => (
                   <Dropdown
                     label="CONDUCTOR"
@@ -320,7 +404,7 @@ export default function ActiveSurveyForm({
               <Controller
                 control={control}
                 name="assetStatus"
-                rules={{ required: isNewLtFromDtr ? 'Select whether this structure is old or new' : false }}
+                rules={{ required: 'Select whether this structure is old or new' }}
                 render={({ field: { onChange, value } }) => (
                   <View style={styles.conditionControl}>
                     {(['OLD', 'NEW'] as const).map(status => {
@@ -456,329 +540,245 @@ export default function ActiveSurveyForm({
               }}
             />
 
-            {/* Pole DB Type */}
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>POLE DB TYPE</Text>
-              <Controller
-                control={control}
-                name="poleDbTypes"
-                render={({ field: { onChange, value = [] } }) => (
-                  <>
-                    <TouchableOpacity
-                      style={styles.dropdownTrigger}
-                      onPress={() => setDbModalOpen(true)}
-                    >
-                      <Text style={[styles.dropdownValueText, (!value || value.length === 0) && styles.placeholderText]}>
-                        {value && value.length > 0
-                          ? value.map((code: string) => getPoleDbLabel(code)).join(', ')
-                          : 'Select Pole DB Types'}
-                      </Text>
-                      <Text style={styles.chevron}>v</Text>
-                    </TouchableOpacity>
+            {showLtAccessories && (
+              <>
+                {/* Pole DB Type */}
+                <View style={styles.formGroup}>
+                  <Text style={styles.label}>POLE DB TYPE</Text>
+                  <Controller
+                    control={control}
+                    name="poleDbTypes"
+                    render={({ field: { onChange, value = [] } }) => (
+                      <>
+                        <TouchableOpacity
+                          style={styles.dropdownTrigger}
+                          onPress={() => setDbModalOpen(true)}
+                        >
+                          <Text style={[styles.dropdownValueText, (!value || value.length === 0) && styles.placeholderText]}>
+                            {value && value.length > 0
+                              ? value.map((code: string) => getPoleDbLabel(code)).join(', ')
+                              : 'Select Pole DB Types'}
+                          </Text>
+                          <Text style={styles.chevron}>v</Text>
+                        </TouchableOpacity>
 
-                    <Modal visible={dbModalOpen} transparent animationType="fade" onRequestClose={() => setDbModalOpen(false)}>
-                      <Pressable style={styles.modalOverlay} onPress={() => setDbModalOpen(false)}>
-                        <Pressable style={styles.modalSheet} onPress={e => e.stopPropagation()}>
-                          <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>POLE DB TYPE</Text>
-                            <TouchableOpacity onPress={() => setDbModalOpen(false)} style={styles.closeBtn}>
-                              <Text style={styles.closeBtnText}>x</Text>
-                            </TouchableOpacity>
-                          </View>
-                          {poleDbOptions.map((opt: any) => {
-                            const isChecked = value.includes(opt.value);
-                            return (
+                        <Modal visible={dbModalOpen} transparent animationType="fade" onRequestClose={() => setDbModalOpen(false)}>
+                          <Pressable style={styles.modalOverlay} onPress={() => setDbModalOpen(false)}>
+                            <Pressable style={styles.modalSheet} onPress={e => e.stopPropagation()}>
+                              <View style={styles.modalHeader}>
+                                <Text style={styles.modalTitle}>POLE DB TYPE</Text>
+                                <TouchableOpacity onPress={() => setDbModalOpen(false)} style={styles.closeBtn}>
+                                  <Text style={styles.closeBtnText}>x</Text>
+                                </TouchableOpacity>
+                              </View>
+                              {poleDbOptions.map((opt: any) => {
+                                const isChecked = value.includes(opt.value);
+                                return (
+                                  <TouchableOpacity
+                                    key={opt.value}
+                                    style={styles.checkboxRow}
+                                    onPress={() => {
+                                      const nextValue = isChecked
+                                        ? value.filter((v: any) => v !== opt.value)
+                                        : [...value, opt.value];
+                                      onChange(nextValue);
+                                    }}
+                                  >
+                                    <View style={[styles.checkboxBox, isChecked && styles.checkboxBoxSelected]}>
+                                      {isChecked && <Text style={styles.checkmark}>✓</Text>}
+                                    </View>
+                                    <Text style={styles.checkboxLabel}>{opt.label}</Text>
+                                  </TouchableOpacity>
+                                );
+                              })}
+                              
                               <TouchableOpacity
-                                key={opt.value}
-                                style={styles.checkboxRow}
-                                onPress={() => {
-                                  const nextValue = isChecked
-                                    ? value.filter((v: any) => v !== opt.value)
-                                    : [...value, opt.value];
-                                  onChange(nextValue);
-                                }}
+                                style={styles.modalDoneBtn}
+                                onPress={() => setDbModalOpen(false)}
                               >
-                                <View style={[styles.checkboxBox, isChecked && styles.checkboxBoxSelected]}>
-                                  {isChecked && <Text style={styles.checkmark}>✓</Text>}
-                                </View>
-                                <Text style={styles.checkboxLabel}>{opt.label}</Text>
+                                <Text style={styles.modalDoneBtnText}>DONE</Text>
                               </TouchableOpacity>
+                            </Pressable>
+                          </Pressable>
+                        </Modal>
+                      </>
+                    )}
+                  />
+                </View>
+
+                {/* Pole DB Type Quantities */}
+                <Controller
+                  control={control}
+                  name="poleDbQuantities"
+                  rules={{
+                    validate: (val, formValues) => {
+                      const selectedTypes = formValues.poleDbTypes || [];
+                      for (const type of selectedTypes) {
+                        if (!val?.[type] || !val[type].trim()) {
+                          const labelName = getPoleDbLabel(type);
+                          return `${labelName} quantity is required`;
+                        }
+                      }
+                      return true;
+                    }
+                  }}
+                  render={({ field: { onChange, value = {} } }) => (
+                    <Controller
+                      control={control}
+                      name="poleDbTypes"
+                      render={({ field: { value: selectedTypes = [] } }) => (
+                        <>
+                          {selectedTypes.map((type: string) => {
+                            const labelName = getPoleDbLabel(type);
+                            return (
+                              <View key={type} style={styles.formGroup}>
+                                <Text style={styles.label}>{labelName} QUANTITY</Text>
+                                <TextInput
+                                  style={[styles.input, errors.poleDbQuantities && styles.inputError]}
+                                  keyboardType="numeric"
+                                  value={value[type] || ''}
+                                  onChangeText={(text) => {
+                                    onChange({
+                                      ...value,
+                                      [type]: text,
+                                    });
+                                  }}
+                                  placeholder="Enter quantity"
+                                  placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                                />
+                              </View>
                             );
                           })}
-                          
-                          <TouchableOpacity
-                            style={styles.modalDoneBtn}
-                            onPress={() => setDbModalOpen(false)}
-                          >
-                            <Text style={styles.modalDoneBtnText}>DONE</Text>
-                          </TouchableOpacity>
-                        </Pressable>
-                      </Pressable>
-                    </Modal>
-                  </>
+                        </>
+                      )}
+                    />
+                  )}
+                />
+                {errors.poleDbQuantities && (
+                  <Text style={styles.errorFeedback}>{errors.poleDbQuantities.message}</Text>
                 )}
-              />
-            </View>
 
-            {/* Pole DB Type Quantities */}
-            <Controller
-              control={control}
-              name="poleDbQuantities"
-              rules={{
-                validate: (val, formValues) => {
-                  const selectedTypes = formValues.poleDbTypes || [];
-                  for (const type of selectedTypes) {
-                    if (!val?.[type] || !val[type].trim()) {
-                      const labelName = getPoleDbLabel(type);
-                      return `${labelName} quantity is required`;
-                    }
-                  }
-                  return true;
-                }
-              }}
-              render={({ field: { onChange, value = {} } }) => (
-                <Controller
-                  control={control}
-                  name="poleDbTypes"
-                  render={({ field: { value: selectedTypes = [] } }) => (
-                    <>
-                      {selectedTypes.map((type: string) => {
-                        const labelName = getPoleDbLabel(type);
-                        return (
-                          <View key={type} style={styles.formGroup}>
-                            <Text style={styles.label}>{labelName} QUANTITY</Text>
-                            <TextInput
-                              style={[styles.input, errors.poleDbQuantities && styles.inputError]}
-                              keyboardType="numeric"
-                              value={value[type] || ''}
-                              onChangeText={(text) => {
-                                onChange({
-                                  ...value,
-                                  [type]: text,
-                                });
-                              }}
-                              placeholder="Enter quantity"
-                              placeholderTextColor="rgba(30, 41, 59, 0.35)"
-                            />
-                          </View>
-                        );
-                      })}
-                    </>
-                  )}
-                />
-              )}
-            />
-            {errors.poleDbQuantities && (
-              <Text style={styles.errorFeedback}>{errors.poleDbQuantities.message}</Text>
-            )}
-
-            {/* Clamps & service connections in compact grid */}
-            <View style={styles.gridRow}>
-              <View style={styles.gridCol}>
-                <Text style={styles.label}>DEAD END CLAMP QTY</Text>
-                <Controller
-                  control={control}
-                  name="deadEndClampQty"
-                  render={({ field: { onChange, onBlur, value } }) => (
-                    <TextInput
-                      style={styles.input}
-                      keyboardType="numeric"
-                      value={value}
-                      onChangeText={onChange}
-                      onBlur={onBlur}
-                      placeholder="0"
-                      placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                {/* Clamps & service connections in compact grid */}
+                <View style={styles.gridRow}>
+                  <View style={styles.gridCol}>
+                    <Text style={styles.label}>DEAD END CLAMP QTY</Text>
+                    <Controller
+                      control={control}
+                      name="deadEndClampQty"
+                      render={({ field: { onChange, onBlur, value } }) => (
+                        <TextInput
+                          style={styles.input}
+                          keyboardType="numeric"
+                          value={value}
+                          onChangeText={onChange}
+                          onBlur={onBlur}
+                          placeholder="0"
+                          placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                        />
+                      )}
                     />
-                  )}
-                />
-              </View>
-              <View style={styles.gridCol}>
-                <Text style={styles.label}>SUSPENSION CLAMP QTY</Text>
-                <Controller
-                  control={control}
-                  name="suspensionClampQty"
-                  render={({ field: { onChange, onBlur, value } }) => (
-                    <TextInput
-                      style={styles.input}
-                      keyboardType="numeric"
-                      value={value}
-                      onChangeText={onChange}
-                      onBlur={onBlur}
-                      placeholder="0"
-                      placeholderTextColor="rgba(30, 41, 59, 0.35)"
-                    />
-                  )}
-                />
-              </View>
-            </View>
-
-            <View style={styles.gridRow}>
-              <View style={styles.gridCol}>
-                <Text style={styles.label}>POLE CLAMP QTY</Text>
-                <Controller
-                  control={control}
-                  name="poleClampQty"
-                  render={({ field: { onChange, onBlur, value } }) => (
-                    <TextInput
-                      style={styles.input}
-                      keyboardType="numeric"
-                      value={value}
-                      onChangeText={onChange}
-                      onBlur={onBlur}
-                      placeholder="0"
-                      placeholderTextColor="rgba(30, 41, 59, 0.35)"
-                    />
-                  )}
-                />
-              </View>
-              <View style={styles.gridCol}>
-                <Text style={styles.label}>IPC QTY</Text>
-                <Controller
-                  control={control}
-                  name="ipcQty"
-                  render={({ field: { onChange, onBlur, value } }) => (
-                    <TextInput
-                      style={styles.input}
-                      keyboardType="numeric"
-                      value={value}
-                      onChangeText={onChange}
-                      onBlur={onBlur}
-                      placeholder="0"
-                      placeholderTextColor="rgba(30, 41, 59, 0.35)"
-                    />
-                  )}
-                />
-              </View>
-            </View>
-
-            <View style={styles.gridRow}>
-              <View style={styles.gridCol}>
-                <Text style={styles.label}>NO. OF SERVICE CONN</Text>
-                <Controller
-                  control={control}
-                  name="serviceConnectionQty"
-                  render={({ field: { onChange, onBlur, value } }) => (
-                    <TextInput
-                      style={styles.input}
-                      keyboardType="numeric"
-                      value={value}
-                      onChangeText={onChange}
-                      onBlur={onBlur}
-                      placeholder="0"
-                      placeholderTextColor="rgba(30, 41, 59, 0.35)"
-                    />
-                  )}
-                />
-              </View>
-              <View style={styles.gridCol}>
-                <Text style={styles.label}>EXTRA CONSUMPTION (MTR)</Text>
-                <Controller
-                  control={control}
-                  name="extraConsumption"
-                  render={({ field: { onChange, onBlur, value } }) => (
-                    <TextInput
-                      style={styles.input}
-                      keyboardType="numeric"
-                      value={value}
-                      onChangeText={onChange}
-                      onBlur={onBlur}
-                      placeholder="0"
-                      placeholderTextColor="rgba(30, 41, 59, 0.35)"
-                    />
-                  )}
-                />
-              </View>
-            </View>
-          </>
-        ) : (
-          <>
-            {/* Textbox inputs */}
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>{nodeType === 'DTR' ? 'DTR SERIAL / ID' : 'POLE NO'}</Text>
-              <Controller
-                control={control}
-                name="nameLabel"
-                rules={{ required: nodeType === 'DTR' ? 'DTR identifier is required' : 'Pole identifier is required' }}
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    style={[styles.input, errors.nameLabel && styles.inputError]}
-                    value={value}
-                    onChangeText={onChange}
-                    onBlur={onBlur}
-                    placeholder={nodeType === 'DTR' ? 'Enter DTR Serial' : 'e.g. P-1'}
-                    placeholderTextColor="rgba(30, 41, 59, 0.35)"
-                  />
-                )}
-              />
-              {errors.nameLabel && (
-                <Text style={styles.errorFeedback}>{errors.nameLabel.message}</Text>
-              )}
-            </View>
-
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>{nodeType === 'DTR' ? 'CONDUCTOR CLASS' : 'CABLE TYPE USED'}</Text>
-              <Controller
-                control={control}
-                name="cableSize"
-                rules={{ required: 'Cable/Conductor specification is required' }}
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    style={[styles.input, errors.cableSize && styles.inputError]}
-                    value={value}
-                    onChangeText={onChange}
-                    onBlur={onBlur}
-                    placeholder="e.g. 100 sqmm ACSR"
-                    placeholderTextColor="rgba(30, 41, 59, 0.35)"
-                  />
-                )}
-              />
-              {errors.cableSize && (
-                <Text style={styles.errorFeedback}>{errors.cableSize.message}</Text>
-              )}
-            </View>
-
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>STRUCTURE CONDITION</Text>
-              <Controller
-                control={control}
-                name="assetStatus"
-                rules={{ required: 'Select whether this structure is old or new' }}
-                render={({ field: { onChange, value } }) => (
-                  <View style={styles.conditionControl}>
-                    {(['OLD', 'NEW'] as const).map(status => {
-                      const selected = value === status;
-                      return (
-                        <TouchableOpacity
-                          key={status}
-                          style={[
-                            styles.conditionOption,
-                            selected && (status === 'NEW' ? styles.conditionNewSelected : styles.conditionOldSelected),
-                          ]}
-                          onPress={() => onChange(status)}
-                          activeOpacity={0.75}
-                        >
-                          <View style={[
-                            styles.conditionDot,
-                            { backgroundColor: status === 'NEW' ? '#16A34A' : '#64748B' },
-                          ]} />
-                          <Text style={[
-                            styles.conditionText,
-                            selected && (status === 'NEW' ? styles.conditionNewText : styles.conditionOldText),
-                          ]}>
-                            {status} STRUCTURE
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
                   </View>
-                )}
-              />
-              {errors.assetStatus && (
-                <Text style={styles.errorFeedback}>{errors.assetStatus.message}</Text>
-              )}
-            </View>
+                  <View style={styles.gridCol}>
+                    <Text style={styles.label}>SUSPENSION CLAMP QTY</Text>
+                    <Controller
+                      control={control}
+                      name="suspensionClampQty"
+                      render={({ field: { onChange, onBlur, value } }) => (
+                        <TextInput
+                          style={styles.input}
+                          keyboardType="numeric"
+                          value={value}
+                          onChangeText={onChange}
+                          onBlur={onBlur}
+                          placeholder="0"
+                          placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                        />
+                      )}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.gridRow}>
+                  <View style={styles.gridCol}>
+                    <Text style={styles.label}>POLE CLAMP QTY</Text>
+                    <Controller
+                      control={control}
+                      name="poleClampQty"
+                      render={({ field: { onChange, onBlur, value } }) => (
+                        <TextInput
+                          style={styles.input}
+                          keyboardType="numeric"
+                          value={value}
+                          onChangeText={onChange}
+                          onBlur={onBlur}
+                          placeholder="0"
+                          placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                        />
+                      )}
+                    />
+                  </View>
+                  <View style={styles.gridCol}>
+                    <Text style={styles.label}>IPC QTY</Text>
+                    <Controller
+                      control={control}
+                      name="ipcQty"
+                      render={({ field: { onChange, onBlur, value } }) => (
+                        <TextInput
+                          style={styles.input}
+                          keyboardType="numeric"
+                          value={value}
+                          onChangeText={onChange}
+                          onBlur={onBlur}
+                          placeholder="0"
+                          placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                        />
+                      )}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.gridRow}>
+                  <View style={styles.gridCol}>
+                    <Text style={styles.label}>NO. OF SERVICE CONN</Text>
+                    <Controller
+                      control={control}
+                      name="serviceConnectionQty"
+                      render={({ field: { onChange, onBlur, value } }) => (
+                        <TextInput
+                          style={styles.input}
+                          keyboardType="numeric"
+                          value={value}
+                          onChangeText={onChange}
+                          onBlur={onBlur}
+                          placeholder="0"
+                          placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                        />
+                      )}
+                    />
+                  </View>
+                  <View style={styles.gridCol}>
+                    <Text style={styles.label}>EXTRA CONSUMPTION (MTR)</Text>
+                    <Controller
+                      control={control}
+                      name="extraConsumption"
+                      render={({ field: { onChange, onBlur, value } }) => (
+                        <TextInput
+                          style={styles.input}
+                          keyboardType="numeric"
+                          value={value}
+                          onChangeText={onChange}
+                          onBlur={onBlur}
+                          placeholder="0"
+                          placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                        />
+                      )}
+                    />
+                  </View>
+                </View>
+              </>
+            )}
           </>
-        )}
+        ) : null}
 
         <View style={styles.formGroup}>
           <Text style={styles.label}>SITE REMARKS</Text>
@@ -800,9 +800,8 @@ export default function ActiveSurveyForm({
           />
         </View>
 
-        {/* Retake photo */}
         <TouchableOpacity style={styles.retakePhotoBtn} onPress={onRetakePhoto}>
-          <Text style={styles.retakePhotoText}>📸 RETAKE compliance PHOTO</Text>
+          <Text style={styles.retakePhotoText}>📸 ADD / CAPTURE COMPLIANCE PHOTO</Text>
         </TouchableOpacity>
       </View>
 

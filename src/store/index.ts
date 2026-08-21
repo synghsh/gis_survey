@@ -14,13 +14,15 @@ export interface SurveyNode {
   longitude: number;
   attributes: {
     cableSize: string;
-    poleType: string;
+    poleType: string | number | null;
     height: string;
     tilt: string;
     sag: string;
     spanDistance?: string;
+    [key: string]: any;
   };
   imageUri: string | null;
+  imageUris?: string[];
   capturedAt: string;
   parentLabel?: string;
 }
