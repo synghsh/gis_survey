@@ -16,8 +16,13 @@ export const startErectionAction = (
     return StartErectionService(payload)
       .then((response: any) => {
         if (response.status === 200 && response.data && !response.data.Exception) {
-          dispatch(startSurvey(surveyPayload));
-          successCallback?.(response.data.Data);
+          const serverErectionId = response.data.ErectionId;
+          const updatedSurveyPayload = {
+            ...surveyPayload,
+            id: serverErectionId ? `erect-${serverErectionId}` : surveyPayload.id
+          };
+          dispatch(startSurvey(updatedSurveyPayload));
+          successCallback?.(response.data);
         } else {
           const errorMsg = response.data?.Error?.System_Errors?.[0]?.Message || response.data?.Message || 'Failed to start erection execution';
           errorCallback?.(errorMsg);
