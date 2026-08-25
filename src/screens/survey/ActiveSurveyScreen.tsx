@@ -7,6 +7,7 @@ import {
   ScrollView,
   Dimensions,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useCameraPermissions } from 'expo-camera';
@@ -88,7 +89,9 @@ export default function ActiveSurveyScreen() {
     }
   });
 
-  const [surveyStep, setSurveyStep] = useState<'CAPTURE' | 'DETAILS'>('CAPTURE');
+  const isErectionFlow = activeLine?.workflowType === 'ERECTION';
+  const [surveyStep, setSurveyStep] = useState<'CAPTURE' | 'DETAILS'>(isErectionFlow ? 'DETAILS' : 'CAPTURE');
+  const [cameraModalVisible, setCameraModalVisible] = useState(false);
   const [nodeType, setNodeType] = useState<'DTR' | 'POLE'>('POLE');
   const [dtrIsNext, setDtrIsNext] = useState(false);
 
@@ -98,12 +101,19 @@ export default function ActiveSurveyScreen() {
   const [acquiringGps, setAcquiringGps] = useState(false);
 
   const [capturedPhotos, setCapturedPhotos] = useState<string[]>([]);
+  const [polePhotos, setPolePhotos] = useState<string[]>([]);
+  const [earthingPhotos, setEarthingPhotos] = useState<string[]>([]);
+  const [staySetPhotos, setStaySetPhotos] = useState<string[]>([]);
+  const [poleDbPhotos, setPoleDbPhotos] = useState<string[]>([]);
+  const [photoCategory, setPhotoCategory] = useState<'POLE' | 'EARTHING' | 'STAY_SET' | 'POLE_DB'>('POLE');
+
   const [cameraFlash, setCameraFlash] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const cameraRef = useRef<any>(null);
+  const lastInitializedSeqRef = useRef<number | null>(null);
+  const lastInitializedDtrIsNextRef = useRef<boolean | null>(null);
 
   const currentSeq = activeLine ? activeLine.nodes.length : 0;
-  const isErectionFlow = activeLine?.workflowType === 'ERECTION';
   const isHtTapSurvey = activeLine?.lineType === 'LT_440V' && activeLine.ltStartingPoint === 'HT_TAPPING_POINT';
   const isExistingLtStart = activeLine?.lineType === 'LT_440V' && activeLine.ltStartingPoint === 'EXISTING_LT_LINE';
   const hasDtr = activeLine?.nodes.some(node => node.nodeType === 'DTR') ?? false;
@@ -128,6 +138,12 @@ export default function ActiveSurveyScreen() {
 
   useEffect(() => {
     if (activeLine) {
+      if (lastInitializedSeqRef.current === currentSeq && lastInitializedDtrIsNextRef.current === dtrIsNext) {
+        return;
+      }
+      lastInitializedSeqRef.current = currentSeq;
+      lastInitializedDtrIsNextRef.current = dtrIsNext;
+
       // Clear/Reset all the new conditional structure verification fields first
       setValue('dtrCapacity', '');
       setValue('conductor', '');
@@ -210,33 +226,7 @@ export default function ActiveSurveyScreen() {
         setValue('assetStatus', '');
       }
     }
-  }, [currentSeq, activeLine, surveyStep, dtrIsNext, hasDtr, isHtTapSurvey, isExistingLtStart, setValue, domains]);
-
-  useEffect(() => {
-    (async () => {
-      if (!cameraPermission || !cameraPermission.granted) {
-        await requestCameraPermission();
-      }
-      await Location.requestForegroundPermissionsAsync();
-    })();
-
-    // Fetch master list data for transformers, conductors, poles, and domains via Redux thunk actions
-    dispatch(fetchTransformersAction(undefined, (err) => console.warn('fetchTransformersAction error:', err)) as any);
-    dispatch(fetchConductorsAction(undefined, (err) => console.warn('fetchConductorsAction error:', err)) as any);
-    dispatch(fetchPolesAction(undefined, (err) => console.warn('fetchPolesAction error:', err)) as any);
-    dispatch(fetchDomainsAction(['type_of_work', 'lt_starting_point', 'earthing', 'stay_set', 'pole_db', 'pole_type']) as any);
-  }, [dispatch]);
-
-  if (!activeLine) {
-    return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>No active survey line found.</Text>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.navigate('MainTabs')}>
-          <Text style={styles.backBtnText}>RETURN TO DASHBOARD</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+  }, [currentSeq, activeLine, dtrIsNext, hasDtr, isHtTapSurvey, isExistingLtStart, setValue, domains]);
 
   const useMockGps = () => {
     const baseLat = 22.5726; 
@@ -277,6 +267,42 @@ export default function ActiveSurveyScreen() {
     }
   };
 
+  useEffect(() => {
+    (async () => {
+      if (!cameraPermission || !cameraPermission.granted) {
+        await requestCameraPermission();
+      }
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        acquireGps();
+      }
+    })();
+
+    // Fetch master list data for transformers, conductors, poles, and domains via Redux thunk actions
+    dispatch(fetchTransformersAction(undefined, (err) => console.warn('fetchTransformersAction error:', err)) as any);
+    dispatch(fetchConductorsAction(undefined, (err) => console.warn('fetchConductorsAction error:', err)) as any);
+    dispatch(fetchPolesAction(undefined, (err) => console.warn('fetchPolesAction error:', err)) as any);
+    dispatch(fetchDomainsAction(['type_of_work', 'lt_starting_point', 'earthing', 'stay_set', 'pole_db', 'pole_type']) as any);
+  }, [dispatch]);
+
+  if (!activeLine) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>No active survey line found.</Text>
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.navigate('MainTabs')}>
+          <Text style={styles.backBtnText}>RETURN TO DASHBOARD</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const saveCategorizedPhoto = (uri: string) => {
+    if (photoCategory === 'POLE') setPolePhotos(prev => [...prev, uri]);
+    else if (photoCategory === 'EARTHING') setEarthingPhotos(prev => [...prev, uri]);
+    else if (photoCategory === 'STAY_SET') setStaySetPhotos(prev => [...prev, uri]);
+    else if (photoCategory === 'POLE_DB') setPoleDbPhotos(prev => [...prev, uri]);
+  };
+
   const takePhoto = async () => {
     acquireGps();
 
@@ -291,18 +317,35 @@ export default function ActiveSurveyScreen() {
         });
         
         if (photo && photo.uri) {
-          setCapturedPhotos(prev => [...prev, photo.uri]);
+          if (isErectionFlow) {
+            saveCategorizedPhoto(photo.uri);
+          } else {
+            setCapturedPhotos(prev => [...prev, photo.uri]);
+          }
+          setCameraModalVisible(false);
           setSurveyStep('DETAILS');
         }
       } catch (err) {
         console.log('Camera capture error, falling back to mock:', err);
-        setCapturedPhotos(prev => [...prev, 'https://images.unsplash.com/photo-1548676924-48e71ceac151?w=400']);
+        const mockUri = 'https://images.unsplash.com/photo-1548676924-48e71ceac151?w=400';
+        if (isErectionFlow) {
+          saveCategorizedPhoto(mockUri);
+        } else {
+          setCapturedPhotos(prev => [...prev, mockUri]);
+        }
+        setCameraModalVisible(false);
         setSurveyStep('DETAILS');
       }
     } else {
       setCameraFlash(true);
       setTimeout(() => setCameraFlash(false), 150);
-      setCapturedPhotos(prev => [...prev, 'https://images.unsplash.com/photo-1548676924-48e71ceac151?w=400']);
+      const mockUri = 'https://images.unsplash.com/photo-1548676924-48e71ceac151?w=400';
+      if (isErectionFlow) {
+        saveCategorizedPhoto(mockUri);
+      } else {
+        setCapturedPhotos(prev => [...prev, mockUri]);
+      }
+      setCameraModalVisible(false);
       setSurveyStep('DETAILS');
     }
   };
@@ -311,22 +354,57 @@ export default function ActiveSurveyScreen() {
     setCapturedPhotos(prev => prev.filter((_, i) => i !== index));
   };
 
+  const resetPhotos = () => {
+    setCapturedPhotos([]);
+    setPolePhotos([]);
+    setEarthingPhotos([]);
+    setStaySetPhotos([]);
+    setPoleDbPhotos([]);
+  };
+
   const commitCurrentNode = (data: SurveyNodeFormInputs): boolean => {
     if (!lat || !lng) {
       toast.warning('Waiting for GPS location lock. Please capture coordinates again.', { title: 'GPS required' });
       return false;
     }
 
-    if (capturedPhotos.length === 0) {
-      toast.warning('At least 1 compliance image is required to save.', { title: 'Image required' });
-      return false;
+    const allPhotos = isErectionFlow
+      ? [...polePhotos, ...earthingPhotos, ...staySetPhotos, ...poleDbPhotos]
+      : capturedPhotos;
+
+    if (!isErectionFlow) {
+      if (allPhotos.length === 0) {
+        toast.warning('At least 1 compliance image is required to save.', { title: 'Image required' });
+        return false;
+      }
+    } else {
+      // ERECTION flow validation
+      // 1. Pole images validation (at least 1 mandatory)
+      if (polePhotos.length === 0) {
+        toast.warning('At least 1 compliance image for the Pole/Structure is mandatory.', { title: 'Pole Image required' });
+        return false;
+      }
+      // 2. Earthing images validation (at least 1 mandatory if selected)
+      if (data.earthingUsed && earthingPhotos.length === 0) {
+        toast.warning('At least 1 compliance image for Earthing is mandatory.', { title: 'Earthing Image required' });
+        return false;
+      }
+      // 3. Stay Set images validation (at least 1 mandatory if selected)
+      if (data.staySetUsed && staySetPhotos.length === 0) {
+        toast.warning('At least 1 compliance image for Stay Set is mandatory.', { title: 'Stay Set Image required' });
+        return false;
+      }
+      // 4. Pole DB images validation (at least 1 mandatory if selected)
+      const showLtAccessories = nodeType === 'DTR' || (nodeType === 'POLE' && lineSectionVal === 'LT');
+      if (showLtAccessories && data.poleDbTypes && data.poleDbTypes.length > 0 && poleDbPhotos.length === 0) {
+        toast.warning('At least 1 compliance image for Pole DB is mandatory.', { title: 'Pole DB Image required' });
+        return false;
+      }
     }
 
     const nodeLabel = data.nameLabel.trim() || (nodeType === 'DTR' ? 'DTR-0' : `P-${currentSeq}`);
     const parentNode = currentSeq > 0 ? activeLine.nodes[currentSeq - 1] : null;
     const parentLabel = activeLine.continuationParentLabel || parentNode?.nameLabel;
-
-    // lineSectionVal is resolved globally at component level
 
     const newNode: SurveyNode = {
       id: `node-${Date.now()}`,
@@ -372,8 +450,8 @@ export default function ActiveSurveyScreen() {
         dtrCapacity: nodeType === 'DTR' ? (data.dtrCapacity ? Number(data.dtrCapacity) : null) : null,
         poleQty: (nodeType === 'DTR' && data.assetStatus === 'NEW') ? (data.poleQty ? Number(data.poleQty) : null) : null,
       },
-      imageUri: capturedPhotos[0] || null,
-      imageUris: capturedPhotos,
+      imageUri: isErectionFlow ? (polePhotos[0] || allPhotos[0] || null) : (capturedPhotos[0] || null),
+      imageUris: allPhotos,
       capturedAt: new Date().toISOString(),
       parentLabel,
     };
@@ -390,13 +468,26 @@ export default function ActiveSurveyScreen() {
       return;
     }
 
-    if (capturedPhotos.length === 0) {
-      toast.warning('At least 1 compliance image is required to save.', { title: 'Image required' });
+    if (polePhotos.length === 0) {
+      toast.warning('At least 1 compliance image for the Pole/Structure is mandatory.', { title: 'Pole Image required' });
+      return;
+    }
+    if (data.earthingUsed && earthingPhotos.length === 0) {
+      toast.warning('At least 1 compliance image for Earthing is mandatory.', { title: 'Earthing Image required' });
+      return;
+    }
+    if (data.staySetUsed && staySetPhotos.length === 0) {
+      toast.warning('At least 1 compliance image for Stay Set is mandatory.', { title: 'Stay Set Image required' });
+      return;
+    }
+    const showLtAccessories = nodeType === 'DTR' || (nodeType === 'POLE' && lineSectionVal === 'LT');
+    if (showLtAccessories && data.poleDbTypes && data.poleDbTypes.length > 0 && poleDbPhotos.length === 0) {
+      toast.warning('At least 1 compliance image for Pole DB is mandatory.', { title: 'Pole DB Image required' });
       return;
     }
 
+    const allPhotos = [...polePhotos, ...earthingPhotos, ...staySetPhotos, ...poleDbPhotos];
     const nodeLabel = data.nameLabel.trim() || (nodeType === 'DTR' ? 'DTR-0' : `P-${currentSeq}`);
-    const isErectionFlow = activeLine.workflowType === 'ERECTION';
 
     const mappedAttrs: any = {
       height: '9m',
@@ -459,7 +550,7 @@ export default function ActiveSurveyScreen() {
       latitude: lat,
       longitude: lng,
       attributes: mappedAttrs,
-      images: capturedPhotos,
+      images: allPhotos,
       captured_at: new Date().toISOString(),
       user_id: userId || null,
     };
@@ -487,11 +578,11 @@ export default function ActiveSurveyScreen() {
     const proceed = () => {
       if (commitCurrentNode(data)) {
         if (nodeType === 'DTR') setDtrIsNext(false);
-        setCapturedPhotos([]);
+        resetPhotos();
         setLat(null);
         setLng(null);
         setGpsAccuracy('WAITING...');
-        setSurveyStep('CAPTURE');
+        setSurveyStep(isErectionFlow ? 'DETAILS' : 'CAPTURE');
       }
     };
 
@@ -506,11 +597,11 @@ export default function ActiveSurveyScreen() {
     const proceed = () => {
       if (commitCurrentNode(data)) {
         setDtrIsNext(true);
-        setCapturedPhotos([]);
+        resetPhotos();
         setLat(null);
         setLng(null);
         setGpsAccuracy('WAITING...');
-        setSurveyStep('CAPTURE');
+        setSurveyStep(isErectionFlow ? 'DETAILS' : 'CAPTURE');
       }
     };
 
@@ -626,10 +717,25 @@ export default function ActiveSurveyScreen() {
               gpsAccuracy={gpsAccuracy}
               capturedPhotos={capturedPhotos}
               onDeletePhoto={handleDeletePhoto}
+              polePhotos={polePhotos}
+              onDeletePolePhoto={(index) => setPolePhotos(prev => prev.filter((_, i) => i !== index))}
+              earthingPhotos={earthingPhotos}
+              onDeleteEarthingPhoto={(index) => setEarthingPhotos(prev => prev.filter((_, i) => i !== index))}
+              staySetPhotos={staySetPhotos}
+              onDeleteStaySetPhoto={(index) => setStaySetPhotos(prev => prev.filter((_, i) => i !== index))}
+              poleDbPhotos={poleDbPhotos}
+              onDeletePoleDbPhoto={(index) => setPoleDbPhotos(prev => prev.filter((_, i) => i !== index))}
+              onTakePhoto={(category) => {
+                setPhotoCategory(category);
+                setCameraModalVisible(true);
+              }}
               lineSection={lineSectionVal}
               acquiringGps={acquiringGps}
               onAcquireGps={acquireGps}
-              onRetakePhoto={() => setSurveyStep('CAPTURE')}
+              onRetakePhoto={() => {
+                setPhotoCategory('POLE');
+                setCameraModalVisible(true);
+              }}
               onSubmitAddNew={handleSubmit(handleAddNew)}
               onSubmitFinish={handleSubmit(handleFinishSurvey)}
               onSubmitDtrNext={handleSubmit(handleAddDtrNext)}
@@ -655,6 +761,23 @@ export default function ActiveSurveyScreen() {
             />
           </ScrollView>
         )}
+
+        {/* Modal-based Camera view for inline compliance capture to prevent unmounting details form */}
+        <Modal
+          visible={cameraModalVisible}
+          animationType="slide"
+          onRequestClose={() => setCameraModalVisible(false)}
+        >
+          <ActiveSurveyCamera
+            cameraPermission={cameraPermission}
+            requestCameraPermission={requestCameraPermission}
+            cameraRef={cameraRef}
+            cameraFlash={cameraFlash}
+            currentSeq={currentSeq}
+            onTakePhoto={takePhoto}
+            onAbandon={() => setCameraModalVisible(false)}
+          />
+        </Modal>
       </View>
       {savingNode && (
         <View style={styles.loadingOverlay}>

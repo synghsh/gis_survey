@@ -3,6 +3,314 @@ import { StyleSheet, View, Text, TouchableOpacity, TextInput, Image, Modal, Pres
 import { Controller, useWatch } from 'react-hook-form';
 import Dropdown from '../../../components/Dropdown';
 
+const THEMES = {
+  POLE: { text: '#0284C7', bg: '#F0F9FF', border: '#BAE6FD', accent: '#0284C7' },
+  EARTHING: { text: '#0D9488', bg: '#F0FDFA', border: '#CCFBF1', accent: '#0D9488' },
+  STAY_SET: { text: '#D97706', bg: '#FFFBEB', border: '#FEF3C7', accent: '#D97706' },
+  POLE_DB: { text: '#7C3AED', bg: '#F5F3FF', border: '#DDD6FE', accent: '#7C3AED' },
+  HARNESS: { text: '#475569', bg: '#F8FAFC', border: '#E2E8F0', accent: '#64748B' },
+};
+
+const formStyles = StyleSheet.create({
+  detailsContainer: {
+    flex: 1,
+  },
+  gpsStickyCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
+    borderWidth: 1.2,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: 14,
+  },
+  gpsCardLeft: {
+    flex: 1,
+  },
+  gpsStickyTitle: {
+    fontSize: 8.5,
+    fontWeight: '900',
+    color: '#64748B',
+    letterSpacing: 1.2,
+  },
+  gpsCoordsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 3,
+  },
+  gpsCoordVal: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  gpsCoordSpacer: {
+    marginHorizontal: 8,
+    color: '#CBD5E1',
+    fontWeight: '300',
+  },
+  gpsStickyAccuracy: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: '#475569',
+    marginTop: 2,
+  },
+  gpsRecalBtn: {
+    backgroundColor: 'rgba(2, 132, 199, 0.08)',
+    borderColor: '#0284C7',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  gpsRecalText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#0284C7',
+    letterSpacing: 0.5,
+  },
+  contextBadge: {
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    borderColor: 'rgba(245, 158, 11, 0.25)',
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    marginBottom: 14,
+    alignSelf: 'flex-start',
+  },
+  contextBadgeDtr: {
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+    borderColor: 'rgba(139, 92, 246, 0.25)',
+  },
+  contextBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#D97706',
+    letterSpacing: 1.2,
+    textAlign: 'center',
+  },
+  sectionCard: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#E2E8F0',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.02,
+    shadowRadius: 4,
+    elevation: 2,
+    borderLeftWidth: 4,
+  },
+  sectionHeaderContainer: {
+    marginBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    paddingBottom: 8,
+  },
+  sectionHeaderTitle: {
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 1.2,
+  },
+  sectionHeaderHelper: {
+    fontSize: 9,
+    color: '#64748B',
+    marginTop: 4,
+    lineHeight: 12,
+    fontWeight: '500',
+  },
+  formGroup: {
+    marginBottom: 12,
+  },
+  label: {
+    color: '#64748B',
+    fontSize: 8.5,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+    marginBottom: 5,
+  },
+  input: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    color: '#0F172A',
+    fontSize: 12.5,
+    fontWeight: '600',
+  },
+  inputError: {
+    borderColor: '#EF4444',
+  },
+  errorFeedback: {
+    color: '#EF4444',
+    fontSize: 9.5,
+    marginTop: 4,
+    fontWeight: '700',
+  },
+  remarksTextArea: {
+    height: 52,
+    textAlignVertical: 'top',
+  },
+  conditionControl: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  conditionOption: {
+    flex: 1,
+    minHeight: 38,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+  },
+  conditionOldSelected: {
+    borderColor: '#64748B',
+    backgroundColor: 'rgba(100, 116, 139, 0.08)',
+  },
+  conditionNewSelected: {
+    borderColor: '#16A34A',
+    backgroundColor: 'rgba(22, 163, 74, 0.07)',
+  },
+  conditionDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 6,
+  },
+  conditionText: {
+    color: '#64748B',
+    fontSize: 9.5,
+    fontWeight: '800',
+  },
+  conditionOldText: {
+    color: '#475569',
+  },
+  conditionNewText: {
+    color: '#15803D',
+  },
+  photoSectionLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#475569',
+    marginTop: 6,
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  slotsContainer: {
+    marginVertical: 4,
+  },
+  slotsScroll: {
+    gap: 8,
+    paddingVertical: 2,
+  },
+  slotCard: {
+    width: 68,
+    height: 68,
+    borderRadius: 8,
+    overflow: 'hidden',
+    position: 'relative',
+    borderColor: '#E2E8F0',
+    borderWidth: 1,
+    backgroundColor: '#F8FAFC',
+  },
+  slotThumbnail: {
+    width: '100%',
+    height: '100%',
+  },
+  slotDeleteBtn: {
+    position: 'absolute',
+    top: 3,
+    right: 3,
+    backgroundColor: 'rgba(239, 68, 68, 0.95)',
+    borderRadius: 9,
+    width: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 1,
+    elevation: 1,
+  },
+  slotDeleteText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: 'bold',
+  },
+  slotEmptyCard: {
+    width: 68,
+    height: 68,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 4,
+  },
+  slotCameraIcon: {
+    fontSize: 14,
+  },
+  slotLabel: {
+    fontSize: 7.5,
+    fontWeight: '800',
+    marginTop: 4,
+    textAlign: 'center',
+    letterSpacing: 0.2,
+  },
+  gridRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+    marginHorizontal: -4,
+  },
+  gridCol: {
+    flex: 1,
+    marginHorizontal: 4,
+  },
+  dropdownTrigger: {
+    minHeight: 42,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#F8FAFC',
+  },
+  dropdownValueText: {
+    flex: 1,
+    color: '#0F172A',
+    fontSize: 12.5,
+    fontWeight: '600',
+  },
+  placeholderText: {
+    color: '#94A3B8',
+    fontWeight: '400',
+  },
+  chevron: {
+    color: '#64748B',
+    fontSize: 11,
+    fontWeight: '800',
+    marginLeft: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.50)',
+    justifyContent: 'flex-end',
+  },
+});
+
 interface ActiveSurveyFormProps {
   control: any;
   errors: any;
@@ -12,6 +320,15 @@ interface ActiveSurveyFormProps {
   gpsAccuracy: string;
   capturedPhotos: string[];
   onDeletePhoto: (index: number) => void;
+  polePhotos?: string[];
+  onDeletePolePhoto?: (index: number) => void;
+  earthingPhotos?: string[];
+  onDeleteEarthingPhoto?: (index: number) => void;
+  staySetPhotos?: string[];
+  onDeleteStaySetPhoto?: (index: number) => void;
+  poleDbPhotos?: string[];
+  onDeletePoleDbPhoto?: (index: number) => void;
+  onTakePhoto?: (category: 'POLE' | 'EARTHING' | 'STAY_SET' | 'POLE_DB') => void;
   lineSection?: 'HT' | 'LT';
   acquiringGps: boolean;
   onAcquireGps: () => void;
@@ -39,6 +356,15 @@ export default function ActiveSurveyForm({
   gpsAccuracy,
   capturedPhotos = [],
   onDeletePhoto,
+  polePhotos = [],
+  onDeletePolePhoto,
+  earthingPhotos = [],
+  onDeleteEarthingPhoto,
+  staySetPhotos = [],
+  onDeleteStaySetPhoto,
+  poleDbPhotos = [],
+  onDeletePoleDbPhoto,
+  onTakePhoto,
   lineSection,
   acquiringGps,
   onAcquireGps,
@@ -134,6 +460,768 @@ export default function ActiveSurveyForm({
       value: d.domain_code,
     }));
   }, [domains]);
+  const isErectionFlow = workflowType === 'ERECTION';
+
+  const renderPhotoSlots = (
+    category: 'POLE' | 'EARTHING' | 'STAY_SET' | 'POLE_DB',
+    photos: string[],
+    onDelete: ((idx: number) => void) | undefined,
+    requiredCount: number,
+    colorTheme: any
+  ) => {
+    const slots: React.JSX.Element[] = [];
+    photos.forEach((photo, idx) => {
+      slots.push(
+        <View key={`${category}-photo-${idx}`} style={formStyles.slotCard}>
+          <Image source={{ uri: photo }} style={formStyles.slotThumbnail} />
+          <TouchableOpacity
+            style={formStyles.slotDeleteBtn}
+            onPress={() => onDelete && onDelete(idx)}
+            activeOpacity={0.7}
+          >
+            <Text style={formStyles.slotDeleteText}>✕</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    });
+
+    const emptyCount = Math.max(0, requiredCount - photos.length);
+    for (let i = 0; i < emptyCount; i++) {
+      const isMandatorySlot = photos.length + i === 0;
+      slots.push(
+        <TouchableOpacity
+          key={`${category}-empty-${i}`}
+          style={[formStyles.slotEmptyCard, { borderColor: colorTheme.border, backgroundColor: colorTheme.bg }]}
+          onPress={() => onTakePhoto && onTakePhoto(category)}
+          activeOpacity={0.7}
+        >
+          <Text style={[formStyles.slotCameraIcon, { color: colorTheme.text }]}>📸</Text>
+          <Text style={[formStyles.slotLabel, { color: colorTheme.text }]}>
+            {isMandatorySlot ? 'MANDATORY' : 'OPTIONAL'}
+          </Text>
+        </TouchableOpacity>
+      );
+    }
+
+    if (photos.length >= requiredCount) {
+      slots.push(
+        <TouchableOpacity
+          key={`${category}-extra`}
+          style={[formStyles.slotEmptyCard, { borderColor: colorTheme.border, backgroundColor: colorTheme.bg }]}
+          onPress={() => onTakePhoto && onTakePhoto(category)}
+          activeOpacity={0.7}
+        >
+          <Text style={[formStyles.slotCameraIcon, { color: colorTheme.text }]}>➕</Text>
+          <Text style={[formStyles.slotLabel, { color: colorTheme.text }]}>ADD EXTRA</Text>
+        </TouchableOpacity>
+      );
+    }
+
+    return (
+      <View style={formStyles.slotsContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={formStyles.slotsScroll}>
+          {slots}
+        </ScrollView>
+      </View>
+    );
+  };
+
+  if (isErectionFlow) {
+    const poleTypeVal = useWatch({ control, name: 'poleType' });
+    const assetStatusVal = useWatch({ control, name: 'assetStatus' });
+    const isConcrete = String(poleTypeVal) === '1';
+    
+    const requiredPolePhotos = nodeType === 'POLE' 
+      ? (isConcrete ? 4 : 2)
+      : (assetStatusVal === 'NEW' ? (isConcrete ? 4 : 2) : 1);
+
+    return (
+      <View style={formStyles.detailsContainer}>
+        {/* GPS Sticky Info Card */}
+        <View style={formStyles.gpsStickyCard}>
+          <View style={formStyles.gpsCardLeft}>
+            <Text style={formStyles.gpsStickyTitle}>📡 LOCATION TELEMETRY</Text>
+            <View style={formStyles.gpsCoordsRow}>
+              <Text style={formStyles.gpsCoordVal}>LAT: {lat ? lat.toFixed(6) : 'ACQUIRING...'}</Text>
+              <Text style={formStyles.gpsCoordSpacer}>|</Text>
+              <Text style={formStyles.gpsCoordVal}>LNG: {lng ? lng.toFixed(6) : 'ACQUIRING...'}</Text>
+            </View>
+            <Text style={formStyles.gpsStickyAccuracy}>ACCURACY: {gpsAccuracy}</Text>
+          </View>
+          <TouchableOpacity 
+            style={[formStyles.gpsRecalBtn, acquiringGps && { opacity: 0.6 }]} 
+            onPress={onAcquireGps} 
+            disabled={acquiringGps}
+          >
+            <Text style={formStyles.gpsRecalText}>{acquiringGps ? 'SIGNAL...' : 'RE-SYNC GPS'}</Text>
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+          
+          {structureContext && (
+            <View style={[formStyles.contextBadge, nodeType === 'DTR' ? formStyles.contextBadgeDtr : null]}>
+              <Text style={formStyles.contextBadgeText}>{structureContext}</Text>
+            </View>
+          )}
+
+          {/* SECTION 1: PRIMARY DETAILS */}
+          <View style={[formStyles.sectionCard, { borderLeftColor: THEMES.POLE.accent }]}>
+            <View style={formStyles.sectionHeaderContainer}>
+              <Text style={[formStyles.sectionHeaderTitle, { color: THEMES.POLE.text }]}>📡 STRUCTURE SPECIFICATION</Text>
+              <Text style={formStyles.sectionHeaderHelper}>
+                {nodeType === 'POLE' 
+                  ? `Select Pole type. Concrete poles require 4 photos, non-concrete requires 2 photos.`
+                  : `Enter transformer specifications and details.`}
+              </Text>
+            </View>
+
+            {/* Render Section 1 form inputs */}
+            {nodeType === 'DTR' ? (
+              <>
+                <View style={formStyles.formGroup}>
+                  <Controller
+                    control={control}
+                    name="dtrCapacity"
+                    rules={{ required: 'DTR Capacity is required' }}
+                    render={({ field: { onChange, value } }) => (
+                      <Dropdown
+                        label="DTR CAPACITY"
+                        placeholder="Select DTR capacity"
+                        options={transformerOptions}
+                        value={value}
+                        onChange={onChange}
+                      />
+                    )}
+                  />
+                  {errors.dtrCapacity && <Text style={formStyles.errorFeedback}>{errors.dtrCapacity.message}</Text>}
+                </View>
+
+                <View style={formStyles.formGroup}>
+                  <Text style={formStyles.label}>DTR SERIAL NO.</Text>
+                  <Controller
+                    control={control}
+                    name="nameLabel"
+                    rules={{ required: 'DTR identifier is required' }}
+                    render={({ field: { onChange, onBlur, value } }) => (
+                      <TextInput
+                        style={[formStyles.input, errors.nameLabel && formStyles.inputError]}
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        placeholder="Enter DTR Serial"
+                        placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                      />
+                    )}
+                  />
+                  {errors.nameLabel && <Text style={formStyles.errorFeedback}>{errors.nameLabel.message}</Text>}
+                </View>
+
+                {assetStatusVal === 'NEW' && (
+                  <>
+                    <View style={formStyles.formGroup}>
+                      <Controller
+                        control={control}
+                        name="poleType"
+                        rules={{ required: 'Pole Type is required' }}
+                        render={({ field: { onChange, value } }) => (
+                          <Dropdown
+                            label="POLE TYPE"
+                            placeholder="Select Pole Type"
+                            options={poleOptions}
+                            value={value}
+                            onChange={onChange}
+                          />
+                        )}
+                      />
+                      {errors.poleType && <Text style={formStyles.errorFeedback}>{errors.poleType.message}</Text>}
+                    </View>
+
+                    <View style={formStyles.formGroup}>
+                      <Controller
+                        control={control}
+                        name="poleMaster"
+                        rules={{ required: 'Pole Master specification is required' }}
+                        render={({ field: { onChange, value } }) => (
+                          <Dropdown
+                            label="POLE MASTER"
+                            placeholder="Select Pole Master Specification"
+                            options={poleMasterOptions}
+                            value={value}
+                            onChange={onChange}
+                          />
+                        )}
+                      />
+                      {errors.poleMaster && <Text style={formStyles.errorFeedback}>{errors.poleMaster.message}</Text>}
+                    </View>
+
+                    <View style={formStyles.formGroup}>
+                      <Text style={formStyles.label}>POLE QTY</Text>
+                      <Controller
+                        control={control}
+                        name="poleQty"
+                        rules={{ required: 'Pole quantity is required' }}
+                        render={({ field: { onChange, onBlur, value } }) => (
+                          <TextInput
+                            style={[formStyles.input, errors.poleQty && formStyles.inputError]}
+                            keyboardType="numeric"
+                            value={value}
+                            onChangeText={onChange}
+                            onBlur={onBlur}
+                            placeholder="Enter Pole Qty"
+                            placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                          />
+                        )}
+                      />
+                      {errors.poleQty && <Text style={formStyles.errorFeedback}>{errors.poleQty.message}</Text>}
+                    </View>
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                <View style={formStyles.formGroup}>
+                  <Controller
+                    control={control}
+                    name="poleType"
+                    rules={{ required: 'Pole Type specification is required' }}
+                    render={({ field: { onChange, value } }) => (
+                      <Dropdown
+                        label="POLE TYPE"
+                        placeholder="Select Pole Type"
+                        options={poleOptions}
+                        value={value}
+                        onChange={onChange}
+                      />
+                    )}
+                  />
+                  {errors.poleType && <Text style={formStyles.errorFeedback}>{errors.poleType.message}</Text>}
+                </View>
+
+                <View style={formStyles.formGroup}>
+                  <Controller
+                    control={control}
+                    name="poleMaster"
+                    rules={{ required: 'Pole Master specification is required' }}
+                    render={({ field: { onChange, value } }) => (
+                      <Dropdown
+                        label="POLE MASTER"
+                        placeholder="Select Pole Master Specification"
+                        options={poleMasterOptions}
+                        value={value}
+                        onChange={onChange}
+                      />
+                    )}
+                  />
+                  {errors.poleMaster && <Text style={formStyles.errorFeedback}>{errors.poleMaster.message}</Text>}
+                </View>
+
+                <View style={formStyles.formGroup}>
+                  <Text style={formStyles.label}>POLE NO.</Text>
+                  <Controller
+                    control={control}
+                    name="nameLabel"
+                    rules={{ required: 'Pole identifier is required' }}
+                    render={({ field: { onChange, onBlur, value } }) => (
+                      <TextInput
+                        style={[formStyles.input, errors.nameLabel && formStyles.inputError]}
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        placeholder="e.g. P-1"
+                        placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                      />
+                    )}
+                  />
+                  {errors.nameLabel && <Text style={formStyles.errorFeedback}>{errors.nameLabel.message}</Text>}
+                </View>
+              </>
+            )}
+
+            <View style={formStyles.formGroup}>
+              <Controller
+                control={control}
+                name="conductor"
+                rules={{ required: 'Conductor specification is required' }}
+                render={({ field: { onChange, value } }) => (
+                  <Dropdown
+                    label="CONDUC/CABLE"
+                    placeholder="Select Conductor"
+                    options={conductorOptions}
+                    value={value}
+                    onChange={onChange}
+                  />
+                )}
+              />
+              {errors.conductor && <Text style={formStyles.errorFeedback}>{errors.conductor.message}</Text>}
+            </View>
+
+            <View style={formStyles.formGroup}>
+              <Text style={formStyles.label}>STRUCTURE CONDITION</Text>
+              <Controller
+                control={control}
+                name="assetStatus"
+                rules={{ required: 'Select whether this structure is old or new' }}
+                render={({ field: { onChange, value } }) => (
+                  <View style={formStyles.conditionControl}>
+                    {(['OLD', 'NEW'] as const).map(status => {
+                      const selected = value === status;
+                      return (
+                        <TouchableOpacity
+                          key={status}
+                          style={[
+                            formStyles.conditionOption,
+                            selected && (status === 'NEW' ? formStyles.conditionNewSelected : formStyles.conditionOldSelected),
+                          ]}
+                          onPress={() => onChange(status)}
+                          activeOpacity={0.75}
+                        >
+                          <View style={[
+                            formStyles.conditionDot,
+                            { backgroundColor: status === 'NEW' ? '#16A34A' : '#64748B' },
+                          ]} />
+                          <Text style={[
+                            formStyles.conditionText,
+                            selected && (status === 'NEW' ? formStyles.conditionNewText : formStyles.conditionOldText),
+                          ]}>
+                            {status} STRUCTURE
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
+              />
+              {errors.assetStatus && <Text style={formStyles.errorFeedback}>{errors.assetStatus.message}</Text>}
+            </View>
+
+            {/* Photo slot for Section 1 */}
+            <Text style={formStyles.photoSectionLabel}>📸 STRUCTURE COMPLIANCE PHOTOS ({polePhotos.length}/{requiredPolePhotos})</Text>
+            {renderPhotoSlots('POLE', polePhotos, onDeletePolePhoto, requiredPolePhotos, THEMES.POLE)}
+          </View>
+
+          {/* SECTION 2: EARTHING INSTALLATION */}
+          <View style={[formStyles.sectionCard, { borderLeftColor: THEMES.EARTHING.accent }]}>
+            <View style={formStyles.sectionHeaderContainer}>
+              <Text style={[formStyles.sectionHeaderTitle, { color: THEMES.EARTHING.text }]}>⚡ EARTHING INSTALLATION</Text>
+              <Text style={formStyles.sectionHeaderHelper}>Specify earthing. Coil, Pipe or Spike options require 2 compliance photos.</Text>
+            </View>
+
+            <View style={formStyles.formGroup}>
+              <Controller
+                control={control}
+                name="earthingUsed"
+                render={({ field: { onChange, value } }) => (
+                  <Dropdown
+                    label="EARTHING USED"
+                    placeholder="Select Earthing type"
+                    options={earthingOptions}
+                    value={value}
+                    onChange={onChange}
+                  />
+                )}
+              />
+            </View>
+
+            {selectedEarthing ? (
+              <>
+                <View style={formStyles.formGroup}>
+                  <Text style={formStyles.label}>EARTHING QUANTITY</Text>
+                  <Controller
+                    control={control}
+                    name="earthingQuantity"
+                    rules={{ required: 'Earthing quantity is required' }}
+                    render={({ field: { onChange, onBlur, value } }) => (
+                      <TextInput
+                        style={[formStyles.input, errors.earthingQuantity && formStyles.inputError]}
+                        keyboardType="numeric"
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        placeholder="Enter quantity"
+                        placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                      />
+                    )}
+                  />
+                  {errors.earthingQuantity && <Text style={formStyles.errorFeedback}>{errors.earthingQuantity.message}</Text>}
+                </View>
+
+                {/* Earthing Photo Slots */}
+                <Text style={formStyles.photoSectionLabel}>📸 EARTHING COMPLIANCE PHOTOS ({earthingPhotos.length}/2)</Text>
+                {renderPhotoSlots('EARTHING', earthingPhotos, onDeleteEarthingPhoto, 2, THEMES.EARTHING)}
+              </>
+            ) : null}
+          </View>
+
+          {/* SECTION 3: STAY SET SUPPORT */}
+          <View style={[formStyles.sectionCard, { borderLeftColor: THEMES.STAY_SET.accent }]}>
+            <View style={formStyles.sectionHeaderContainer}>
+              <Text style={[formStyles.sectionHeaderTitle, { color: THEMES.STAY_SET.text }]}>⚓ STAY SET SUPPORT</Text>
+              <Text style={formStyles.sectionHeaderHelper}>Specify stay set support. HT or LT Stay set options require 2 compliance photos.</Text>
+            </View>
+
+            <View style={formStyles.formGroup}>
+              <Controller
+                control={control}
+                name="staySetUsed"
+                render={({ field: { onChange, value } }) => (
+                  <Dropdown
+                    label="STAY SET USED"
+                    placeholder="Select Stay Set type"
+                    options={staySetOptions}
+                    value={value}
+                    onChange={onChange}
+                  />
+                )}
+              />
+            </View>
+
+            {selectedStaySet ? (
+              <>
+                <View style={formStyles.formGroup}>
+                  <Text style={formStyles.label}>STAY SET QUANTITY</Text>
+                  <Controller
+                    control={control}
+                    name="staySetQuantity"
+                    rules={{ required: 'Stay Set quantity is required' }}
+                    render={({ field: { onChange, onBlur, value } }) => (
+                      <TextInput
+                        style={[formStyles.input, errors.staySetQuantity && formStyles.inputError]}
+                        keyboardType="numeric"
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        placeholder="Enter quantity"
+                        placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                      />
+                    )}
+                  />
+                  {errors.staySetQuantity && <Text style={formStyles.errorFeedback}>{errors.staySetQuantity.message}</Text>}
+                </View>
+
+                {/* Stay Set Photo Slots */}
+                <Text style={formStyles.photoSectionLabel}>📸 STAY SET COMPLIANCE PHOTOS ({staySetPhotos.length}/2)</Text>
+                {renderPhotoSlots('STAY_SET', staySetPhotos, onDeleteStaySetPhoto, 2, THEMES.STAY_SET)}
+              </>
+            ) : null}
+          </View>
+
+          {/* SECTION 4: POLE DB ATTACHMENT */}
+          {showLtAccessories ? (
+            <View style={[formStyles.sectionCard, { borderLeftColor: THEMES.POLE_DB.accent }]}>
+              <View style={formStyles.sectionHeaderContainer}>
+                <Text style={[formStyles.sectionHeaderTitle, { color: THEMES.POLE_DB.text }]}>📦 DISTRIBUTION BOX (DB)</Text>
+                <Text style={formStyles.sectionHeaderHelper}>Specify DB attachments. Pole DB installations require 1 compliance photo.</Text>
+              </View>
+
+              <View style={formStyles.formGroup}>
+                <Text style={formStyles.label}>POLE DB TYPE</Text>
+                <Controller
+                  control={control}
+                  name="poleDbTypes"
+                  render={({ field: { onChange, value = [] } }) => (
+                    <>
+                      <TouchableOpacity
+                        style={formStyles.dropdownTrigger}
+                        onPress={() => setDbModalOpen(true)}
+                      >
+                        <Text style={[formStyles.dropdownValueText, (!value || value.length === 0) && formStyles.placeholderText]}>
+                          {value && value.length > 0
+                            ? value.map((code: string) => getPoleDbLabel(code)).join(', ')
+                            : 'Select Pole DB Types'}
+                        </Text>
+                        <Text style={formStyles.chevron}>v</Text>
+                      </TouchableOpacity>
+
+                      <Modal visible={dbModalOpen} transparent animationType="fade" onRequestClose={() => setDbModalOpen(false)}>
+                        <Pressable style={formStyles.modalOverlay} onPress={() => setDbModalOpen(false)}>
+                          <Pressable style={styles.modalSheet} onPress={e => e.stopPropagation()}>
+                            <View style={styles.modalHeader}>
+                              <Text style={styles.modalTitle}>POLE DB TYPE</Text>
+                              <TouchableOpacity onPress={() => setDbModalOpen(false)} style={styles.closeBtn}>
+                                <Text style={styles.closeBtnText}>x</Text>
+                              </TouchableOpacity>
+                            </View>
+                            {poleDbOptions.map((opt: any) => {
+                              const isChecked = value.includes(opt.value);
+                              return (
+                                <TouchableOpacity
+                                  key={opt.value}
+                                  style={styles.checkboxRow}
+                                  onPress={() => {
+                                    const nextValue = isChecked
+                                      ? value.filter((v: any) => v !== opt.value)
+                                      : [...value, opt.value];
+                                    onChange(nextValue);
+                                  }}
+                                >
+                                  <View style={[styles.checkboxBox, isChecked && styles.checkboxBoxSelected]}>
+                                    {isChecked && <Text style={styles.checkmark}>✓</Text>}
+                                  </View>
+                                  <Text style={styles.checkboxLabel}>{opt.label}</Text>
+                                </TouchableOpacity>
+                              );
+                            })}
+                            
+                            <TouchableOpacity
+                              style={styles.modalDoneBtn}
+                              onPress={() => setDbModalOpen(false)}
+                            >
+                              <Text style={styles.modalDoneBtnText}>DONE</Text>
+                            </TouchableOpacity>
+                          </Pressable>
+                        </Pressable>
+                      </Modal>
+                    </>
+                  )}
+                />
+              </View>
+
+              <Controller
+                control={control}
+                name="poleDbQuantities"
+                rules={{
+                  validate: (val, formValues) => {
+                    const selectedTypes = formValues.poleDbTypes || [];
+                    for (const type of selectedTypes) {
+                      if (!val?.[type] || !val[type].trim()) {
+                        const labelName = getPoleDbLabel(type);
+                        return `${labelName} quantity is required`;
+                      }
+                    }
+                    return true;
+                  }
+                }}
+                render={({ field: { onChange, value = {} } }) => (
+                  <Controller
+                    control={control}
+                    name="poleDbTypes"
+                    render={({ field: { value: selectedTypes = [] } }) => (
+                      <>
+                        {selectedTypes.map((type: string) => {
+                          const labelName = getPoleDbLabel(type);
+                          return (
+                            <View key={type} style={formStyles.formGroup}>
+                              <Text style={formStyles.label}>{labelName} QUANTITY</Text>
+                              <TextInput
+                                style={[formStyles.input, errors.poleDbQuantities && formStyles.inputError]}
+                                keyboardType="numeric"
+                                value={value[type] || ''}
+                                onChangeText={(text) => {
+                                  onChange({
+                                    ...value,
+                                    [type]: text,
+                                  });
+                                }}
+                                placeholder="Enter quantity"
+                                placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                              />
+                            </View>
+                          );
+                        })}
+                      </>
+                    )}
+                  />
+                )}
+              />
+              {errors.poleDbQuantities && (
+                <Text style={formStyles.errorFeedback}>{errors.poleDbQuantities.message}</Text>
+              )}
+
+              {/* Pole DB Photo Slots */}
+              {poleDbOptions.length > 0 && (
+                <Controller
+                  control={control}
+                  name="poleDbTypes"
+                  render={({ field: { value: selectedTypes = [] } }) => {
+                    if (selectedTypes.length === 0) return <></>;
+                    return (
+                      <>
+                        <Text style={formStyles.photoSectionLabel}>📸 POLE DB COMPLIANCE PHOTOS ({poleDbPhotos.length}/1)</Text>
+                        {renderPhotoSlots('POLE_DB', poleDbPhotos, onDeletePoleDbPhoto, 1, THEMES.POLE_DB)}
+                      </>
+                    );
+                  }}
+                />
+              )}
+            </View>
+          ) : null}
+
+          {/* SECTION 5: ACCESSORIES & SITE DETAILS */}
+          <View style={[formStyles.sectionCard, { borderLeftColor: THEMES.HARNESS.accent }]}>
+            <View style={formStyles.sectionHeaderContainer}>
+              <Text style={[formStyles.sectionHeaderTitle, { color: THEMES.HARNESS.text }]}>🔩 HARNESSING & SITE REMARKS</Text>
+            </View>
+
+            <View style={formStyles.gridRow}>
+              <View style={formStyles.gridCol}>
+                <Text style={formStyles.label}>DEAD END CLAMP QTY</Text>
+                <Controller
+                  control={control}
+                  name="deadEndClampQty"
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <TextInput
+                      style={formStyles.input}
+                      keyboardType="numeric"
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      placeholder="0"
+                      placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                    />
+                  )}
+                />
+              </View>
+              <View style={formStyles.gridCol}>
+                <Text style={formStyles.label}>SUSPENSION CLAMP QTY</Text>
+                <Controller
+                  control={control}
+                  name="suspensionClampQty"
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <TextInput
+                      style={formStyles.input}
+                      keyboardType="numeric"
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      placeholder="0"
+                      placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                    />
+                  )}
+                />
+              </View>
+            </View>
+
+            <View style={formStyles.gridRow}>
+              <View style={formStyles.gridCol}>
+                <Text style={formStyles.label}>POLE CLAMP QTY</Text>
+                <Controller
+                  control={control}
+                  name="poleClampQty"
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <TextInput
+                      style={formStyles.input}
+                      keyboardType="numeric"
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      placeholder="0"
+                      placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                    />
+                  )}
+                />
+              </View>
+              <View style={formStyles.gridCol}>
+                <Text style={formStyles.label}>IPC QTY</Text>
+                <Controller
+                  control={control}
+                  name="ipcQty"
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <TextInput
+                      style={formStyles.input}
+                      keyboardType="numeric"
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      placeholder="0"
+                      placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                    />
+                  )}
+                />
+              </View>
+            </View>
+
+            <View style={formStyles.gridRow}>
+              <View style={formStyles.gridCol}>
+                <Text style={formStyles.label}>NO. OF SERVICE CONN</Text>
+                <Controller
+                  control={control}
+                  name="serviceConnectionQty"
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <TextInput
+                      style={formStyles.input}
+                      keyboardType="numeric"
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      placeholder="0"
+                      placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                    />
+                  )}
+                />
+              </View>
+              <View style={formStyles.gridCol}>
+                <Text style={formStyles.label}>EXTRA CONSUMPTION (M)</Text>
+                <Controller
+                  control={control}
+                  name="extraConsumption"
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <TextInput
+                      style={formStyles.input}
+                      keyboardType="numeric"
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      placeholder="0"
+                      placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                    />
+                  )}
+                />
+              </View>
+            </View>
+
+            <View style={formStyles.formGroup}>
+              <Text style={formStyles.label}>SITE REMARKS</Text>
+              <Controller
+                control={control}
+                name="remarks"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={[formStyles.input, formStyles.remarksTextArea]}
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    placeholder="Weather, terrain features, sag observations..."
+                    placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                    multiline
+                    numberOfLines={3}
+                  />
+                )}
+              />
+            </View>
+          </View>
+
+          {/* TWO PRIMARY ACTIONS */}
+          <View style={styles.primaryActionsRow}>
+            <TouchableOpacity style={styles.addNewBtn} onPress={onSubmitAddNew} activeOpacity={0.8}>
+              <Text style={styles.addNewBtnText}>ADD STRUCTURE</Text>
+              <Text style={styles.btnSubtext}>Saves current & moves to next node</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.finishSurveyBtn} onPress={onSubmitFinish} activeOpacity={0.8}>
+              <Text style={styles.finishSurveyBtnText}>FINISH ERECTION</Text>
+              <Text style={styles.btnSubtext}>Submit line for verification</Text>
+            </TouchableOpacity>
+          </View>
+
+          {canSetDtrNext && onSubmitDtrNext && (
+            <TouchableOpacity style={styles.dtrNextBtn} onPress={onSubmitDtrNext} activeOpacity={0.8}>
+              <View style={styles.dtrNextMark}>
+                <Text style={styles.dtrNextMarkText}>D</Text>
+              </View>
+              <View style={styles.dtrNextCopy}>
+                <Text style={styles.dtrNextTitle}>SAVE & CAPTURE DTR NEXT</Text>
+                <Text style={styles.dtrNextSubtitle}>Ends the HT pole section and starts LT distribution</Text>
+              </View>
+              <Text style={styles.dtrNextArrow}>&gt;</Text>
+            </TouchableOpacity>
+          )}
+
+        </ScrollView>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.detailsContainer}>
       <View style={styles.panel}>
