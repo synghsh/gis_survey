@@ -91,6 +91,96 @@ const formStyles = StyleSheet.create({
     letterSpacing: 1.2,
     textAlign: 'center',
   },
+  editingBanner: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#3B82F6',
+    borderWidth: 1.5,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+  },
+  editingBannerBadge: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#1D4ED8',
+    letterSpacing: 1.2,
+    marginBottom: 3,
+  },
+  editingBannerPole: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 3,
+  },
+  editingBannerHelp: {
+    fontSize: 10.5,
+    color: '#475569',
+    lineHeight: 15,
+  },
+  continuationBanner: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#22C55E',
+    borderWidth: 1.5,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+  },
+  continuationBannerBadge: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#15803D',
+    letterSpacing: 1.2,
+    marginBottom: 3,
+  },
+  continuationBannerParent: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 3,
+  },
+  continuationBannerHelp: {
+    fontSize: 10.5,
+    color: '#166534',
+    lineHeight: 15,
+  },
+  updatePoleBtn: {
+    flex: 1,
+    marginRight: 6,
+    paddingVertical: 12,
+    alignItems: 'center',
+    backgroundColor: '#0284C7',
+    borderRadius: 10,
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  updatePoleBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  continueLineBtn: {
+    flex: 1,
+    marginLeft: 6,
+    paddingVertical: 12,
+    alignItems: 'center',
+    backgroundColor: '#0D9488',
+    borderRadius: 10,
+    shadowColor: '#0D9488',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  continueLineBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
   sectionCard: {
     backgroundColor: '#FFFFFF',
     borderColor: '#E2E8F0',
@@ -345,6 +435,12 @@ interface ActiveSurveyFormProps {
   conductors?: any[];
   poles?: any[];
   domains?: any;
+  isEditingNode?: boolean;
+  editingPoleLabel?: string;
+  continuationParentLabel?: string;
+  spanDistance?: number | null;
+  onUpdatePole?: () => void;
+  onContinueFromPole?: () => void;
 }
 
 export default function ActiveSurveyForm({
@@ -381,6 +477,12 @@ export default function ActiveSurveyForm({
   conductors = [],
   poles = [],
   domains = {},
+  isEditingNode = false,
+  editingPoleLabel,
+  continuationParentLabel,
+  spanDistance,
+  onUpdatePole,
+  onContinueFromPole,
 }: ActiveSurveyFormProps) {
   const [dbModalOpen, setDbModalOpen] = useState(false);
 
@@ -562,6 +664,27 @@ export default function ActiveSurveyForm({
           {structureContext && (
             <View style={[formStyles.contextBadge, nodeType === 'DTR' ? formStyles.contextBadgeDtr : null]}>
               <Text style={formStyles.contextBadgeText}>{structureContext}</Text>
+            </View>
+          )}
+
+          {isEditingNode && (
+            <View style={formStyles.editingBanner}>
+              <Text style={formStyles.editingBannerBadge}>✏️ EDITING POLE STRUCTURE</Text>
+              <Text style={formStyles.editingBannerPole}>{editingPoleLabel || 'Selected Structure'}</Text>
+              <Text style={formStyles.editingBannerHelp}>
+                Modifying saved structure data from drawing. Update below or continue the line branching from this pole.
+              </Text>
+            </View>
+          )}
+
+          {!isEditingNode && continuationParentLabel && (
+            <View style={formStyles.continuationBanner}>
+              <Text style={formStyles.continuationBannerBadge}>🔗 GPS CONNECTING LINE ACTIVE</Text>
+              <Text style={formStyles.continuationBannerParent}>Branching From: {continuationParentLabel}</Text>
+              <Text style={formStyles.continuationBannerHelp}>
+                Line is actively continuing from {continuationParentLabel}
+                {spanDistance != null ? ` • GPS Span Distance: ~${spanDistance.toFixed(1)}m` : ''}
+              </Text>
             </View>
           )}
 
@@ -1191,18 +1314,51 @@ export default function ActiveSurveyForm({
             </View>
           </View>
 
-          {/* TWO PRIMARY ACTIONS */}
-          <View style={styles.primaryActionsRow}>
-            <TouchableOpacity style={styles.addNewBtn} onPress={onSubmitAddNew} activeOpacity={0.8}>
-              <Text style={styles.addNewBtnText}>ADD STRUCTURE</Text>
-              <Text style={styles.btnSubtext}>Saves current & moves to next node</Text>
-            </TouchableOpacity>
+          {/* PRIMARY ACTIONS */}
+          {isEditingNode ? (
+            <>
+              <View style={styles.primaryActionsRow}>
+                <TouchableOpacity 
+                  style={formStyles.updatePoleBtn} 
+                  onPress={onUpdatePole} 
+                  activeOpacity={0.8}
+                >
+                  <Text style={formStyles.updatePoleBtnText}>UPDATE POLE</Text>
+                  <Text style={[styles.btnSubtext, { color: '#E0F2FE' }]}>Save changes to database</Text>
+                </TouchableOpacity>
 
-            <TouchableOpacity style={styles.finishSurveyBtn} onPress={onSubmitFinish} activeOpacity={0.8}>
-              <Text style={styles.finishSurveyBtnText}>FINISH ERECTION</Text>
-              <Text style={styles.btnSubtext}>Submit line for verification</Text>
-            </TouchableOpacity>
-          </View>
+                <TouchableOpacity 
+                  style={formStyles.continueLineBtn} 
+                  onPress={onContinueFromPole} 
+                  activeOpacity={0.8}
+                >
+                  <Text style={formStyles.continueLineBtnText}>CONTINUE LINE ➔</Text>
+                  <Text style={[styles.btnSubtext, { color: '#CCFBF1' }]}>Extend line from this pole</Text>
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity 
+                style={[styles.finishSurveyBtn, { marginLeft: 0, marginTop: 10 }]} 
+                onPress={onSubmitFinish} 
+                activeOpacity={0.8}
+              >
+                <Text style={styles.finishSurveyBtnText}>FINISH ERECTION</Text>
+                <Text style={styles.btnSubtext}>Complete session & verify</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <View style={styles.primaryActionsRow}>
+              <TouchableOpacity style={styles.addNewBtn} onPress={onSubmitAddNew} activeOpacity={0.8}>
+                <Text style={styles.addNewBtnText}>ADD STRUCTURE</Text>
+                <Text style={styles.btnSubtext}>Saves current & moves to next node</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.finishSurveyBtn} onPress={onSubmitFinish} activeOpacity={0.8}>
+                <Text style={styles.finishSurveyBtnText}>FINISH ERECTION</Text>
+                <Text style={styles.btnSubtext}>Submit line for verification</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {canSetDtrNext && onSubmitDtrNext && (
             <TouchableOpacity style={styles.dtrNextBtn} onPress={onSubmitDtrNext} activeOpacity={0.8}>
@@ -1230,6 +1386,27 @@ export default function ActiveSurveyForm({
           <View style={[styles.phaseBadge, nodeType === 'DTR' ? styles.phaseBadgeDtr : null]}>
             <Text style={[styles.phaseBadgeText, nodeType === 'DTR' ? styles.phaseBadgeTextDtr : null]}>
               {structureContext}
+            </Text>
+          </View>
+        )}
+
+        {isEditingNode && (
+          <View style={formStyles.editingBanner}>
+            <Text style={formStyles.editingBannerBadge}>✏️ EDITING POLE STRUCTURE</Text>
+            <Text style={formStyles.editingBannerPole}>{editingPoleLabel || 'Selected Structure'}</Text>
+            <Text style={formStyles.editingBannerHelp}>
+              Modifying saved structure data. Update below or continue the line branching from this pole.
+            </Text>
+          </View>
+        )}
+
+        {!isEditingNode && continuationParentLabel && (
+          <View style={formStyles.continuationBanner}>
+            <Text style={formStyles.continuationBannerBadge}>🔗 GPS CONNECTING LINE ACTIVE</Text>
+            <Text style={formStyles.continuationBannerParent}>Branching From: {continuationParentLabel}</Text>
+            <Text style={formStyles.continuationBannerHelp}>
+              Line is actively continuing from {continuationParentLabel}
+              {spanDistance != null ? ` • GPS Span Distance: ~${spanDistance.toFixed(1)}m` : ''}
             </Text>
           </View>
         )}
@@ -1893,18 +2070,51 @@ export default function ActiveSurveyForm({
         </TouchableOpacity>
       </View>
 
-      {/* TWO PRIMARY ACTIONS */}
-      <View style={styles.primaryActionsRow}>
-        <TouchableOpacity style={styles.addNewBtn} onPress={onSubmitAddNew} activeOpacity={0.8}>
-          <Text style={styles.addNewBtnText}>ADD NEW STRUCTURE</Text>
-          <Text style={styles.btnSubtext}>Saves current & re-opens camera</Text>
-        </TouchableOpacity>
+      {/* PRIMARY ACTIONS */}
+      {isEditingNode ? (
+        <>
+          <View style={styles.primaryActionsRow}>
+            <TouchableOpacity 
+              style={formStyles.updatePoleBtn} 
+              onPress={onUpdatePole} 
+              activeOpacity={0.8}
+            >
+              <Text style={formStyles.updatePoleBtnText}>UPDATE POLE</Text>
+              <Text style={[styles.btnSubtext, { color: '#E0F2FE' }]}>Save changes to database</Text>
+            </TouchableOpacity>
 
-        <TouchableOpacity style={styles.finishSurveyBtn} onPress={onSubmitFinish} activeOpacity={0.8}>
-          <Text style={styles.finishSurveyBtnText}>FINISH {workflowType}</Text>
-          <Text style={styles.btnSubtext}>Submit line for verification</Text>
-        </TouchableOpacity>
-      </View>
+            <TouchableOpacity 
+              style={formStyles.continueLineBtn} 
+              onPress={onContinueFromPole} 
+              activeOpacity={0.8}
+            >
+              <Text style={formStyles.continueLineBtnText}>CONTINUE LINE ➔</Text>
+              <Text style={[styles.btnSubtext, { color: '#CCFBF1' }]}>Extend line from this pole</Text>
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity 
+            style={[styles.finishSurveyBtn, { marginLeft: 0, marginTop: 10 }]} 
+            onPress={onSubmitFinish} 
+            activeOpacity={0.8}
+          >
+            <Text style={styles.finishSurveyBtnText}>FINISH {workflowType}</Text>
+            <Text style={styles.btnSubtext}>Submit line for verification</Text>
+          </TouchableOpacity>
+        </>
+      ) : (
+        <View style={styles.primaryActionsRow}>
+          <TouchableOpacity style={styles.addNewBtn} onPress={onSubmitAddNew} activeOpacity={0.8}>
+            <Text style={styles.addNewBtnText}>ADD NEW STRUCTURE</Text>
+            <Text style={styles.btnSubtext}>Saves current & re-opens camera</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.finishSurveyBtn} onPress={onSubmitFinish} activeOpacity={0.8}>
+            <Text style={styles.finishSurveyBtnText}>FINISH {workflowType}</Text>
+            <Text style={styles.btnSubtext}>Submit line for verification</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       {canSetDtrNext && onSubmitDtrNext && (
         <TouchableOpacity style={styles.dtrNextBtn} onPress={onSubmitDtrNext} activeOpacity={0.8}>
           <View style={styles.dtrNextMark}>

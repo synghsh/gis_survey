@@ -28,3 +28,8 @@ export const SaveErectionNodeService = (data: any) => {
   return serviceClient.post(url, data);
 };
 
+export const GetErectionPoleDetailsService = (data: { drawing_no?: string; erection_id?: number; pole_no?: string; node_id?: number }) => {
+  const url = `${apiPrefix}erection/pole/details/`;
+  return serviceClient.post(url, data);
+};
+

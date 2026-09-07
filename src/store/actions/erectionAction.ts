@@ -2,7 +2,8 @@ import {
   StartErectionService, 
   ListErectionService, 
   UpdateErectionService, 
-  CompleteErectionService 
+  CompleteErectionService,
+  GetErectionPoleDetailsService
 } from '../../services/erectionService';
 import { startSurvey, setErectionList, updateErectionInList } from '../index';
 
@@ -102,6 +103,29 @@ export const completeErectionAction = (
       })
       .catch((error: any) => {
         console.warn('Axios erection complete error:', error);
+        const errorMsg = error.response?.data?.Message || error.message || 'Network error or server unreachable';
+        errorCallback?.(errorMsg);
+      });
+  };
+};
+
+export const fetchErectionPoleDetailsAction = (
+  payload: { drawing_no?: string; erection_id?: number; pole_no?: string; node_id?: number },
+  successCallback?: (data: any) => void,
+  errorCallback?: (error: any) => void
+) => {
+  return () => {
+    return GetErectionPoleDetailsService(payload)
+      .then((response: any) => {
+        if (response.status === 200 && response.data && !response.data.Exception) {
+          successCallback?.(response.data.Data);
+        } else {
+          const errorMsg = response.data?.Message || 'Failed to fetch pole details';
+          errorCallback?.(errorMsg);
+        }
+      })
+      .catch((error: any) => {
+        console.warn('Axios fetch pole details error:', error);
         const errorMsg = error.response?.data?.Message || error.message || 'Network error or server unreachable';
         errorCallback?.(errorMsg);
       });

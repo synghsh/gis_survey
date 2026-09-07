@@ -11,11 +11,11 @@ import {
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useCameraPermissions } from 'expo-camera';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { useForm } from 'react-hook-form';
 import * as Location from 'expo-location';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
-import { RootState, addNode, finishSurvey, cancelSurvey, SurveyNode } from '../../store';
+import { RootState, addNode, updateActiveNode, updateSurveyNode, finishSurvey, cancelSurvey, setContinuationParent, SurveyNode } from '../../store';
 import { useToast } from '../../components/ToastProvider';
 import { useConfirmation } from '../../components/ConfirmationProvider';
 import { getLineTypeLabel } from '../../utils/surveyLabels';
@@ -55,6 +55,7 @@ export default function ActiveSurveyScreen() {
   const toast = useToast();
   const { confirm } = useConfirmation();
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
   const dispatch = useDispatch();
   const activeLine = useSelector((state: RootState) => state.survey.activeLine);
   const userId = useSelector((state: RootState) => state.auth.userId);
@@ -62,6 +63,19 @@ export default function ActiveSurveyScreen() {
   const transformers = useSelector((state: RootState) => state.master.transformers) || [];
   const conductors = useSelector((state: RootState) => state.master.conductors) || [];
   const poles = useSelector((state: RootState) => state.master.poles) || [];
+
+  const isEditingParam = Boolean(route.params?.isEditingNode);
+  const targetPoleLabelParam = route.params?.targetPoleLabel;
+  const serverNodeDataParam = route.params?.serverNodeData;
+  const isContinuationParam = Boolean(route.params?.isContinuation);
+
+  const [isEditingNode, setIsEditingNode] = useState(isEditingParam);
+  const [editingPoleLabel, setEditingPoleLabel] = useState<string | undefined>(targetPoleLabelParam);
+  const [editingNodeSeq, setEditingNodeSeq] = useState<number | null>(null);
+  const [continuationParentLabel, setContinuationParentLabel] = useState<string | null>(
+    activeLine?.continuationParentLabel || (isContinuationParam ? targetPoleLabelParam : null)
+  );
+  const [continuationParentCoords, setContinuationParentCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   const { control, handleSubmit, setValue, formState: { errors } } = useForm<SurveyNodeFormInputs>({
     defaultValues: {
@@ -113,7 +127,9 @@ export default function ActiveSurveyScreen() {
   const lastInitializedSeqRef = useRef<number | null>(null);
   const lastInitializedDtrIsNextRef = useRef<boolean | null>(null);
 
-  const currentSeq = activeLine ? activeLine.nodes.length : 0;
+  const currentSeq = isEditingNode && editingNodeSeq != null
+    ? editingNodeSeq
+    : (activeLine ? activeLine.nodes.length : 0);
   const isHtTapSurvey = activeLine?.lineType === 'LT_440V' && activeLine.ltStartingPoint === 'HT_TAPPING_POINT';
   const isExistingLtStart = activeLine?.lineType === 'LT_440V' && activeLine.ltStartingPoint === 'EXISTING_LT_LINE';
   const hasDtr = activeLine?.nodes.some(node => node.nodeType === 'DTR') ?? false;
@@ -136,8 +152,128 @@ export default function ActiveSurveyScreen() {
         ? (isExistingLt ? 'LT' : (hasDtr ? 'LT' : 'HT'))
         : undefined);
 
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371e3; // metres
+    const phi1 = (lat1 * Math.PI) / 180;
+    const phi2 = (lat2 * Math.PI) / 180;
+    const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
+    const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
+
+    const a =
+      Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+      Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c;
+  };
+
+  const spanDistance = (continuationParentCoords && lat && lng)
+    ? calculateDistance(continuationParentCoords.lat, continuationParentCoords.lng, lat, lng)
+    : null;
+
+  // Pre-fill node data when entering in edit mode or continuation mode
+  useEffect(() => {
+    if (!activeLine) return;
+
+    if (isEditingParam || activeLine.editingNodeId) {
+      setIsEditingNode(true);
+      const targetLabel = targetPoleLabelParam || activeLine.continuationParentLabel;
+      setEditingPoleLabel(targetLabel);
+
+      const localNode = activeLine.nodes.find(n => 
+        (targetLabel && n.nameLabel === targetLabel) || 
+        (activeLine.editingNodeId && String(n.id) === String(activeLine.editingNodeId))
+      );
+
+      const targetData: any = serverNodeDataParam || localNode;
+      if (targetData) {
+        const seq = localNode ? localNode.sequenceNumber : (serverNodeDataParam?.sequence_number ?? 0);
+        setEditingNodeSeq(seq);
+
+        setValue('nameLabel', targetData.name_label || targetData.nameLabel || targetLabel || '');
+        setValue('cableSize', targetData.cable_size || targetData.attributes?.cableSize || '');
+        setValue('remarks', targetData.remarks || targetData.attributes?.remarks || '');
+        setValue('assetStatus', targetData.asset_status || targetData.assetStatus || targetData.attributes?.assetStatus || '');
+        setValue('dtrCapacity', targetData.transformer ? String(targetData.transformer) : (targetData.dtr_capacity ? String(targetData.dtr_capacity) : (targetData.attributes?.dtrCapacity ? String(targetData.attributes.dtrCapacity) : '')));
+        setValue('conductor', targetData.conductor_type ? String(targetData.conductor_type) : (targetData.attributes?.conductor ? String(targetData.attributes.conductor) : ''));
+        setValue('poleType', targetData.pole_type ? String(targetData.pole_type) : (targetData.attributes?.poleType ? String(targetData.attributes.poleType) : ''));
+        setValue('poleMaster', targetData.pole_master ? String(targetData.pole_master) : (targetData.attributes?.poleMaster ? String(targetData.attributes.poleMaster) : ''));
+        setValue('poleQty', targetData.pole_quantity ? String(targetData.pole_quantity) : (targetData.attributes?.poleQty ? String(targetData.attributes.poleQty) : ''));
+        setValue('earthingUsed', targetData.earthing ? String(targetData.earthing) : (targetData.attributes?.earthingUsed ? String(targetData.attributes.earthingUsed) : ''));
+        setValue('earthingQuantity', targetData.earthing_quantity ? String(targetData.earthing_quantity) : (targetData.attributes?.earthingQuantity ? String(targetData.attributes.earthingQuantity) : ''));
+        setValue('staySetUsed', targetData.stay_set ? String(targetData.stay_set) : (targetData.attributes?.staySetUsed ? String(targetData.attributes.staySetUsed) : ''));
+        setValue('staySetQuantity', targetData.stay_set_quantity ? String(targetData.stay_set_quantity) : (targetData.attributes?.staySetQuantity ? String(targetData.attributes.staySetQuantity) : ''));
+
+        let dbs: string[] = [];
+        if (serverNodeDataParam?.pole_db) {
+          dbs = Array.isArray(serverNodeDataParam.pole_db) ? serverNodeDataParam.pole_db : [serverNodeDataParam.pole_db];
+        } else if (localNode?.attributes?.poleDbTypes) {
+          try {
+            dbs = typeof localNode.attributes.poleDbTypes === 'string' ? JSON.parse(localNode.attributes.poleDbTypes) : localNode.attributes.poleDbTypes;
+          } catch (e) {
+            dbs = [];
+          }
+        }
+        setValue('poleDbTypes', dbs);
+
+        let dbQtys: Record<string, string> = {};
+        if (serverNodeDataParam?.pole_db_quantity) {
+          dbQtys = typeof serverNodeDataParam.pole_db_quantity === 'object' ? serverNodeDataParam.pole_db_quantity : {};
+        } else if (localNode?.attributes?.poleDbQuantities) {
+          try {
+            dbQtys = typeof localNode.attributes.poleDbQuantities === 'string' ? JSON.parse(localNode.attributes.poleDbQuantities) : localNode.attributes.poleDbQuantities;
+          } catch (e) {
+            dbQtys = {};
+          }
+        }
+        setValue('poleDbQuantities', dbQtys);
+
+        setValue('deadEndClampQty', targetData.dead_end_clamp_quantity != null ? String(targetData.dead_end_clamp_quantity) : (targetData.attributes?.deadEndClampQty ? String(targetData.attributes.deadEndClampQty) : ''));
+        setValue('suspensionClampQty', targetData.suspension_clamp_quantity != null ? String(targetData.suspension_clamp_quantity) : (targetData.attributes?.suspensionClampQty ? String(targetData.attributes.suspensionClampQty) : ''));
+        setValue('poleClampQty', targetData.pole_clamp_quantity != null ? String(targetData.pole_clamp_quantity) : (targetData.attributes?.poleClampQty ? String(targetData.attributes.poleClampQty) : ''));
+        setValue('ipcQty', targetData.ipc_quantity != null ? String(targetData.ipc_quantity) : (targetData.attributes?.ipcQty ? String(targetData.attributes.ipcQty) : ''));
+        setValue('serviceConnectionQty', targetData.service_connection_quantity != null ? String(targetData.service_connection_quantity) : (targetData.attributes?.serviceConnectionQty ? String(targetData.attributes.serviceConnectionQty) : ''));
+        setValue('extraConsumption', targetData.extra_consumption != null ? String(targetData.extra_consumption) : (targetData.attributes?.extraConsumption ? String(targetData.attributes.extraConsumption) : ''));
+
+        const nLat = serverNodeDataParam?.latitude ?? localNode?.latitude;
+        const nLng = serverNodeDataParam?.longitude ?? localNode?.longitude;
+        if (nLat && nLng) {
+          setLat(Number(nLat));
+          setLng(Number(nLng));
+          setGpsAccuracy('DATABASE LOCKED');
+        }
+
+        if (serverNodeDataParam) {
+          if (serverNodeDataParam.pole_photo_urls?.length) setPolePhotos(serverNodeDataParam.pole_photo_urls);
+          else if (serverNodeDataParam.photo_url) setPolePhotos([serverNodeDataParam.photo_url]);
+          if (serverNodeDataParam.earthing_photo_urls?.length) setEarthingPhotos(serverNodeDataParam.earthing_photo_urls);
+          if (serverNodeDataParam.stay_set_photo_urls?.length) setStaySetPhotos(serverNodeDataParam.stay_set_photo_urls);
+          if (serverNodeDataParam.pole_db_photo_urls?.length) setPoleDbPhotos(serverNodeDataParam.pole_db_photo_urls);
+        } else if (localNode) {
+          if (localNode.attributes?.polePhotos?.length) setPolePhotos(localNode.attributes.polePhotos);
+          else if (localNode.imageUri) setPolePhotos([localNode.imageUri]);
+          if (localNode.attributes?.earthingPhotos?.length) setEarthingPhotos(localNode.attributes.earthingPhotos);
+          if (localNode.attributes?.staySetPhotos?.length) setStaySetPhotos(localNode.attributes.staySetPhotos);
+          if (localNode.attributes?.poleDbPhotos?.length) setPoleDbPhotos(localNode.attributes.poleDbPhotos);
+          if (localNode.imageUris?.length) setCapturedPhotos(localNode.imageUris);
+        }
+
+        setNodeType(targetData.node_type || targetData.nodeType || 'POLE');
+        setSurveyStep('DETAILS');
+      }
+    } else if (isContinuationParam || activeLine.continuationParentLabel) {
+      const parentLabel = targetPoleLabelParam || activeLine.continuationParentLabel;
+      setContinuationParentLabel(parentLabel);
+      const parentNode = activeLine.nodes.find(n => n.nameLabel === parentLabel);
+      if (parentNode) {
+        setContinuationParentCoords({ lat: parentNode.latitude, lng: parentNode.longitude });
+      }
+    }
+  }, [activeLine?.id, isEditingParam, targetPoleLabelParam, serverNodeDataParam, isContinuationParam]);
+
   useEffect(() => {
     if (activeLine) {
+      if (isEditingNode) return;
       if (lastInitializedSeqRef.current === currentSeq && lastInitializedDtrIsNextRef.current === dtrIsNext) {
         return;
       }
@@ -404,7 +540,7 @@ export default function ActiveSurveyScreen() {
 
     const nodeLabel = data.nameLabel.trim() || (nodeType === 'DTR' ? 'DTR-0' : `P-${currentSeq}`);
     const parentNode = currentSeq > 0 ? activeLine.nodes[currentSeq - 1] : null;
-    const parentLabel = activeLine.continuationParentLabel || parentNode?.nameLabel;
+    const parentLabel = continuationParentLabel || activeLine.continuationParentLabel || parentNode?.nameLabel;
 
     const newNode: SurveyNode = {
       id: `node-${Date.now()}`,
@@ -488,6 +624,8 @@ export default function ActiveSurveyScreen() {
 
     const allPhotos = [...polePhotos, ...earthingPhotos, ...staySetPhotos, ...poleDbPhotos];
     const nodeLabel = data.nameLabel.trim() || (nodeType === 'DTR' ? 'DTR-0' : `P-${currentSeq}`);
+    const parentNode = currentSeq > 0 ? activeLine.nodes[currentSeq - 1] : null;
+    const parentLabel = continuationParentLabel || activeLine.continuationParentLabel || parentNode?.nameLabel;
 
     const mappedAttrs: any = {
       height: '9m',
@@ -549,6 +687,7 @@ export default function ActiveSurveyScreen() {
       name_label: nodeLabel,
       latitude: lat,
       longitude: lng,
+      parent_label: parentLabel,
       attributes: mappedAttrs,
       images: allPhotos,
       captured_at: new Date().toISOString(),
@@ -578,6 +717,11 @@ export default function ActiveSurveyScreen() {
     const proceed = () => {
       if (commitCurrentNode(data)) {
         if (nodeType === 'DTR') setDtrIsNext(false);
+        const addedPoleLabel = data.nameLabel.trim() || (nodeType === 'DTR' ? 'DTR-0' : `P-${currentSeq}`);
+        setContinuationParentLabel(addedPoleLabel);
+        if (lat && lng) {
+          setContinuationParentCoords({ lat, lng });
+        }
         resetPhotos();
         setLat(null);
         setLng(null);
@@ -591,6 +735,171 @@ export default function ActiveSurveyScreen() {
     } else {
       proceed();
     }
+  };
+
+  const handleUpdateCurrentPole = (data: SurveyNodeFormInputs) => {
+    if (!activeLine) return;
+    if (!lat || !lng) {
+      toast.warning('Waiting for valid GPS location coordinates.', { title: 'GPS required' });
+      return;
+    }
+
+    const allPhotos = isErectionFlow
+      ? [...polePhotos, ...earthingPhotos, ...staySetPhotos, ...poleDbPhotos]
+      : capturedPhotos;
+
+    const nodeLabel = data.nameLabel.trim() || editingPoleLabel || `P-${currentSeq}`;
+
+    const mappedAttrs: any = {
+      height: '9m',
+      tilt: '0°',
+      sag: '0.4m',
+    };
+
+    if (isErectionFlow) {
+      mappedAttrs.lineSection = lineSectionVal;
+      if (nodeType === 'DTR') {
+        mappedAttrs.poleType = data.assetStatus === 'NEW' 
+          ? (data.poleType ? Number(data.poleType) : null) 
+          : 'Transformer platform';
+        mappedAttrs.poleMaster = data.poleMaster ? Number(data.poleMaster) : null;
+        mappedAttrs.dtrCapacity = data.dtrCapacity ? Number(data.dtrCapacity) : null;
+        if (data.assetStatus === 'NEW') {
+          mappedAttrs.poleQty = data.poleQty ? Number(data.poleQty) : null;
+        }
+      } else {
+        mappedAttrs.poleType = data.poleType ? Number(data.poleType) : null;
+        mappedAttrs.poleMaster = data.poleMaster ? Number(data.poleMaster) : null;
+      }
+
+      const selectedConductor = conductors.find(c => String(c.id) === String(data.conductor));
+      mappedAttrs.cableSize = selectedConductor ? selectedConductor.conductor_name : (data.conductor || '100 sqmm ACSR');
+      mappedAttrs.conductor = data.conductor ? Number(data.conductor) : null;
+      
+      mappedAttrs.earthingUsed = data.earthingUsed || null;
+      mappedAttrs.earthingQuantity = data.earthingQuantity ? Number(data.earthingQuantity) : null;
+      mappedAttrs.staySetUsed = data.staySetUsed || null;
+      mappedAttrs.staySetQuantity = data.staySetQuantity ? Number(data.staySetQuantity) : null;
+
+      mappedAttrs.poleDbTypes = data.poleDbTypes.length > 0 ? JSON.stringify(data.poleDbTypes) : null;
+      const qtyMap: Record<string, string> = {};
+      data.poleDbTypes.forEach((type) => {
+        qtyMap[type] = data.poleDbQuantities[type] || '0';
+      });
+      mappedAttrs.poleDbQuantities = data.poleDbTypes.length > 0 ? JSON.stringify(qtyMap) : null;
+
+      mappedAttrs.deadEndClampQty = data.deadEndClampQty ? Number(data.deadEndClampQty) : null;
+      mappedAttrs.suspensionClampQty = data.suspensionClampQty ? Number(data.suspensionClampQty) : null;
+      mappedAttrs.poleClampQty = data.poleClampQty ? Number(data.poleClampQty) : null;
+      mappedAttrs.ipcQty = data.ipcQty ? Number(data.ipcQty) : null;
+      mappedAttrs.serviceConnectionQty = data.serviceConnectionQty ? Number(data.serviceConnectionQty) : null;
+      mappedAttrs.extraConsumption = data.extraConsumption ? Number(data.extraConsumption) : null;
+      mappedAttrs.assetStatus = data.assetStatus || null;
+      mappedAttrs.polePhotos = polePhotos;
+      mappedAttrs.earthingPhotos = earthingPhotos;
+      mappedAttrs.staySetPhotos = staySetPhotos;
+      mappedAttrs.poleDbPhotos = poleDbPhotos;
+    } else {
+      mappedAttrs.poleType = 'Concrete';
+      mappedAttrs.cableSize = data.cableSize.trim() || '100 sqmm ACSR';
+    }
+
+    const targetLocalNode = activeLine.nodes.find(n => n.nameLabel === (editingPoleLabel || nodeLabel) || (editingNodeSeq != null && n.sequenceNumber === editingNodeSeq));
+
+    const updatedNode: SurveyNode = {
+      id: targetLocalNode?.id || `node-${Date.now()}`,
+      nodeType,
+      assetStatus: data.assetStatus || undefined,
+      lineSection: lineSectionVal,
+      sequenceNumber: editingNodeSeq != null ? editingNodeSeq : currentSeq,
+      nameLabel: nodeLabel,
+      latitude: lat,
+      longitude: lng,
+      attributes: mappedAttrs,
+      imageUri: isErectionFlow ? (polePhotos[0] || allPhotos[0] || null) : (capturedPhotos[0] || null),
+      imageUris: allPhotos,
+      capturedAt: targetLocalNode?.capturedAt || new Date().toISOString(),
+      parentLabel: targetLocalNode?.parentLabel,
+    };
+
+    dispatch(updateActiveNode(updatedNode));
+    dispatch(updateSurveyNode({
+      lineId: activeLine.id,
+      nodeId: updatedNode.id,
+      nameLabel: updatedNode.nameLabel,
+      latitude: updatedNode.latitude,
+      longitude: updatedNode.longitude,
+      parentLabel: updatedNode.parentLabel,
+      attributes: mappedAttrs,
+    }));
+
+    if (isErectionFlow) {
+      const payload = {
+        erection_execution_id: activeLine.id.replace('erect-', ''),
+        node_type: nodeType,
+        sequence_number: editingNodeSeq != null ? editingNodeSeq : currentSeq,
+        name_label: nodeLabel,
+        latitude: lat,
+        longitude: lng,
+        parent_label: updatedNode.parentLabel,
+        attributes: mappedAttrs,
+        images: allPhotos,
+        captured_at: new Date().toISOString(),
+        user_id: userId || null,
+      };
+
+      setSavingNode(true);
+      SaveErectionNodeService(payload)
+        .then((res: any) => {
+          setSavingNode(false);
+          if (res.status === 200 && res.data && !res.data.Exception) {
+            toast.success(`Pole ${nodeLabel} updated successfully in database.`);
+          } else {
+            toast.error(res.data?.Message || 'Failed to update pole on server');
+          }
+        })
+        .catch((err: any) => {
+          setSavingNode(false);
+          console.warn('Update pole server error:', err);
+          toast.warning('Updated locally, but server update failed.');
+        });
+    } else {
+      toast.success(`Structure ${nodeLabel} updated.`);
+    }
+  };
+
+  const handleContinueFromCurrentPole = (data: SurveyNodeFormInputs) => {
+    if (!activeLine) return;
+    const parentLabel = data.nameLabel.trim() || editingPoleLabel || `P-${currentSeq}`;
+    
+    // Save any pending edits to this pole first
+    handleUpdateCurrentPole(data);
+
+    confirm({
+      title: 'Continue Line from this Pole?',
+      message: `New structures will connect from ${parentLabel} via GPS connecting line.`,
+      confirmLabel: 'START CONTINUATION',
+      onConfirm: () => {
+        setIsEditingNode(false);
+        setEditingPoleLabel(undefined);
+        setEditingNodeSeq(null);
+        setContinuationParentLabel(parentLabel);
+        if (lat && lng) {
+          setContinuationParentCoords({ lat, lng });
+        }
+        dispatch(setContinuationParent(parentLabel));
+
+        // Reset form for next node
+        resetPhotos();
+        setLat(null);
+        setLng(null);
+        setGpsAccuracy('WAITING...');
+        lastInitializedSeqRef.current = null;
+        acquireGps();
+
+        toast.info(`Continuation active from ${parentLabel}. Move to next pole location.`);
+      }
+    });
   };
 
   const handleAddDtrNext = (data: SurveyNodeFormInputs) => {
@@ -669,11 +978,25 @@ export default function ActiveSurveyScreen() {
       {/* 2. HEADER */}
       <View style={styles.headerWrapper}>
         <View style={styles.surveyHeader}>
-          <View>
-            <Text style={styles.subtitleText}>
-              ACTIVE {isErectionFlow ? 'ERECTION' : 'SURVEY'} // NODE #{currentSeq}
-            </Text>
-            <Text style={styles.titleText}>{activeLine.contractorName}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {(isEditingNode || activeLine?.editingExisting) && (
+              <TouchableOpacity 
+                style={{ marginRight: 10, paddingVertical: 5, paddingHorizontal: 10, backgroundColor: '#F1F5F9', borderRadius: 6, borderWidth: 1, borderColor: '#CBD5E1' }} 
+                onPress={() => navigation.goBack()}
+              >
+                <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#475569' }}>&lt; BACK</Text>
+              </TouchableOpacity>
+            )}
+            <View>
+              <Text style={styles.subtitleText}>
+                {isEditingNode 
+                  ? `EDITING // ${editingPoleLabel || `NODE #${currentSeq}`}`
+                  : (continuationParentLabel 
+                      ? `FROM ${continuationParentLabel} // NODE #${currentSeq}`
+                      : `ACTIVE ${isErectionFlow ? 'ERECTION' : 'SURVEY'} // NODE #${currentSeq}`)}
+              </Text>
+              <Text style={styles.titleText}>{activeLine.contractorName || activeLine.drawingNo || 'Active Line'}</Text>
+            </View>
           </View>
           <View style={[styles.typeBadge, { borderColor: getLineAccent() }]}>
             <Text style={[styles.typeBadgeText, { color: getLineAccent() }]}>
@@ -758,6 +1081,12 @@ export default function ActiveSurveyScreen() {
               conductors={conductors}
               poles={poles}
               domains={domains}
+              isEditingNode={isEditingNode}
+              editingPoleLabel={editingPoleLabel}
+              continuationParentLabel={continuationParentLabel || undefined}
+              spanDistance={spanDistance}
+              onUpdatePole={handleSubmit(handleUpdateCurrentPole)}
+              onContinueFromPole={handleSubmit(handleContinueFromCurrentPole)}
             />
           </ScrollView>
         )}

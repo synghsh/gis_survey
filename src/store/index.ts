@@ -34,6 +34,7 @@ export interface SurveyLine {
   completedAt?: string;
   editingExisting?: boolean;
   continuationParentLabel?: string;
+  editingNodeId?: string;
   lineType: string | number;
   ltStartingPoint?: string | number;
   contractorName: string;
@@ -267,6 +268,48 @@ const surveySlice = createSlice({
         editingExisting: true,
         continuationParentLabel: action.payload.parentLabel,
       };
+    },
+    resumeSurveyWithPole: (state, action: PayloadAction<{ lineId: string; poleLabel: string; editingNode?: Partial<SurveyNode> }>) => {
+      const line = state.historyList.find(item => item.id === action.payload.lineId);
+      if (!line || line.isCompleted) return;
+      const initialNodes = line.nodes.map(node => ({ ...node, attributes: { ...node.attributes } }));
+      state.activeLine = {
+        ...line,
+        status: 'PENDING',
+        nodes: initialNodes,
+        editingExisting: true,
+        continuationParentLabel: action.payload.poleLabel,
+        editingNodeId: action.payload.editingNode?.id ? String(action.payload.editingNode.id) : undefined,
+      };
+      if (action.payload.editingNode) {
+        const targetId = String(action.payload.editingNode.id);
+        const idx = state.activeLine.nodes.findIndex(n => String(n.id) === targetId || n.nameLabel === action.payload.poleLabel);
+        if (idx !== -1) {
+          state.activeLine.nodes[idx] = {
+            ...state.activeLine.nodes[idx],
+            ...action.payload.editingNode,
+            attributes: {
+              ...state.activeLine.nodes[idx].attributes,
+              ...(action.payload.editingNode.attributes || {}),
+            },
+          } as SurveyNode;
+        }
+      }
+    },
+    updateActiveNode: (state, action: PayloadAction<SurveyNode>) => {
+      if (state.activeLine) {
+        const idx = state.activeLine.nodes.findIndex(n => String(n.id) === String(action.payload.id) || n.nameLabel === action.payload.nameLabel);
+        if (idx !== -1) {
+          state.activeLine.nodes[idx] = action.payload;
+        }
+        delete state.activeLine.editingNodeId;
+      }
+    },
+    setContinuationParent: (state, action: PayloadAction<string>) => {
+      if (state.activeLine) {
+        state.activeLine.continuationParentLabel = action.payload;
+        delete state.activeLine.editingNodeId;
+      }
     },
     cancelSurvey: (state) => {
       state.activeLine = null;
@@ -505,7 +548,25 @@ export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;
 
 export const { login, logout, updateProfileImage, updateToken, hydrateAuth } = authSlice.actions;
-export const { startSurvey, resumeSurvey, addNode, cancelSurvey, finishSurvey, completeSurveyLine, clearQueueItem, clearAllCompleted, updateSurveyLineMetadata, updateSurveyNode, hydrateStore, setErectionList, updateErectionInList, injectHistoryLine } = surveySlice.actions;
+export const { 
+  startSurvey, 
+  resumeSurvey, 
+  resumeSurveyWithPole,
+  updateActiveNode,
+  setContinuationParent,
+  addNode, 
+  cancelSurvey, 
+  finishSurvey, 
+  completeSurveyLine, 
+  clearQueueItem, 
+  clearAllCompleted, 
+  updateSurveyLineMetadata, 
+  updateSurveyNode, 
+  hydrateStore, 
+  setErectionList, 
+  updateErectionInList, 
+  injectHistoryLine 
+} = surveySlice.actions;
 export const { setStates, setDistricts, setBlocks, setVillages, setContractors, setDomains, setTransformers, setConductors, setPoles, clearMasterData } = masterSlice.actions;
 
 

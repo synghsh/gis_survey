@@ -8,11 +8,13 @@ import {
   Dimensions,
   Modal,
   Pressable,
+  ActivityIndicator,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
-import { RootState, resumeSurvey, updateSurveyLineMetadata, updateSurveyNode } from '../../store';
+import { RootState, resumeSurvey, resumeSurveyWithPole, updateSurveyLineMetadata, updateSurveyNode } from '../../store';
+import { fetchErectionPoleDetailsAction } from '../../store/actions/erectionAction';
 import { useToast } from '../../components/ToastProvider';
 import { useConfirmation } from '../../components/ConfirmationProvider';
 import { getLineTypeLabel } from '../../utils/surveyLabels';
@@ -48,15 +50,90 @@ export default function SurveyDetailsScreen() {
   const [selectedSpanNodeId, setSelectedSpanNodeId] = useState<string | null>(null);
 
   const [confirmEditModalVisible, setConfirmEditModalVisible] = useState(false);
+  const [selectedEditPole, setSelectedEditPole] = useState<string>('');
+  const [loadingPoleDetails, setLoadingPoleDetails] = useState<boolean>(false);
 
-  const handleResumeSurveyEdit = () => {
+  const handleOpenEditModal = () => {
+    if (!survey || survey.nodes.length === 0) {
+      toast.info('No recorded poles found in this survey run.');
+      return;
+    }
+    const currentSelected = selectedNodeId ? survey.nodes.find(n => n.id === selectedNodeId) : null;
+    const initialPole = currentSelected?.nameLabel || survey.nodes[0]?.nameLabel || '';
+    setSelectedEditPole(initialPole);
+    setConfirmEditModalVisible(true);
+  };
+
+  const handleEditChosenPole = (poleLabel: string) => {
     if (!survey) return;
-    const sortedNodes = [...survey.nodes].sort((a, b) => a.sequenceNumber - b.sequenceNumber);
-    const lastNodeLabel = sortedNodes.length > 0 ? sortedNodes[sortedNodes.length - 1].nameLabel : '';
+    const targetNode = survey.nodes.find(n => n.nameLabel === poleLabel);
+    const rawId = survey.id.replace('erect-', '').replace('srv-', '');
+    const erectionDbId = !isNaN(Number(rawId)) ? Number(rawId) : undefined;
+    const drawingNum = survey.drawingNo || undefined;
 
-    dispatch(resumeSurvey({ lineId: survey.id, parentLabel: lastNodeLabel }));
+    if (drawingNum || erectionDbId) {
+      setLoadingPoleDetails(true);
+      dispatch(fetchErectionPoleDetailsAction(
+        {
+          drawing_no: drawingNum,
+          erection_id: erectionDbId,
+          pole_no: poleLabel,
+          node_id: targetNode?.id && !isNaN(Number(targetNode.id)) ? Number(targetNode.id) : undefined,
+        },
+        (data) => {
+          setLoadingPoleDetails(false);
+          setConfirmEditModalVisible(false);
+          const serverNode = data?.selected_node;
+          dispatch(resumeSurveyWithPole({
+            lineId: survey.id,
+            poleLabel,
+            editingNode: serverNode || targetNode,
+          }));
+          navigation.navigate('ActiveSurvey', {
+            isEditingNode: true,
+            targetPoleLabel: poleLabel,
+            serverNodeData: serverNode || null,
+          });
+        },
+        () => {
+          setLoadingPoleDetails(false);
+          setConfirmEditModalVisible(false);
+          dispatch(resumeSurveyWithPole({
+            lineId: survey.id,
+            poleLabel,
+            editingNode: targetNode,
+          }));
+          navigation.navigate('ActiveSurvey', {
+            isEditingNode: true,
+            targetPoleLabel: poleLabel,
+          });
+        }
+      ) as any);
+    } else {
+      setConfirmEditModalVisible(false);
+      dispatch(resumeSurveyWithPole({
+        lineId: survey.id,
+        poleLabel,
+        editingNode: targetNode,
+      }));
+      navigation.navigate('ActiveSurvey', {
+        isEditingNode: true,
+        targetPoleLabel: poleLabel,
+      });
+    }
+  };
+
+  const handleContinueFromChosenPole = (poleLabel: string) => {
+    if (!survey) return;
     setConfirmEditModalVisible(false);
-    navigation.navigate('ActiveSurvey');
+    dispatch(resumeSurveyWithPole({
+      lineId: survey.id,
+      poleLabel,
+    }));
+    navigation.navigate('ActiveSurvey', {
+      isContinuation: true,
+      targetPoleLabel: poleLabel,
+    });
   };
 
   // Metadata Legend state
@@ -287,7 +364,7 @@ export default function SurveyDetailsScreen() {
               {!isLocked && (
                 <TouchableOpacity
                   style={styles.editIconButton}
-                  onPress={() => setConfirmEditModalVisible(true)}
+                  onPress={handleOpenEditModal}
                   activeOpacity={0.7}
                 >
                   <Text style={styles.editIconText}>✏️</Text>
@@ -400,36 +477,122 @@ export default function SurveyDetailsScreen() {
         />}
       </ScrollView>
 
-      {/* Beautiful Edit Confirmation Modal */}
+      {/* Beautiful Edit Structure / Continuation Modal */}
       <Modal
         visible={confirmEditModalVisible}
         transparent
         animationType="fade"
-        onRequestClose={() => setConfirmEditModalVisible(false)}
+        onRequestClose={() => {
+          if (!loadingPoleDetails) setConfirmEditModalVisible(false);
+        }}
       >
-        <Pressable style={styles.modalOverlayCenter} onPress={() => setConfirmEditModalVisible(false)}>
+        <Pressable 
+          style={styles.modalOverlayCenter} 
+          onPress={() => {
+            if (!loadingPoleDetails) setConfirmEditModalVisible(false);
+          }}
+        >
           <Pressable style={styles.confirmCard} onPress={e => e.stopPropagation()}>
             <View style={styles.confirmHeader}>
               <Text style={styles.confirmIcon}>✏️</Text>
-              <Text style={styles.confirmTitle}>RESUME MAPPING</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.confirmTitle}>EDIT STRUCTURE / CONTINUATION</Text>
+                {survey.drawingNo ? (
+                  <Text style={styles.dwgBadgeText}>DWG NO: {survey.drawingNo}</Text>
+                ) : null}
+              </View>
             </View>
+
             <Text style={styles.confirmBodyText}>
-              Would you like to resume mapping and editing this line? You will be able to capture new structures, update attributes, and edit existing routes.
+              Select a pole to load its saved details from the database against this drawing, or continue line branching from it:
             </Text>
-            <View style={styles.confirmActionsRow}>
-              <TouchableOpacity
-                style={styles.confirmCancelBtn}
-                onPress={() => setConfirmEditModalVisible(false)}
-              >
-                <Text style={styles.confirmCancelText}>CANCEL</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.confirmResumeBtn}
-                onPress={handleResumeSurveyEdit}
-              >
-                <Text style={styles.confirmResumeText}>RESUME</Text>
-              </TouchableOpacity>
-            </View>
+
+            {/* Pole Selection List */}
+            <Text style={styles.polePickerLabel}>CHOOSE POLE / STRUCTURE:</Text>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false} 
+              style={styles.poleChipsScroll}
+              contentContainerStyle={styles.poleChipsContent}
+            >
+              {survey.nodes.map((node) => {
+                const isSelected = selectedEditPole === node.nameLabel;
+                const isDtr = node.nodeType === 'DTR';
+                return (
+                  <TouchableOpacity
+                    key={node.id}
+                    style={[
+                      styles.poleChip,
+                      isSelected && styles.poleChipSelected,
+                      isDtr && styles.poleChipDtr,
+                      isDtr && isSelected && styles.poleChipDtrSelected,
+                    ]}
+                    onPress={() => setSelectedEditPole(node.nameLabel)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[
+                      styles.poleChipText,
+                      isSelected && styles.poleChipTextSelected,
+                      isDtr && styles.poleChipTextDtr,
+                    ]}>
+                      {node.nameLabel}
+                    </Text>
+                    <Text style={[
+                      styles.poleChipSeq,
+                      isSelected && styles.poleChipSeqSelected,
+                    ]}>
+                      #{node.sequenceNumber}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            {loadingPoleDetails ? (
+              <View style={styles.loadingPoleBox}>
+                <ActivityIndicator size="small" color="#0284C7" />
+                <Text style={styles.loadingPoleText}>
+                  Fetching {selectedEditPole} details from DB...
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.modalActionButtonsCol}>
+                <TouchableOpacity
+                  style={[styles.primaryActionBtn, !selectedEditPole && styles.actionBtnDisabled]}
+                  disabled={!selectedEditPole || loadingPoleDetails}
+                  onPress={() => handleEditChosenPole(selectedEditPole)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.primaryActionBtnText}>
+                    EDIT POLE DETAILS ({selectedEditPole || 'SELECT'})
+                  </Text>
+                  <Text style={styles.actionBtnSubtext}>
+                    Loads and fills all saved database details for updating
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.secondaryActionBtn, !selectedEditPole && styles.actionBtnDisabled]}
+                  disabled={!selectedEditPole || loadingPoleDetails}
+                  onPress={() => handleContinueFromChosenPole(selectedEditPole)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.secondaryActionBtnText}>
+                    CONTINUE LINE FROM {selectedEditPole || 'THIS POLE'}
+                  </Text>
+                  <Text style={styles.secondaryBtnSubtext}>
+                    Add new pole structures with GPS connecting line
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.cancelLinkBtn}
+                  onPress={() => setConfirmEditModalVisible(false)}
+                >
+                  <Text style={styles.cancelLinkText}>CANCEL</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </Pressable>
         </Pressable>
       </Modal>
@@ -773,6 +936,138 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 10,
     fontWeight: 'bold',
+    letterSpacing: 0.5,
+  },
+  dwgBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#0284C7',
+    marginTop: 2,
+    letterSpacing: 0.5,
+  },
+  polePickerLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#475569',
+    letterSpacing: 0.8,
+    marginBottom: 8,
+  },
+  poleChipsScroll: {
+    maxHeight: 56,
+    marginBottom: 16,
+  },
+  poleChipsContent: {
+    gap: 8,
+    paddingVertical: 2,
+  },
+  poleChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1.2,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 64,
+  },
+  poleChipSelected: {
+    borderColor: '#0284C7',
+    backgroundColor: 'rgba(2, 132, 199, 0.08)',
+  },
+  poleChipDtr: {
+    borderColor: '#DDD6FE',
+    backgroundColor: '#F5F3FF',
+  },
+  poleChipDtrSelected: {
+    borderColor: '#7C3AED',
+    backgroundColor: 'rgba(124, 58, 237, 0.1)',
+  },
+  poleChipText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  poleChipTextSelected: {
+    color: '#0284C7',
+  },
+  poleChipTextDtr: {
+    color: '#7C3AED',
+  },
+  poleChipSeq: {
+    fontSize: 8,
+    fontWeight: '600',
+    color: '#94A3B8',
+    marginTop: 1,
+  },
+  poleChipSeqSelected: {
+    color: '#0284C7',
+  },
+  loadingPoleBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 18,
+    gap: 10,
+  },
+  loadingPoleText: {
+    fontSize: 11,
+    color: '#0284C7',
+    fontWeight: '700',
+  },
+  modalActionButtonsCol: {
+    gap: 10,
+  },
+  primaryActionBtn: {
+    backgroundColor: '#0284C7',
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+  },
+  primaryActionBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11.5,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  actionBtnSubtext: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 8.5,
+    marginTop: 2,
+  },
+  secondaryActionBtn: {
+    backgroundColor: 'rgba(5, 150, 105, 0.08)',
+    borderColor: '#059669',
+    borderWidth: 1.2,
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+  },
+  secondaryActionBtnText: {
+    color: '#059669',
+    fontSize: 11.5,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  secondaryBtnSubtext: {
+    color: '#047857',
+    fontSize: 8.5,
+    marginTop: 2,
+  },
+  actionBtnDisabled: {
+    opacity: 0.45,
+  },
+  cancelLinkBtn: {
+    alignItems: 'center',
+    paddingVertical: 6,
+    marginTop: 4,
+  },
+  cancelLinkText: {
+    color: '#64748B',
+    fontSize: 10,
+    fontWeight: '700',
     letterSpacing: 0.5,
   },
 });
