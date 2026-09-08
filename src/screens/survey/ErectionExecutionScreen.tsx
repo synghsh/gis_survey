@@ -296,6 +296,8 @@ export default function ErectionExecutionScreen() {
     if (item.nodes && item.nodes.length > 0) {
       const surveyLine: SurveyLine = {
         id: surveyId,
+        workflowType: 'ERECTION',
+        drawingNo: item.drawing_no,
         lineType: item.type_of_work,
         ltStartingPoint: item.lt_starting_point,
         contractorName: item.contractor_name,

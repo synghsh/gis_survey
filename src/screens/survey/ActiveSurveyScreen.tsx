@@ -103,8 +103,13 @@ export default function ActiveSurveyScreen() {
     }
   });
 
-  const isErectionFlow = activeLine?.workflowType === 'ERECTION';
-  const [surveyStep, setSurveyStep] = useState<'CAPTURE' | 'DETAILS'>(isErectionFlow ? 'DETAILS' : 'CAPTURE');
+  const isErectionFlow = Boolean(
+    route.params?.workflowType === 'ERECTION' ||
+    activeLine?.workflowType === 'ERECTION' ||
+    activeLine?.id?.startsWith('erect-') ||
+    (activeLine?.drawingNo && !activeLine?.id?.startsWith('srv-'))
+  );
+  const [surveyStep, setSurveyStep] = useState<'CAPTURE' | 'DETAILS'>((isErectionFlow || isEditingParam) ? 'DETAILS' : 'CAPTURE');
   const [cameraModalVisible, setCameraModalVisible] = useState(false);
   const [nodeType, setNodeType] = useState<'DTR' | 'POLE'>('POLE');
   const [dtrIsNext, setDtrIsNext] = useState(false);
@@ -187,75 +192,149 @@ export default function ActiveSurveyScreen() {
 
       const targetData: any = serverNodeDataParam || localNode;
       if (targetData) {
-        const seq = localNode ? localNode.sequenceNumber : (serverNodeDataParam?.sequence_number ?? 0);
+        const seq = localNode ? localNode.sequenceNumber : (serverNodeDataParam?.sequence_number ?? serverNodeDataParam?.sequenceNumber ?? 0);
         setEditingNodeSeq(seq);
 
-        setValue('nameLabel', targetData.name_label || targetData.nameLabel || targetLabel || '');
-        setValue('cableSize', targetData.cable_size || targetData.attributes?.cableSize || '');
-        setValue('remarks', targetData.remarks || targetData.attributes?.remarks || '');
-        setValue('assetStatus', targetData.asset_status || targetData.assetStatus || targetData.attributes?.assetStatus || '');
-        setValue('dtrCapacity', targetData.transformer ? String(targetData.transformer) : (targetData.dtr_capacity ? String(targetData.dtr_capacity) : (targetData.attributes?.dtrCapacity ? String(targetData.attributes.dtrCapacity) : '')));
-        setValue('conductor', targetData.conductor_type ? String(targetData.conductor_type) : (targetData.attributes?.conductor ? String(targetData.attributes.conductor) : ''));
-        setValue('poleType', targetData.pole_type ? String(targetData.pole_type) : (targetData.attributes?.poleType ? String(targetData.attributes.poleType) : ''));
-        setValue('poleMaster', targetData.pole_master ? String(targetData.pole_master) : (targetData.attributes?.poleMaster ? String(targetData.attributes.poleMaster) : ''));
-        setValue('poleQty', targetData.pole_quantity ? String(targetData.pole_quantity) : (targetData.attributes?.poleQty ? String(targetData.attributes.poleQty) : ''));
-        setValue('earthingUsed', targetData.earthing ? String(targetData.earthing) : (targetData.attributes?.earthingUsed ? String(targetData.attributes.earthingUsed) : ''));
-        setValue('earthingQuantity', targetData.earthing_quantity ? String(targetData.earthing_quantity) : (targetData.attributes?.earthingQuantity ? String(targetData.attributes.earthingQuantity) : ''));
-        setValue('staySetUsed', targetData.stay_set ? String(targetData.stay_set) : (targetData.attributes?.staySetUsed ? String(targetData.attributes.staySetUsed) : ''));
-        setValue('staySetQuantity', targetData.stay_set_quantity ? String(targetData.stay_set_quantity) : (targetData.attributes?.staySetQuantity ? String(targetData.attributes.staySetQuantity) : ''));
+        const nameVal = targetData.nameLabel || targetData.name_label || targetLabel || '';
+        setValue('nameLabel', nameVal);
+
+        const cableVal = targetData.cableSize || targetData.cable_size || targetData.attributes?.cableSize || '';
+        setValue('cableSize', cableVal);
+
+        const remarksVal = targetData.remarks || targetData.attributes?.remarks || '';
+        setValue('remarks', remarksVal);
+
+        const assetStatusVal = targetData.assetStatus || targetData.asset_status || targetData.structureCondition || targetData.structure_condition || targetData.attributes?.assetStatus || '';
+        setValue('assetStatus', (assetStatusVal === 'NEW' || assetStatusVal === 'OLD') ? assetStatusVal : '');
+
+        const dtrCapVal = targetData.dtrCapacity ?? targetData.dtr_capacity ?? targetData.transformer ?? targetData.attributes?.dtrCapacity;
+        setValue('dtrCapacity', dtrCapVal != null && dtrCapVal !== '' ? String(dtrCapVal) : '');
+
+        const conductorVal = targetData.conductor ?? targetData.conductor_type ?? targetData.attributes?.conductor;
+        setValue('conductor', conductorVal != null && conductorVal !== '' ? String(conductorVal) : '');
+
+        const poleTypeVal = targetData.poleType ?? targetData.pole_type ?? targetData.attributes?.poleType;
+        setValue('poleType', poleTypeVal != null && poleTypeVal !== '' ? String(poleTypeVal) : '');
+
+        const poleMasterVal = targetData.poleMaster ?? targetData.pole_master ?? targetData.attributes?.poleMaster;
+        setValue('poleMaster', poleMasterVal != null && poleMasterVal !== '' ? String(poleMasterVal) : '');
+
+        const poleQtyVal = targetData.poleQty ?? targetData.pole_quantity ?? targetData.attributes?.poleQty;
+        setValue('poleQty', poleQtyVal != null && poleQtyVal !== '' ? String(poleQtyVal) : '1');
+
+        const earthingVal = targetData.earthingUsed ?? targetData.earthing ?? targetData.attributes?.earthingUsed;
+        setValue('earthingUsed', earthingVal != null && earthingVal !== '' ? String(earthingVal) : '');
+
+        const earthingQtyVal = targetData.earthingQuantity ?? targetData.earthing_quantity ?? targetData.attributes?.earthingQuantity;
+        setValue('earthingQuantity', earthingQtyVal != null && earthingQtyVal !== '' ? String(earthingQtyVal) : '');
+
+        const staySetVal = targetData.staySetUsed ?? targetData.stay_set ?? targetData.attributes?.staySetUsed;
+        setValue('staySetUsed', staySetVal != null && staySetVal !== '' ? String(staySetVal) : '');
+
+        const staySetQtyVal = targetData.staySetQuantity ?? targetData.stay_set_quantity ?? targetData.attributes?.staySetQuantity;
+        setValue('staySetQuantity', staySetQtyVal != null && staySetQtyVal !== '' ? String(staySetQtyVal) : '');
 
         let dbs: string[] = [];
-        if (serverNodeDataParam?.pole_db) {
-          dbs = Array.isArray(serverNodeDataParam.pole_db) ? serverNodeDataParam.pole_db : [serverNodeDataParam.pole_db];
-        } else if (localNode?.attributes?.poleDbTypes) {
-          try {
-            dbs = typeof localNode.attributes.poleDbTypes === 'string' ? JSON.parse(localNode.attributes.poleDbTypes) : localNode.attributes.poleDbTypes;
-          } catch (e) {
-            dbs = [];
+        const rawDbs = targetData.poleDbTypes || targetData.pole_db || targetData.attributes?.poleDbTypes;
+        if (rawDbs) {
+          if (Array.isArray(rawDbs)) {
+            dbs = rawDbs;
+          } else if (typeof rawDbs === 'string') {
+            try {
+              dbs = JSON.parse(rawDbs);
+            } catch {
+              dbs = [rawDbs];
+            }
           }
         }
-        setValue('poleDbTypes', dbs);
+        setValue('poleDbTypes', Array.isArray(dbs) ? dbs : []);
 
         let dbQtys: Record<string, string> = {};
-        if (serverNodeDataParam?.pole_db_quantity) {
-          dbQtys = typeof serverNodeDataParam.pole_db_quantity === 'object' ? serverNodeDataParam.pole_db_quantity : {};
-        } else if (localNode?.attributes?.poleDbQuantities) {
-          try {
-            dbQtys = typeof localNode.attributes.poleDbQuantities === 'string' ? JSON.parse(localNode.attributes.poleDbQuantities) : localNode.attributes.poleDbQuantities;
-          } catch (e) {
-            dbQtys = {};
+        const rawDbQtys = targetData.poleDbQuantities || targetData.pole_db_quantity || targetData.attributes?.poleDbQuantities;
+        if (rawDbQtys) {
+          if (typeof rawDbQtys === 'object' && !Array.isArray(rawDbQtys)) {
+            dbQtys = rawDbQtys;
+          } else if (typeof rawDbQtys === 'string') {
+            try {
+              dbQtys = JSON.parse(rawDbQtys);
+            } catch {
+              dbQtys = {};
+            }
           }
         }
         setValue('poleDbQuantities', dbQtys);
 
-        setValue('deadEndClampQty', targetData.dead_end_clamp_quantity != null ? String(targetData.dead_end_clamp_quantity) : (targetData.attributes?.deadEndClampQty ? String(targetData.attributes.deadEndClampQty) : ''));
-        setValue('suspensionClampQty', targetData.suspension_clamp_quantity != null ? String(targetData.suspension_clamp_quantity) : (targetData.attributes?.suspensionClampQty ? String(targetData.attributes.suspensionClampQty) : ''));
-        setValue('poleClampQty', targetData.pole_clamp_quantity != null ? String(targetData.pole_clamp_quantity) : (targetData.attributes?.poleClampQty ? String(targetData.attributes.poleClampQty) : ''));
-        setValue('ipcQty', targetData.ipc_quantity != null ? String(targetData.ipc_quantity) : (targetData.attributes?.ipcQty ? String(targetData.attributes.ipcQty) : ''));
-        setValue('serviceConnectionQty', targetData.service_connection_quantity != null ? String(targetData.service_connection_quantity) : (targetData.attributes?.serviceConnectionQty ? String(targetData.attributes.serviceConnectionQty) : ''));
-        setValue('extraConsumption', targetData.extra_consumption != null ? String(targetData.extra_consumption) : (targetData.attributes?.extraConsumption ? String(targetData.attributes.extraConsumption) : ''));
+        const deadEndVal = targetData.deadEndClampQty ?? targetData.dead_end_clamp_qty ?? targetData.dead_end_clamp_quantity ?? targetData.attributes?.deadEndClampQty;
+        setValue('deadEndClampQty', deadEndVal != null && deadEndVal !== '' ? String(deadEndVal) : '');
 
-        const nLat = serverNodeDataParam?.latitude ?? localNode?.latitude;
-        const nLng = serverNodeDataParam?.longitude ?? localNode?.longitude;
+        const suspensionVal = targetData.suspensionClampQty ?? targetData.suspension_clamp_qty ?? targetData.suspension_clamp_quantity ?? targetData.attributes?.suspensionClampQty;
+        setValue('suspensionClampQty', suspensionVal != null && suspensionVal !== '' ? String(suspensionVal) : '');
+
+        const poleClampVal = targetData.poleClampQty ?? targetData.pole_clamp_qty ?? targetData.pole_clamp_quantity ?? targetData.attributes?.poleClampQty;
+        setValue('poleClampQty', poleClampVal != null && poleClampVal !== '' ? String(poleClampVal) : '');
+
+        const ipcVal = targetData.ipcQty ?? targetData.ipc_qty ?? targetData.ipc_quantity ?? targetData.attributes?.ipcQty;
+        setValue('ipcQty', ipcVal != null && ipcVal !== '' ? String(ipcVal) : '');
+
+        const serviceConnVal = targetData.serviceConnectionQty ?? targetData.service_connection_qty ?? targetData.service_connection_quantity ?? targetData.attributes?.serviceConnectionQty;
+        setValue('serviceConnectionQty', serviceConnVal != null && serviceConnVal !== '' ? String(serviceConnVal) : '');
+
+        const extraConsVal = targetData.extraConsumption ?? targetData.extra_consumption ?? targetData.attributes?.extraConsumption;
+        setValue('extraConsumption', extraConsVal != null && extraConsVal !== '' ? String(extraConsVal) : '');
+
+        const nLat = targetData.latitude ?? localNode?.latitude;
+        const nLng = targetData.longitude ?? localNode?.longitude;
         if (nLat && nLng) {
           setLat(Number(nLat));
           setLng(Number(nLng));
           setGpsAccuracy('DATABASE LOCKED');
         }
 
-        if (serverNodeDataParam) {
-          if (serverNodeDataParam.pole_photo_urls?.length) setPolePhotos(serverNodeDataParam.pole_photo_urls);
-          else if (serverNodeDataParam.photo_url) setPolePhotos([serverNodeDataParam.photo_url]);
-          if (serverNodeDataParam.earthing_photo_urls?.length) setEarthingPhotos(serverNodeDataParam.earthing_photo_urls);
-          if (serverNodeDataParam.stay_set_photo_urls?.length) setStaySetPhotos(serverNodeDataParam.stay_set_photo_urls);
-          if (serverNodeDataParam.pole_db_photo_urls?.length) setPoleDbPhotos(serverNodeDataParam.pole_db_photo_urls);
-        } else if (localNode) {
-          if (localNode.attributes?.polePhotos?.length) setPolePhotos(localNode.attributes.polePhotos);
-          else if (localNode.imageUri) setPolePhotos([localNode.imageUri]);
-          if (localNode.attributes?.earthingPhotos?.length) setEarthingPhotos(localNode.attributes.earthingPhotos);
-          if (localNode.attributes?.staySetPhotos?.length) setStaySetPhotos(localNode.attributes.staySetPhotos);
-          if (localNode.attributes?.poleDbPhotos?.length) setPoleDbPhotos(localNode.attributes.poleDbPhotos);
-          if (localNode.imageUris?.length) setCapturedPhotos(localNode.imageUris);
+        const parsePhotoArray = (val: any): string[] => {
+          if (!val) return [];
+          if (Array.isArray(val)) return val.filter(Boolean).map(String);
+          if (typeof val === 'string') {
+            try {
+              const parsed = JSON.parse(val);
+              if (Array.isArray(parsed)) return parsed.filter(Boolean).map(String);
+            } catch {
+              return [val];
+            }
+          }
+          return [];
+        };
+
+        const poleImgs = parsePhotoArray(
+          targetData.polePhotos || targetData.attributes?.polePhotos || targetData.pole_photo_urls ||
+          (targetData.imageUri ? [targetData.imageUri] : (targetData.photo_url ? [targetData.photo_url] : []))
+        );
+        if (poleImgs.length) setPolePhotos(poleImgs);
+
+        const earthingImgs = parsePhotoArray(
+          targetData.earthingPhotos || targetData.attributes?.earthingPhotos || targetData.earthing_photo_urls
+        );
+        if (earthingImgs.length) setEarthingPhotos(earthingImgs);
+
+        const staySetImgs = parsePhotoArray(
+          targetData.staySetPhotos || targetData.attributes?.staySetPhotos || targetData.stay_set_photo_urls
+        );
+        if (staySetImgs.length) setStaySetPhotos(staySetImgs);
+
+        const poleDbImgs = parsePhotoArray(
+          targetData.poleDbPhotos || targetData.attributes?.poleDbPhotos || targetData.pole_db_photo_urls
+        );
+        if (poleDbImgs.length) setPoleDbPhotos(poleDbImgs);
+
+        const allImgs = parsePhotoArray(
+          targetData.imageUris || targetData.image_uris || targetData.images || targetData.image_path
+        );
+        if (allImgs.length) {
+          setCapturedPhotos(allImgs);
+          if (!poleImgs.length) {
+            setPolePhotos(allImgs);
+          }
+        } else if (poleImgs.length) {
+          setCapturedPhotos(poleImgs);
         }
 
         setNodeType(targetData.node_type || targetData.nodeType || 'POLE');
@@ -455,9 +534,8 @@ export default function ActiveSurveyScreen() {
         if (photo && photo.uri) {
           if (isErectionFlow) {
             saveCategorizedPhoto(photo.uri);
-          } else {
-            setCapturedPhotos(prev => [...prev, photo.uri]);
           }
+          setCapturedPhotos(prev => [...prev, photo.uri]);
           setCameraModalVisible(false);
           setSurveyStep('DETAILS');
         }
@@ -466,9 +544,8 @@ export default function ActiveSurveyScreen() {
         const mockUri = 'https://images.unsplash.com/photo-1548676924-48e71ceac151?w=400';
         if (isErectionFlow) {
           saveCategorizedPhoto(mockUri);
-        } else {
-          setCapturedPhotos(prev => [...prev, mockUri]);
         }
+        setCapturedPhotos(prev => [...prev, mockUri]);
         setCameraModalVisible(false);
         setSurveyStep('DETAILS');
       }
@@ -478,9 +555,8 @@ export default function ActiveSurveyScreen() {
       const mockUri = 'https://images.unsplash.com/photo-1548676924-48e71ceac151?w=400';
       if (isErectionFlow) {
         saveCategorizedPhoto(mockUri);
-      } else {
-        setCapturedPhotos(prev => [...prev, mockUri]);
       }
+      setCapturedPhotos(prev => [...prev, mockUri]);
       setCameraModalVisible(false);
       setSurveyStep('DETAILS');
     }
@@ -680,8 +756,12 @@ export default function ActiveSurveyScreen() {
       mappedAttrs.cableSize = data.cableSize.trim() || '100 sqmm ACSR';
     }
 
-    const payload = {
-      erection_execution_id: activeLine.id.replace('erect-', ''),
+    const rawErectionId = activeLine.id.replace('erect-', '');
+    const validErectionId = !isNaN(Number(rawErectionId)) ? Number(rawErectionId) : null;
+
+    const payload: any = {
+      erection_execution_id: validErectionId || rawErectionId,
+      drawing_no: activeLine.drawingNo || undefined,
       node_type: nodeType,
       sequence_number: currentSeq,
       name_label: nodeLabel,
@@ -770,6 +850,7 @@ export default function ActiveSurveyScreen() {
       } else {
         mappedAttrs.poleType = data.poleType ? Number(data.poleType) : null;
         mappedAttrs.poleMaster = data.poleMaster ? Number(data.poleMaster) : null;
+        mappedAttrs.poleQty = data.poleQty ? Number(data.poleQty) : 1;
       }
 
       const selectedConductor = conductors.find(c => String(c.id) === String(data.conductor));
@@ -834,8 +915,15 @@ export default function ActiveSurveyScreen() {
     }));
 
     if (isErectionFlow) {
-      const payload = {
-        erection_execution_id: activeLine.id.replace('erect-', ''),
+      const rawErectionId = activeLine.id.replace('erect-', '');
+      const validErectionId = !isNaN(Number(rawErectionId)) ? Number(rawErectionId) : null;
+      const targetNodeDbId = serverNodeDataParam?.id || (!isNaN(Number(targetLocalNode?.id)) ? Number(targetLocalNode?.id) : null);
+
+      const payload: any = {
+        erection_execution_id: validErectionId || rawErectionId,
+        drawing_no: activeLine.drawingNo || undefined,
+        node_id: targetNodeDbId || undefined,
+        id: targetNodeDbId || undefined,
         node_type: nodeType,
         sequence_number: editingNodeSeq != null ? editingNodeSeq : currentSeq,
         name_label: nodeLabel,
@@ -846,6 +934,26 @@ export default function ActiveSurveyScreen() {
         images: allPhotos,
         captured_at: new Date().toISOString(),
         user_id: userId || null,
+        dtr_capacity: mappedAttrs.dtrCapacity,
+        dtr_serial_no: nodeType === 'DTR' ? data.nameLabel : null,
+        conductor: mappedAttrs.conductor,
+        pole_type: mappedAttrs.poleType,
+        pole_master: mappedAttrs.poleMaster,
+        pole_qty: mappedAttrs.poleQty,
+        structure_condition: data.assetStatus || null,
+        earthing_used: mappedAttrs.earthingUsed,
+        earthing_quantity: mappedAttrs.earthingQuantity,
+        stay_set_used: mappedAttrs.staySetUsed,
+        stay_set_quantity: mappedAttrs.staySetQuantity,
+        pole_db_type_codes: data.poleDbTypes,
+        pole_db_quantities: mappedAttrs.poleDbQuantities ? JSON.parse(mappedAttrs.poleDbQuantities) : {},
+        dead_end_clamp_qty: mappedAttrs.deadEndClampQty,
+        suspension_clamp_qty: mappedAttrs.suspensionClampQty,
+        pole_clamp_qty: mappedAttrs.poleClampQty,
+        ipc_qty: mappedAttrs.ipcQty,
+        service_connection_qty: mappedAttrs.serviceConnectionQty,
+        extra_consumption: mappedAttrs.extraConsumption,
+        remarks: data.remarks || '',
       };
 
       setSavingNode(true);
@@ -1105,6 +1213,8 @@ export default function ActiveSurveyScreen() {
             currentSeq={currentSeq}
             onTakePhoto={takePhoto}
             onAbandon={() => setCameraModalVisible(false)}
+            abandonLabel="CLOSE CAMERA"
+            hudTitle={`CAPTURE ${photoCategory ? photoCategory.replace('_', ' ') : 'POLE'} PHOTO`}
           />
         </Modal>
       </View>

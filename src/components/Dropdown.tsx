@@ -19,7 +19,9 @@ interface DropdownProps {
 
 export default function Dropdown({ label, placeholder, options, value, onChange, onSelect, disabled = false }: DropdownProps) {
   const [open, setOpen] = useState(false);
-  const selectedLabel = options.find(option => option.value === value)?.label;
+  const selectedLabel = options.find(option => 
+    option.value === value || (value != null && value !== '' && String(option.value) === String(value))
+  )?.label;
 
   return (
     <View style={styles.field}>
@@ -51,7 +53,7 @@ export default function Dropdown({ label, placeholder, options, value, onChange,
               keyExtractor={item => String(item.value)}
               ItemSeparatorComponent={() => <View style={styles.separator} />}
               renderItem={({ item }) => {
-                const selected = item.value === value;
+                const selected = item.value === value || (value != null && value !== '' && String(item.value) === String(value));
                 return (
                   <TouchableOpacity
                     onPress={() => {

@@ -116,6 +116,14 @@ export default class RestService {
     return this.client.post<any>(endpoint, payload);
   }
 
+  patch(endpoint: string, payload: any) {
+    return this.client.patch<any>(endpoint, payload);
+  }
+
+  put(endpoint: string, payload: any) {
+    return this.client.put<any>(endpoint, payload);
+  }
+
   postWithConfig(endpoint: string, payload: any, config: AxiosRequestConfig<any> | undefined) {
     return this.client.post<any>(endpoint, payload, config);
   }

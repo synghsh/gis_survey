@@ -89,10 +89,12 @@ export default function SurveyDetailsScreen() {
             poleLabel,
             editingNode: serverNode || targetNode,
           }));
+          const isErect = survey.workflowType === 'ERECTION' || survey.id.startsWith('erect-') || Boolean(survey.drawingNo && !survey.id.startsWith('srv-'));
           navigation.navigate('ActiveSurvey', {
             isEditingNode: true,
             targetPoleLabel: poleLabel,
             serverNodeData: serverNode || null,
+            workflowType: isErect ? 'ERECTION' : 'SURVEY',
           });
         },
         () => {
@@ -103,9 +105,11 @@ export default function SurveyDetailsScreen() {
             poleLabel,
             editingNode: targetNode,
           }));
+          const isErect = survey.workflowType === 'ERECTION' || survey.id.startsWith('erect-') || Boolean(survey.drawingNo && !survey.id.startsWith('srv-'));
           navigation.navigate('ActiveSurvey', {
             isEditingNode: true,
             targetPoleLabel: poleLabel,
+            workflowType: isErect ? 'ERECTION' : 'SURVEY',
           });
         }
       ) as any);
@@ -116,9 +120,11 @@ export default function SurveyDetailsScreen() {
         poleLabel,
         editingNode: targetNode,
       }));
+      const isErect = survey.workflowType === 'ERECTION' || survey.id.startsWith('erect-') || Boolean(survey.drawingNo && !survey.id.startsWith('srv-'));
       navigation.navigate('ActiveSurvey', {
         isEditingNode: true,
         targetPoleLabel: poleLabel,
+        workflowType: isErect ? 'ERECTION' : 'SURVEY',
       });
     }
   };
@@ -130,9 +136,11 @@ export default function SurveyDetailsScreen() {
       lineId: survey.id,
       poleLabel,
     }));
+    const isErect = survey.workflowType === 'ERECTION' || survey.id.startsWith('erect-') || Boolean(survey.drawingNo && !survey.id.startsWith('srv-'));
     navigation.navigate('ActiveSurvey', {
       isContinuation: true,
       targetPoleLabel: poleLabel,
+      workflowType: isErect ? 'ERECTION' : 'SURVEY',
     });
   };
 

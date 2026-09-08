@@ -92,6 +92,7 @@ export default function ErectionDetailsScreen() {
           isEditingNode: true,
           targetPoleLabel: poleLabel,
           serverNodeData: serverNode || null,
+          workflowType: 'ERECTION',
         });
       },
       (err) => {
@@ -106,6 +107,7 @@ export default function ErectionDetailsScreen() {
         navigation.navigate('ActiveSurvey', {
           isEditingNode: true,
           targetPoleLabel: poleLabel,
+          workflowType: 'ERECTION',
         });
       }
     ) as any);
@@ -121,6 +123,7 @@ export default function ErectionDetailsScreen() {
     navigation.navigate('ActiveSurvey', {
       isContinuation: true,
       targetPoleLabel: poleLabel,
+      workflowType: 'ERECTION',
     });
   };
 

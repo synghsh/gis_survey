@@ -261,8 +261,11 @@ const surveySlice = createSlice({
     resumeSurvey: (state, action: PayloadAction<{ lineId: string; parentLabel: string }>) => {
       const line = state.historyList.find(item => item.id === action.payload.lineId);
       if (!line || line.isCompleted) return;
+      const isErectLine = line.workflowType === 'ERECTION' || line.id.startsWith('erect-') || Boolean(line.drawingNo && !line.id.startsWith('srv-'));
       state.activeLine = {
         ...line,
+        workflowType: isErectLine ? 'ERECTION' : (line.workflowType || 'SURVEY'),
+        drawingNo: line.drawingNo || (line.id.startsWith('erect-') ? line.drawingNo : undefined),
         status: 'PENDING',
         nodes: line.nodes.map(node => ({ ...node, attributes: { ...node.attributes } })),
         editingExisting: true,
@@ -273,8 +276,11 @@ const surveySlice = createSlice({
       const line = state.historyList.find(item => item.id === action.payload.lineId);
       if (!line || line.isCompleted) return;
       const initialNodes = line.nodes.map(node => ({ ...node, attributes: { ...node.attributes } }));
+      const isErectLine = line.workflowType === 'ERECTION' || line.id.startsWith('erect-') || Boolean(line.drawingNo && !line.id.startsWith('srv-'));
       state.activeLine = {
         ...line,
+        workflowType: isErectLine ? 'ERECTION' : (line.workflowType || 'SURVEY'),
+        drawingNo: line.drawingNo || (line.id.startsWith('erect-') ? line.drawingNo : undefined),
         status: 'PENDING',
         nodes: initialNodes,
         editingExisting: true,

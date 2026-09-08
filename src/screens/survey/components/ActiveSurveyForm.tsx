@@ -1415,7 +1415,7 @@ export default function ActiveSurveyForm({
         <View style={styles.previewCard}>
           <View style={styles.thumbnailWrapper}>
             {capturedPhotos && capturedPhotos.length > 0 ? (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, alignItems: 'center' }}>
                 {capturedPhotos.map((photo, index) => (
                   <View key={index} style={{ width: 100, height: 100, position: 'relative' }}>
                     <Image source={{ uri: photo }} style={styles.previewThumbnail} />
@@ -1438,9 +1438,24 @@ export default function ActiveSurveyForm({
                     </TouchableOpacity>
                   </View>
                 ))}
+                <TouchableOpacity
+                  style={[styles.placeholderThumbnail, { width: 80, height: 100, justifyContent: 'center', alignItems: 'center' }]}
+                  onPress={() => onTakePhoto ? onTakePhoto('POLE') : onRetakePhoto?.()}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ fontSize: 20 }}>📸</Text>
+                  <Text style={{ fontSize: 9, color: '#0284C7', fontWeight: 'bold', marginTop: 4 }}>+ ADD PHOTO</Text>
+                </TouchableOpacity>
               </ScrollView>
             ) : (
-              <View style={styles.placeholderThumbnail} />
+              <TouchableOpacity
+                style={[styles.placeholderThumbnail, { justifyContent: 'center', alignItems: 'center' }]}
+                onPress={() => onTakePhoto ? onTakePhoto('POLE') : onRetakePhoto?.()}
+                activeOpacity={0.7}
+              >
+                <Text style={{ fontSize: 24 }}>📸</Text>
+                <Text style={{ fontSize: 10, color: '#0284C7', fontWeight: 'bold', marginTop: 4 }}>TAKE PHOTO</Text>
+              </TouchableOpacity>
             )}
           </View>
           <View style={styles.previewGpsData}>

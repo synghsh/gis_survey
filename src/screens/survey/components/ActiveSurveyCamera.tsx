@@ -10,6 +10,8 @@ interface ActiveSurveyCameraProps {
   currentSeq: number;
   onTakePhoto: () => void;
   onAbandon: () => void;
+  abandonLabel?: string;
+  hudTitle?: string;
 }
 
 export default function ActiveSurveyCamera({
@@ -20,6 +22,8 @@ export default function ActiveSurveyCamera({
   currentSeq,
   onTakePhoto,
   onAbandon,
+  abandonLabel,
+  hudTitle,
 }: ActiveSurveyCameraProps) {
   return (
     <View style={styles.captureStepContainer}>
@@ -27,7 +31,7 @@ export default function ActiveSurveyCamera({
       <View style={[styles.cameraFlashOverlay, cameraFlash && { backgroundColor: '#FFFFFF', opacity: 1 }]} />
       
       <View style={styles.hudHeaderRow}>
-        <Text style={styles.hudHeaderText}>ALIGN STRUCTURE WITH FIELD CAMERA</Text>
+        <Text style={styles.hudHeaderText}>{hudTitle || 'ALIGN STRUCTURE WITH FIELD CAMERA'}</Text>
         <View style={styles.liveIndicator} />
       </View>
 
