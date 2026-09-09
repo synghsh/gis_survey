@@ -60,7 +60,7 @@ export default function ErectionExecutionScreen() {
 
 
   const [voltageFilter, setVoltageFilter] = useState<'ALL' | 'HT_11KV' | 'HT_33KV' | 'LT_440V'>('ALL');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'COMPLETED'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'COMPLETED' | 'REJECTED'>('ALL');
   const [loading, setLoading] = useState(false);
 
   // Edit Modal States
@@ -304,14 +304,18 @@ export default function ErectionExecutionScreen() {
         remarks: item.remarks,
         startedAt: item.created_on || new Date().toISOString(),
         endedAt: item.updated_on || new Date().toISOString(),
-        status: item.status === 2 ? 'SYNCED' : 'PENDING',
+        status: item.status === 2 ? 'SYNCED' : (item.status === 3 ? 'REJECTED' : 'PENDING'),
         isCompleted: item.status === 2,
         completedAt: item.status === 2 ? item.updated_on : undefined,
-        location: item.village,
-        block: item.block,
-        district: item.district,
-        village: item.village,
+        location: item.village_name || item.village,
+        block: item.block_name || item.block,
+        district: item.district_name || item.district,
+        village: item.village_name || item.village,
+        stateName: item.state_name,
+        feederName: item.feeder_name,
+        dtrCode: item.dtr_code,
         preparedBy: 'Surveyor',
+        erectionItem: item,
         nodes: item.nodes.map((node: any) => ({
           id: String(node.id),
           nodeType: node.nodeType,
@@ -321,13 +325,14 @@ export default function ErectionExecutionScreen() {
           longitude: node.longitude,
           attributes: node.attributes || {},
           imageUri: node.imageUri || null,
+          imageUris: node.imageUris || (node.imageUri ? [node.imageUri] : []),
           capturedAt: node.capturedAt || '',
           parentLabel: node.parentLabel,
         })),
       };
 
       dispatch(injectHistoryLine(surveyLine));
-      navigation.navigate('ErectionDetails', { surveyId });
+      navigation.navigate('ErectionDetails', { surveyId, erectionItem: item });
       return;
     }
 
@@ -339,15 +344,67 @@ export default function ErectionExecutionScreen() {
       contractorName: item.contractor_name,
       remarks: item.remarks,
       stateName: item.state_name,
-      district: item.district,
-      block: item.block,
-      village: item.village,
-      location: item.village,
+      district: item.district_name || item.district,
+      block: item.block_name || item.block,
+      village: item.village_name || item.village,
+      location: item.village_name || item.village,
       feederName: item.feeder_name,
       dtrCode: item.dtr_code,
       drawingNo: item.drawing_no,
     }));
     navigation.navigate('ActiveSurvey');
+  };
+
+  // View Completed or Rejected Erection Details in non-editable mode
+  const handleViewErectionDetails = (item: any) => {
+    const surveyId = `erect-${item.id}`;
+    const isCompleted = item.status === 2;
+    const isRejected = item.status === 3;
+
+    const surveyLine: SurveyLine = {
+      id: surveyId,
+      workflowType: 'ERECTION',
+      drawingNo: item.drawing_no,
+      feederName: item.feeder_name,
+      dtrCode: item.dtr_code,
+      lineType: item.type_of_work,
+      ltStartingPoint: item.lt_starting_point,
+      contractorName: item.contractor_name,
+      remarks: item.remarks,
+      startedAt: item.created_on || new Date().toISOString(),
+      endedAt: item.updated_on || new Date().toISOString(),
+      status: isCompleted ? 'SYNCED' : (isRejected ? 'REJECTED' : 'PENDING'),
+      isCompleted: true, // Non-editable mode
+      completedAt: isCompleted ? item.updated_on : undefined,
+      location: item.village_name || item.village,
+      block: item.block_name || item.block,
+      district: item.district_name || item.district,
+      village: item.village_name || item.village,
+      stateName: item.state_name,
+      preparedBy: 'Surveyor',
+      erectionItem: item,
+      nodes: (item.nodes || []).map((node: any) => ({
+        id: String(node.id),
+        nodeType: node.nodeType,
+        sequenceNumber: node.sequenceNumber,
+        nameLabel: node.nameLabel,
+        latitude: node.latitude,
+        longitude: node.longitude,
+        attributes: node.attributes || {},
+        imageUri: node.imageUri || null,
+        imageUris: node.imageUris || (node.imageUri ? [node.imageUri] : []),
+        capturedAt: node.capturedAt || '',
+        parentLabel: node.parentLabel,
+      })),
+    };
+
+    dispatch(injectHistoryLine(surveyLine));
+    navigation.navigate('ErectionDetails', {
+      surveyId,
+      isReadOnly: true,
+      isRejected,
+      erectionItem: item,
+    });
   };
 
   // Safe confirm prompt before complete API call
@@ -373,7 +430,8 @@ export default function ErectionExecutionScreen() {
       const matchesVoltage = voltageFilter === 'ALL' || item.type_of_work === voltageFilter;
       const matchesStatus = statusFilter === 'ALL' ||
         (statusFilter === 'PENDING' && item.status === 1) ||
-        (statusFilter === 'COMPLETED' && item.status === 2);
+        (statusFilter === 'COMPLETED' && item.status === 2) ||
+        (statusFilter === 'REJECTED' && item.status === 3);
       return matchesVoltage && matchesStatus;
     }) : [];
   }, [erectionList, voltageFilter, statusFilter]);
@@ -454,7 +512,8 @@ export default function ErectionExecutionScreen() {
                 {([
                   { label: 'ALL STATUS', value: 'ALL' },
                   { label: 'PENDING', value: 'PENDING' },
-                  { label: 'COMPLETED', value: 'COMPLETED' }
+                  { label: 'COMPLETED', value: 'COMPLETED' },
+                  { label: 'REJECTED', value: 'REJECTED' },
                 ] as const).map((opt) => (
                   <TouchableOpacity
                     key={opt.value}
@@ -504,18 +563,18 @@ export default function ErectionExecutionScreen() {
                           </Text>
                         </View>
                         <View style={[styles.statusBadge, {
-                          borderColor: item.status === 2 ? '#059669' : '#D97706',
-                          backgroundColor: item.status === 2 ? 'rgba(5, 150, 105, 0.05)' : 'rgba(217, 119, 6, 0.05)'
+                          borderColor: item.status === 2 ? '#059669' : (item.status === 3 ? '#DC2626' : '#D97706'),
+                          backgroundColor: item.status === 2 ? 'rgba(5, 150, 105, 0.05)' : (item.status === 3 ? 'rgba(220, 38, 38, 0.05)' : 'rgba(217, 119, 6, 0.05)')
                         }]}>
-                          <Text style={[styles.statusBadgeText, { color: item.status === 2 ? '#059669' : '#D97706' }]}>
-                            {item.status === 2 ? 'COMPLETED' : 'PENDING'}
+                          <Text style={[styles.statusBadgeText, { color: item.status === 2 ? '#059669' : (item.status === 3 ? '#DC2626' : '#D97706') }]}>
+                            {item.status === 2 ? 'COMPLETED' : (item.status === 3 ? 'REJECTED' : 'PENDING')}
                           </Text>
                         </View>
                       </View>
                     </View>
 
                     <Text style={styles.cardLocationText}>
-                      📍 {item.village_name}, {item.block_name}, {item.district_name}
+                      📍 {item.village_name || item.village}, {item.block_name || item.block}, {item.district_name || item.district}
                     </Text>
 
                     {item.remarks ? (
@@ -552,7 +611,7 @@ export default function ErectionExecutionScreen() {
                     ) : (
                       <TouchableOpacity
                         style={styles.compactBtnView}
-                        onPress={() => setViewingErection(item)}
+                        onPress={() => handleViewErectionDetails(item)}
                       >
                         <Text style={styles.compactBtnTextView}>VIEW DETAILS</Text>
                       </TouchableOpacity>

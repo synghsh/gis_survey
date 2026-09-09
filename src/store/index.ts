@@ -42,7 +42,7 @@ export interface SurveyLine {
   nodes: SurveyNode[];
   startedAt: string;
   endedAt?: string;
-  status: 'PENDING' | 'SYNCED';
+  status: 'PENDING' | 'SYNCED' | 'REJECTED' | string;
   location?: string;
   stateName?: string;
   village?: string;
@@ -52,6 +52,7 @@ export interface SurveyLine {
   feederName?: string;
   dtrCode?: string;
   drawingNo?: string;
+  erectionItem?: any;
 }
 
 // Slice 1: Authentication & Profile State
