@@ -486,8 +486,10 @@ export default function ActiveSurveyForm({
 }: ActiveSurveyFormProps) {
   const [dbModalOpen, setDbModalOpen] = useState(false);
 
-  const lt440vCode = domains?.['type_of_work']?.find((d: any) => d.domain_value === 'LT_440V')?.domain_code;
-  const dtrCodeVal = domains?.['lt_starting_point']?.find((d: any) => d.domain_value === 'DTR')?.domain_code;
+  const rawWork = domains?.['type_of_work'];
+  const lt440vCode = Array.isArray(rawWork) ? rawWork.find((d: any) => d.domain_value === 'LT_440V')?.domain_code : undefined;
+  const rawStart = domains?.['lt_starting_point'];
+  const dtrCodeVal = Array.isArray(rawStart) ? rawStart.find((d: any) => d.domain_value === 'DTR')?.domain_code : undefined;
 
   const isNewLtFromDtr = workflowType === 'ERECTION' &&
     (lineType === 'LT_440V' || lineType === lt440vCode) &&
@@ -499,48 +501,55 @@ export default function ActiveSurveyForm({
   const showLtAccessories = nodeType === 'DTR' || (nodeType === 'POLE' && lineSection === 'LT');
 
   const getPoleDbLabel = (code: string) => {
-    const arr = domains?.['pole_db'] || [];
+    const rawArr = domains?.['pole_db'];
+    const arr = Array.isArray(rawArr) ? rawArr : [];
     const found = arr.find((d: any) => String(d.domain_code) === String(code));
     return found ? (found.domain_desc || found.domain_value) : code;
   };
 
   const transformerOptions = useMemo(() => {
-    return transformers.map((t: any) => ({
+    const list = Array.isArray(transformers) ? transformers : [];
+    return list.map((t: any) => ({
       label: t.transformer_name,
       value: t.id,
     }));
   }, [transformers]);
 
   const conductorOptions = useMemo(() => {
-    return conductors.map((c: any) => ({
+    const list = Array.isArray(conductors) ? conductors : [];
+    return list.map((c: any) => ({
       label: c.conductor_name,
       value: c.id,
     }));
   }, [conductors]);
 
   const poleOptions = useMemo(() => {
-    const arr = domains?.['pole_type'] || [];
+    const rawArr = domains?.['pole_type'];
+    const arr = Array.isArray(rawArr) ? rawArr : [];
     if (arr.length > 0) {
       return arr.map((d: any) => ({
         label: d.domain_desc || d.domain_value,
         value: d.domain_code,
       }));
     }
-    return poles.map((p: any) => ({
+    const poleList = Array.isArray(poles) ? poles : [];
+    return poleList.map((p: any) => ({
       label: p.pole_name,
       value: p.id,
     }));
   }, [domains, poles]);
 
   const poleMasterOptions = useMemo(() => {
-    return poles.map((p: any) => ({
+    const poleList = Array.isArray(poles) ? poles : [];
+    return poleList.map((p: any) => ({
       label: p.pole_name,
       value: p.id,
     }));
   }, [poles]);
 
   const earthingOptions = useMemo(() => {
-    const arr = domains?.['earthing'] || [];
+    const rawArr = domains?.['earthing'];
+    const arr = Array.isArray(rawArr) ? rawArr : [];
     return arr.map((d: any) => ({
       label: d.domain_desc || d.domain_value,
       value: d.domain_code,
@@ -548,7 +557,8 @@ export default function ActiveSurveyForm({
   }, [domains]);
 
   const staySetOptions = useMemo(() => {
-    const arr = domains?.['stay_set'] || [];
+    const rawArr = domains?.['stay_set'];
+    const arr = Array.isArray(rawArr) ? rawArr : [];
     return arr.map((d: any) => ({
       label: d.domain_desc || d.domain_value,
       value: d.domain_code,
@@ -556,7 +566,8 @@ export default function ActiveSurveyForm({
   }, [domains]);
 
   const poleDbOptions = useMemo(() => {
-    const arr = domains?.['pole_db'] || [];
+    const rawArr = domains?.['pole_db'];
+    const arr = Array.isArray(rawArr) ? rawArr : [];
     return arr.map((d: any) => ({
       label: d.domain_desc || d.domain_value,
       value: d.domain_code,

@@ -131,17 +131,40 @@ export const fetchDomainsAction = (
     return GetDomainsService(domainTypes)
       .then((response: any) => {
         if (response.status === 200 && response.data && !response.data.Exception && response.data.Data) {
-          const domainsData = response.data.Data.Data || response.data.Data;
+          const rawData = response.data.Data.Data || response.data.Data;
+          const domainsData: Record<string, any[]> = {};
+
+          if (Array.isArray(rawData)) {
+            rawData.forEach((item: any) => {
+              const dt = item.domain_type;
+              if (dt) {
+                if (!domainsData[dt]) domainsData[dt] = [];
+                domainsData[dt].push(item);
+              }
+            });
+          } else if (typeof rawData === 'object' && rawData !== null) {
+            Object.keys(rawData).forEach((key) => {
+              const val = rawData[key];
+              domainsData[key] = Array.isArray(val) ? val : (val && Array.isArray((val as any).Data) ? (val as any).Data : []);
+            });
+          }
+
           dispatch(setDomains(domainsData));
-          successCallback?.(domainsData);
+          if (typeof successCallback === 'function') {
+            successCallback(domainsData);
+          }
         } else {
           const errorMsg = response.data?.Message || 'Failed to retrieve domains';
-          errorCallback?.(errorMsg);
+          if (typeof errorCallback === 'function') {
+            errorCallback(errorMsg);
+          }
         }
       })
       .catch((error: any) => {
         console.warn('Get domains error:', error);
-        errorCallback?.(error.message || 'Server connection error');
+        if (typeof errorCallback === 'function') {
+          errorCallback(error.message || 'Server connection error');
+        }
       });
   };
 };
@@ -154,18 +177,25 @@ export const fetchTransformersAction = (
     return GetTransformersService()
       .then((response: any) => {
         const payload = response.data?.Data || response.data;
-        if (response.status === 200 && response.data && !response.data.Exception && payload && payload.transformers) {
-          const transformersList = payload.transformers || [];
+        if (response.status === 200 && response.data && !response.data.Exception && payload) {
+          const rawTransformers = payload.transformers || (Array.isArray(payload) ? payload : []);
+          const transformersList = Array.isArray(rawTransformers) ? rawTransformers : [];
           dispatch(setTransformers(transformersList));
-          successCallback?.(transformersList);
+          if (typeof successCallback === 'function') {
+            successCallback(transformersList);
+          }
         } else {
           const errorMsg = response.data?.Message || payload?.Message || 'Failed to retrieve transformers';
-          errorCallback?.(errorMsg);
+          if (typeof errorCallback === 'function') {
+            errorCallback(errorMsg);
+          }
         }
       })
       .catch((error: any) => {
         console.warn('Get transformers error:', error);
-        errorCallback?.(error.message || 'Server connection error');
+        if (typeof errorCallback === 'function') {
+          errorCallback(error.message || 'Server connection error');
+        }
       });
   };
 };
@@ -178,18 +208,25 @@ export const fetchConductorsAction = (
     return GetConductorsService()
       .then((response: any) => {
         const payload = response.data?.Data || response.data;
-        if (response.status === 200 && response.data && !response.data.Exception && payload && payload.conductors) {
-          const conductorsList = payload.conductors || [];
+        if (response.status === 200 && response.data && !response.data.Exception && payload) {
+          const rawConductors = payload.conductors || (Array.isArray(payload) ? payload : []);
+          const conductorsList = Array.isArray(rawConductors) ? rawConductors : [];
           dispatch(setConductors(conductorsList));
-          successCallback?.(conductorsList);
+          if (typeof successCallback === 'function') {
+            successCallback(conductorsList);
+          }
         } else {
           const errorMsg = response.data?.Message || payload?.Message || 'Failed to retrieve conductors';
-          errorCallback?.(errorMsg);
+          if (typeof errorCallback === 'function') {
+            errorCallback(errorMsg);
+          }
         }
       })
       .catch((error: any) => {
         console.warn('Get conductors error:', error);
-        errorCallback?.(error.message || 'Server connection error');
+        if (typeof errorCallback === 'function') {
+          errorCallback(error.message || 'Server connection error');
+        }
       });
   };
 };
@@ -202,21 +239,29 @@ export const fetchPolesAction = (
     return GetPolesService()
       .then((response: any) => {
         const payload = response.data?.Data || response.data;
-        if (response.status === 200 && response.data && !response.data.Exception && payload && payload.poles) {
-          const polesList = payload.poles || [];
+        if (response.status === 200 && response.data && !response.data.Exception && payload) {
+          const rawPoles = payload.poles || (Array.isArray(payload) ? payload : []);
+          const polesList = Array.isArray(rawPoles) ? rawPoles : [];
           dispatch(setPoles(polesList));
-          successCallback?.(polesList);
+          if (typeof successCallback === 'function') {
+            successCallback(polesList);
+          }
         } else {
           const errorMsg = response.data?.Message || payload?.Message || 'Failed to retrieve poles';
-          errorCallback?.(errorMsg);
+          if (typeof errorCallback === 'function') {
+            errorCallback(errorMsg);
+          }
         }
       })
       .catch((error: any) => {
         console.warn('Get poles error:', error);
-        errorCallback?.(error.message || 'Server connection error');
+        if (typeof errorCallback === 'function') {
+          errorCallback(error.message || 'Server connection error');
+        }
       });
   };
 };
+
 
 
 

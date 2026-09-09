@@ -142,15 +142,17 @@ export default function ActiveSurveyScreen() {
   const hasDtr = activeLine?.nodes.some(node => node.nodeType === 'DTR') ?? false;
   const isHtPhase = Boolean(isHtTapSurvey && !hasDtr && !dtrIsNext);
 
-  const lt440vCode = domains['type_of_work']?.find((d: any) => d.domain_value === 'LT_440V')?.domain_code;
-  const ht11kvCode = domains['type_of_work']?.find((d: any) => d.domain_value === 'HT_11KV')?.domain_code;
-  const ht33kvCode = domains['type_of_work']?.find((d: any) => d.domain_value === 'HT_33KV')?.domain_code;
+  const rawTypeOfWork = domains['type_of_work'];
+  const lt440vCode = Array.isArray(rawTypeOfWork) ? rawTypeOfWork.find((d: any) => d.domain_value === 'LT_440V')?.domain_code : undefined;
+  const ht11kvCode = Array.isArray(rawTypeOfWork) ? rawTypeOfWork.find((d: any) => d.domain_value === 'HT_11KV')?.domain_code : undefined;
+  const ht33kvCode = Array.isArray(rawTypeOfWork) ? rawTypeOfWork.find((d: any) => d.domain_value === 'HT_33KV')?.domain_code : undefined;
 
   const isLt440v = activeLine?.lineType === 'LT_440V' || activeLine?.lineType === lt440vCode;
   const isHt11kv = activeLine?.lineType === 'HT_11KV' || activeLine?.lineType === ht11kvCode;
   const isHt33kv = activeLine?.lineType === 'HT_33KV' || activeLine?.lineType === ht33kvCode;
 
-  const existingLtCodeVal = domains['lt_starting_point']?.find((d: any) => d.domain_value === 'EXISTING_LT_LINE')?.domain_code;
+  const rawLtStart = domains['lt_starting_point'];
+  const existingLtCodeVal = Array.isArray(rawLtStart) ? rawLtStart.find((d: any) => d.domain_value === 'EXISTING_LT_LINE')?.domain_code : undefined;
   const isExistingLt = activeLine?.ltStartingPoint === 'EXISTING_LT_LINE' || activeLine?.ltStartingPoint === existingLtCodeVal;
 
   const lineSectionVal = (isHt11kv || isHt33kv)
@@ -380,9 +382,10 @@ export default function ActiveSurveyScreen() {
       setValue('serviceConnectionQty', '');
       setValue('extraConsumption', '');
 
-      const lt440vCode = domains['type_of_work']?.find((d: any) => d.domain_value === 'LT_440V')?.domain_code;
-      const ht11kvCode = domains['type_of_work']?.find((d: any) => d.domain_value === 'HT_11KV')?.domain_code;
-      const ht33kvCode = domains['type_of_work']?.find((d: any) => d.domain_value === 'HT_33KV')?.domain_code;
+      const rawTypeOfWorkSeq = domains['type_of_work'];
+      const lt440vCode = Array.isArray(rawTypeOfWorkSeq) ? rawTypeOfWorkSeq.find((d: any) => d.domain_value === 'LT_440V')?.domain_code : undefined;
+      const ht11kvCode = Array.isArray(rawTypeOfWorkSeq) ? rawTypeOfWorkSeq.find((d: any) => d.domain_value === 'HT_11KV')?.domain_code : undefined;
+      const ht33kvCode = Array.isArray(rawTypeOfWorkSeq) ? rawTypeOfWorkSeq.find((d: any) => d.domain_value === 'HT_33KV')?.domain_code : undefined;
 
       const isLt440v = activeLine.lineType === 'LT_440V' || activeLine.lineType === lt440vCode;
       const isHt11kv = activeLine.lineType === 'HT_11KV' || activeLine.lineType === ht11kvCode;

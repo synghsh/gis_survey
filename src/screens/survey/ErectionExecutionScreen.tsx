@@ -161,15 +161,14 @@ export default function ErectionExecutionScreen() {
   const contractorOptions = useMemo(() => contractors.map(c => ({ label: c.contractor_name, value: c.contractor_name })), [contractors]);
 
   const typeOfWorkOptions = useMemo(() => {
-    const types = domains['type_of_work'] || [];
-    console.log('types', types);
-
+    const rawTypes = domains['type_of_work'];
+    const types = Array.isArray(rawTypes) ? rawTypes : [];
     return types.map(t => ({ label: t.domain_desc || t.domain_value, value: t.domain_code }));
   }, [domains]);
-  console.log('typeOfWorkOptions', typeOfWorkOptions);
 
   const ltStartingPointOptions = useMemo(() => {
-    const pts = domains['lt_starting_point'] || [];
+    const rawPts = domains['lt_starting_point'];
+    const pts = Array.isArray(rawPts) ? rawPts : [];
     return pts.map(p => ({ label: p.domain_desc || p.domain_value, value: p.domain_code }));
   }, [domains]);
 
@@ -186,7 +185,8 @@ export default function ErectionExecutionScreen() {
     setContractor(item.contractor_name || '');
     const getDomainCode = (type: string, val: any) => {
       if (!val) return '';
-      const arr = domains[type] || [];
+      const rawArr = domains[type];
+      const arr = Array.isArray(rawArr) ? rawArr : [];
       const found = arr.find((d: any) => d.domain_value === val || d.domain_code === val);
       return found ? found.domain_code : val;
     };
@@ -217,7 +217,8 @@ export default function ErectionExecutionScreen() {
       toast.warning('Complete every required erection detail before saving.', { title: 'Details required' });
       return;
     }
-    const lt440vCode = domains['type_of_work']?.find((d: any) => d.domain_value === 'LT_440V')?.domain_code;
+    const rawTypeOfWork = domains['type_of_work'];
+    const lt440vCode = Array.isArray(rawTypeOfWork) ? rawTypeOfWork.find((d: any) => d.domain_value === 'LT_440V')?.domain_code : undefined;
 
     if (lineType === lt440vCode && !ltStartingPoint) {
       toast.warning('Choose where the LT line starts.', { title: 'Starting point required' });
@@ -293,7 +294,7 @@ export default function ErectionExecutionScreen() {
     const surveyId = `erect-${item.id}`;
 
     // If any data is saved against this erection, open the summary details page
-    if (item.nodes && item.nodes.length > 0) {
+    if (item.nodes && Array.isArray(item.nodes) && item.nodes.length > 0) {
       const surveyLine: SurveyLine = {
         id: surveyId,
         workflowType: 'ERECTION',
@@ -316,7 +317,7 @@ export default function ErectionExecutionScreen() {
         dtrCode: item.dtr_code,
         preparedBy: 'Surveyor',
         erectionItem: item,
-        nodes: item.nodes.map((node: any) => ({
+        nodes: (Array.isArray(item.nodes) ? item.nodes : []).map((node: any) => ({
           id: String(node.id),
           nodeType: node.nodeType,
           sequenceNumber: node.sequenceNumber,

@@ -517,16 +517,17 @@ const masterSlice = createSlice({
       state.contractors = action.payload;
     },
     setDomains: (state, action: PayloadAction<{ [key: string]: any[] }>) => {
-      state.domains = { ...state.domains, ...action.payload };
+      const payload = action.payload || {};
+      state.domains = { ...state.domains, ...payload };
     },
     setTransformers: (state, action: PayloadAction<MasterState['transformers']>) => {
-      state.transformers = action.payload;
+      state.transformers = Array.isArray(action.payload) ? action.payload : [];
     },
     setConductors: (state, action: PayloadAction<MasterState['conductors']>) => {
-      state.conductors = action.payload;
+      state.conductors = Array.isArray(action.payload) ? action.payload : [];
     },
     setPoles: (state, action: PayloadAction<MasterState['poles']>) => {
-      state.poles = action.payload;
+      state.poles = Array.isArray(action.payload) ? action.payload : [];
     },
     clearMasterData: (state) => {
       state.states = [];

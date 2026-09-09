@@ -76,7 +76,8 @@ export default function ErectionSetupScreen({ route }: any) {
       const item = route.params.erectionItem;
       const getDomainCode = (type: string, val: any) => {
         if (!val) return '';
-        const arr = domains[type] || [];
+        const rawArr = domains[type];
+        const arr = Array.isArray(rawArr) ? rawArr : [];
         const found = arr.find((d: any) => d.domain_value === val || d.domain_code === val);
         return found ? found.domain_code : val;
       };
@@ -150,12 +151,14 @@ export default function ErectionSetupScreen({ route }: any) {
   const contractorOptions = useMemo(() => contractors.map(c => ({ label: c.contractor_name, value: c.contractor_name })), [contractors]);
 
   const typeOfWorkOptions = useMemo(() => {
-    const types = domains['type_of_work'] || [];
+    const rawTypes = domains['type_of_work'];
+    const types = Array.isArray(rawTypes) ? rawTypes : [];
     return types.map(t => ({ label: t.domain_desc || t.domain_value, value: t.domain_code }));
   }, [domains]);
 
   const ltStartingPointOptions = useMemo(() => {
-    const pts = domains['lt_starting_point'] || [];
+    const rawPts = domains['lt_starting_point'];
+    const pts = Array.isArray(rawPts) ? rawPts : [];
     return pts.map(p => ({ label: p.domain_desc || p.domain_value, value: p.domain_code }));
   }, [domains]);
 
@@ -168,7 +171,8 @@ export default function ErectionSetupScreen({ route }: any) {
       toast.warning('Complete every required erection detail before continuing.', { title: 'Details required' });
       return;
     }
-    const lt440vCode = domains['type_of_work']?.find((d: any) => d.domain_value === 'LT_440V')?.domain_code;
+    const rawTypeOfWork = domains['type_of_work'];
+    const lt440vCode = Array.isArray(rawTypeOfWork) ? rawTypeOfWork.find((d: any) => d.domain_value === 'LT_440V')?.domain_code : undefined;
 
     if (lineType === lt440vCode && !ltStartingPoint) {
       toast.warning('Choose where the LT line starts.', { title: 'Starting point required' });
@@ -202,7 +206,8 @@ export default function ErectionSetupScreen({ route }: any) {
 
     const getDomainValue = (type: string, code: any) => {
       if (!code) return '';
-      const arr = domains[type] || [];
+      const rawArr = domains[type];
+      const arr = Array.isArray(rawArr) ? rawArr : [];
       const found = arr.find((d: any) => d.domain_code === code || d.domain_value === code);
       return found ? found.domain_value : code;
     };

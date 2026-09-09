@@ -36,12 +36,16 @@ export default function ErectionDetailsScreen() {
   const dispatch = useDispatch();
   
   const { surveyId } = route.params;
-  const historyList = useSelector((state: RootState) => state.survey.historyList);
-  const survey = historyList.find(l => l.id === surveyId);
+  const historyList = useSelector((state: RootState) => state.survey.historyList) || [];
+  const survey = Array.isArray(historyList) ? historyList.find(l => l.id === surveyId) : undefined;
   const domains = useSelector((state: RootState) => state.master.domains) || {};
-  const transformers = useSelector((state: RootState) => state.master.transformers) || [];
-  const conductors = useSelector((state: RootState) => state.master.conductors) || [];
-  const poles = useSelector((state: RootState) => state.master.poles) || [];
+  const rawTransformers = useSelector((state: RootState) => state.master.transformers);
+  const rawConductors = useSelector((state: RootState) => state.master.conductors);
+  const rawPoles = useSelector((state: RootState) => state.master.poles);
+
+  const transformers = useMemo(() => Array.isArray(rawTransformers) ? rawTransformers : [], [rawTransformers]);
+  const conductors = useMemo(() => Array.isArray(rawConductors) ? rawConductors : [], [rawConductors]);
+  const poles = useMemo(() => Array.isArray(rawPoles) ? rawPoles : [], [rawPoles]);
 
   const isReadOnlyParam = Boolean(route.params?.isReadOnly);
   const isRejectedParam = Boolean(
@@ -187,13 +191,16 @@ export default function ErectionDetailsScreen() {
 
   const getDomainLabel = (domainKey: string, code: any) => {
     if (code === undefined || code === null || code === '') return '';
-    const list = domains[domainKey] || domains[domainKey.toUpperCase()] || domains[domainKey.toLowerCase()] || [];
+    const rawList = domains[domainKey] || domains[domainKey.toUpperCase()] || domains[domainKey.toLowerCase()];
+    const list = Array.isArray(rawList) ? rawList : (rawList && Array.isArray((rawList as any).Data) ? (rawList as any).Data : []);
+    if (!Array.isArray(list) || typeof list.find !== 'function') return String(code);
     const found = list.find((d: any) => String(d.domain_code) === String(code));
     return found ? (found.domain_desc || found.domain_value) : String(code);
   };
 
   const getMasterLabel = (list: any[], id: any, nameKey = 'name') => {
     if (id === undefined || id === null || id === '') return '';
+    if (!Array.isArray(list) || typeof list.find !== 'function') return String(id);
     const found = list.find((item: any) => String(item.id) === String(id));
     if (!found) return String(id);
     return found[nameKey] || found.name || found.label || String(id);
@@ -214,12 +221,13 @@ export default function ErectionDetailsScreen() {
   }, [rawLtStartingPoint, domains]);
 
   const activeInspectedNode = useMemo(() => {
-    if (!survey || survey.nodes.length === 0) return null;
+    const surveyNodes = Array.isArray(survey?.nodes) ? survey.nodes : [];
+    if (surveyNodes.length === 0) return null;
     if (selectedNodeId) {
-      return survey.nodes.find(n => n.id === selectedNodeId) || survey.nodes[0];
+      return surveyNodes.find(n => n.id === selectedNodeId) || surveyNodes[0];
     }
-    return survey.nodes[0];
-  }, [survey, selectedNodeId]);
+    return surveyNodes[0];
+  }, [survey?.nodes, selectedNodeId]);
 
   const activeAttrs = (activeInspectedNode as any)?.attributes || {};
   const activePoleId = activeAttrs.pole_type_id ?? activeAttrs.pole_master_id ?? activeAttrs.poleMaster ?? activeAttrs.poleType ?? activeAttrs.pole_type;
@@ -320,7 +328,7 @@ export default function ErectionDetailsScreen() {
         else summary.poles.totalOld += 1;
 
         const poleMasterId = attrs.pole_type_id ?? attrs.pole_master_id ?? attrs.poleMaster ?? attrs.poleType ?? attrs.pole_type;
-        const poleObj = poles.find((p: any) => String(p.id) === String(poleMasterId));
+        const poleObj = Array.isArray(poles) ? poles.find((p: any) => String(p.id) === String(poleMasterId)) : undefined;
         const poleName = (poleObj?.pole_name || attrs.poleTypeName || attrs.pole_name || attrs.poleType || '').toUpperCase();
         const poleCode = (poleObj?.pole_code || '').toUpperCase();
         const heightAttr = String(attrs.height || '').toUpperCase();
@@ -357,7 +365,7 @@ export default function ErectionDetailsScreen() {
         else summary.dtr.totalExisting += 1;
 
         const dtrId = attrs.dtr_capacity_id ?? attrs.transformer_type_id ?? attrs.dtrCapacity;
-        const transObj = transformers.find((t: any) => String(t.id) === String(dtrId));
+        const transObj = Array.isArray(transformers) ? transformers.find((t: any) => String(t.id) === String(dtrId)) : undefined;
         let capacityLabel = transObj?.transformer_name || (dtrId ? `${dtrId} KVA` : 'Standard DTR');
         if (!capacityLabel.toUpperCase().includes('KVA') && !isNaN(Number(capacityLabel))) {
           capacityLabel = `${capacityLabel} KVA`;
@@ -409,7 +417,7 @@ export default function ErectionDetailsScreen() {
       // 5. CONDUCTORS & SPANS
       const conductorId = attrs.conductor_type_id ?? attrs.conductorType ?? attrs.cableSize;
       if (conductorId) {
-        const condObj = conductors.find((c: any) => String(c.id) === String(conductorId));
+        const condObj = Array.isArray(conductors) ? conductors.find((c: any) => String(c.id) === String(conductorId)) : undefined;
         const condName = condObj?.conductor_name || String(conductorId);
         const spanDist = Number(attrs.spanDistance) || 0;
 
@@ -483,14 +491,14 @@ export default function ErectionDetailsScreen() {
   };
 
   const accentColor = getLineAccent();
-  const nodes = survey.nodes;
+  const nodes = Array.isArray(survey?.nodes) ? survey.nodes : [];
   const latitudes = nodes.map(n => n.latitude);
   const longitudes = nodes.map(n => n.longitude);
 
-  const minLat = Math.min(...latitudes);
-  const maxLat = Math.max(...latitudes);
-  const minLng = Math.min(...longitudes);
-  const maxLng = Math.max(...longitudes);
+  const minLat = latitudes.length > 0 ? Math.min(...latitudes) : 0;
+  const maxLat = latitudes.length > 0 ? Math.max(...latitudes) : 0;
+  const minLng = longitudes.length > 0 ? Math.min(...longitudes) : 0;
+  const maxLng = longitudes.length > 0 ? Math.max(...longitudes) : 0;
 
   const latRange = maxLat - minLat;
   const lngRange = maxLng - minLng;
@@ -575,7 +583,7 @@ export default function ErectionDetailsScreen() {
     setSelectedSpanNodeId(null);
   };
 
-  const selectedPole = selectedNodeId
+  const selectedPole = selectedNodeId && Array.isArray(survey?.nodes)
     ? survey.nodes.find(node => node.id === selectedNodeId && node.nodeType === 'POLE')
     : undefined;
 
@@ -1511,7 +1519,7 @@ export default function ErectionDetailsScreen() {
               style={styles.poleChipsScroll}
               contentContainerStyle={styles.poleChipsContent}
             >
-              {survey.nodes.map((node) => {
+              {nodes.map((node) => {
                 const isSelected = selectedEditPole === node.nameLabel;
                 const isDtr = node.nodeType === 'DTR';
                 return (
