@@ -14,7 +14,7 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
-import { RootState, resumeSurvey, resumeSurveyWithPole, updateSurveyLineMetadata, updateSurveyNode } from '../../store';
+import { RootState, resumeSurvey, resumeSurveyWithPole, updateSurveyNode } from '../../store';
 import { fetchErectionPoleDetailsAction } from '../../store/actions/erectionAction';
 import { fetchDomainsAction, fetchTransformersAction, fetchConductorsAction, fetchPolesAction } from '../../store/actions/masterAction';
 import { useToast } from '../../components/ToastProvider';
@@ -23,7 +23,6 @@ import { getLineTypeLabel } from '../../utils/surveyLabels';
 
 import SurveySvgCanvas from './components/SurveySvgCanvas';
 import SurveyAttributeEditor from './components/SurveyAttributeEditor';
-import SurveyLegendForm from './components/SurveyLegendForm';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SVG_WIDTH = 320;
@@ -144,14 +143,6 @@ export default function ErectionDetailsScreen() {
     });
   };
 
-  // Metadata Legend state
-  const [contractor, setContractor] = useState('');
-  const [remarks, setRemarks] = useState('');
-  const [location, setLocation] = useState('');
-  const [block, setBlock] = useState('');
-  const [district, setDistrict] = useState('');
-  const [preparedBy, setPreparedBy] = useState('');
-
   // Node Edit form state
   const [nodeName, setNodeName] = useState('');
   const [nodeLat, setNodeLat] = useState('');
@@ -163,17 +154,6 @@ export default function ErectionDetailsScreen() {
   const [nodeSag, setNodeSag] = useState('');
   const [nodeParentLabel, setNodeParentLabel] = useState('');
   const [nodeSpanDistance, setNodeSpanDistance] = useState('');
-
-  useEffect(() => {
-    if (survey) {
-      setContractor(survey.contractorName || '');
-      setRemarks(survey.remarks || '');
-      setLocation(survey.location || '');
-      setBlock(survey.block || '');
-      setDistrict(survey.district || '');
-      setPreparedBy(survey.preparedBy || '');
-    }
-  }, [surveyId, survey]);
 
   // Load missing master domains if not present
   useEffect(() => {
@@ -278,6 +258,207 @@ export default function ErectionDetailsScreen() {
     }
     return photos.filter(Boolean);
   }, [activeInspectedNode, activeAttrs]);
+
+  const materialSummary = useMemo(() => {
+    const summary = {
+      poles: {
+        '8M': { concrete: 0, nonConcrete: 0, total: 0 },
+        '9M': { concrete: 0, nonConcrete: 0, total: 0 },
+        '11M': { concrete: 0, nonConcrete: 0, total: 0 },
+        'other': { concrete: 0, nonConcrete: 0, total: 0 },
+        totalConcrete: 0,
+        totalNonConcrete: 0,
+        totalNew: 0,
+        totalOld: 0,
+        total: 0,
+      },
+      dtr: {
+        byCapacity: {} as Record<string, { newQty: number; existingQty: number; total: number }>,
+        totalNew: 0,
+        totalExisting: 0,
+        total: 0,
+      },
+      staySet: {
+        htQty: 0,
+        ltQty: 0,
+        byType: {} as Record<string, number>,
+        total: 0,
+      },
+      earthing: {
+        coilQty: 0,
+        pipeQty: 0,
+        plateQty: 0,
+        byType: {} as Record<string, number>,
+        total: 0,
+      },
+      conductors: {} as Record<string, { name: string; spans: number; totalLength: number }>,
+      poleDb: {} as Record<string, { name: string; qty: number }>,
+      totalPoleDb: 0,
+      accessories: {
+        dangerBoards: 0,
+        antiClimbing: 0,
+        serviceConnectionsTotal: 0,
+        serviceConnectionsByType: {} as Record<string, number>,
+        clampingByType: {} as Record<string, number>,
+      },
+      totalSpans: 0,
+      totalLineLengthMeters: 0,
+    };
+
+    const surveyNodes = survey?.nodes || [];
+    if (surveyNodes.length === 0) return summary;
+
+    surveyNodes.forEach((node: any) => {
+      const attrs = node.attributes || {};
+      const condition = String(attrs.condition || node.condition || 'NEW').toUpperCase();
+      const isNew = condition.includes('NEW');
+
+      // 1. POLES
+      if (node.nodeType === 'POLE' || (!node.nodeType && attrs.pole_type_id)) {
+        summary.poles.total += 1;
+        if (isNew) summary.poles.totalNew += 1;
+        else summary.poles.totalOld += 1;
+
+        const poleMasterId = attrs.pole_type_id ?? attrs.pole_master_id ?? attrs.poleMaster ?? attrs.poleType ?? attrs.pole_type;
+        const poleObj = poles.find((p: any) => String(p.id) === String(poleMasterId));
+        const poleName = (poleObj?.pole_name || attrs.poleTypeName || attrs.pole_name || attrs.poleType || '').toUpperCase();
+        const poleCode = (poleObj?.pole_code || '').toUpperCase();
+        const heightAttr = String(attrs.height || '').toUpperCase();
+
+        // Determine height category
+        let heightKey: '8M' | '9M' | '11M' | 'other' = 'other';
+        if (poleName.includes('8M') || poleName.includes('8 M') || poleCode.includes('8M') || heightAttr === '8' || heightAttr === '8M') {
+          heightKey = '8M';
+        } else if (poleName.includes('9M') || poleName.includes('9 M') || poleCode.includes('9M') || heightAttr === '9' || heightAttr === '9M') {
+          heightKey = '9M';
+        } else if (poleName.includes('11M') || poleName.includes('11 M') || poleCode.includes('11M') || heightAttr === '11' || heightAttr === '11M') {
+          heightKey = '11M';
+        }
+
+        // Determine concrete vs non-concrete
+        const isConcrete = poleName.includes('PCC') || poleName.includes('RCC') || poleName.includes('PSC') ||
+          poleName.includes('CONCRETE') || poleName.includes('CEMENT') || poleCode.includes('PCC') || poleCode.includes('RCC');
+
+        if (isConcrete) {
+          summary.poles[heightKey].concrete += 1;
+          summary.poles.totalConcrete += 1;
+        } else {
+          summary.poles[heightKey].nonConcrete += 1;
+          summary.poles.totalNonConcrete += 1;
+        }
+        summary.poles[heightKey].total += 1;
+      }
+
+      // 2. DTR
+      const isDtrNode = node.nodeType === 'DTR' || Boolean(attrs.dtr_capacity_id || attrs.transformer_type_id || attrs.dtrCapacity);
+      if (isDtrNode) {
+        summary.dtr.total += 1;
+        if (isNew) summary.dtr.totalNew += 1;
+        else summary.dtr.totalExisting += 1;
+
+        const dtrId = attrs.dtr_capacity_id ?? attrs.transformer_type_id ?? attrs.dtrCapacity;
+        const transObj = transformers.find((t: any) => String(t.id) === String(dtrId));
+        let capacityLabel = transObj?.transformer_name || (dtrId ? `${dtrId} KVA` : 'Standard DTR');
+        if (!capacityLabel.toUpperCase().includes('KVA') && !isNaN(Number(capacityLabel))) {
+          capacityLabel = `${capacityLabel} KVA`;
+        }
+
+        if (!summary.dtr.byCapacity[capacityLabel]) {
+          summary.dtr.byCapacity[capacityLabel] = { newQty: 0, existingQty: 0, total: 0 };
+        }
+        if (isNew) {
+          summary.dtr.byCapacity[capacityLabel].newQty += 1;
+        } else {
+          summary.dtr.byCapacity[capacityLabel].existingQty += 1;
+        }
+        summary.dtr.byCapacity[capacityLabel].total += 1;
+      }
+
+      // 3. STAY SET
+      const stayTypeRaw = attrs.stay_set_used ?? attrs.stay_set_type ?? attrs.stay_set ?? attrs.staySetUsed;
+      const stayQty = Number(attrs.stay_set_quantity ?? attrs.staySetQuantity) || (stayTypeRaw ? 1 : 0);
+      if (stayTypeRaw && stayQty > 0) {
+        const stayLabel = getDomainLabel('stay_set', stayTypeRaw) || String(stayTypeRaw);
+        const stayUpper = (stayLabel + ' ' + String(stayTypeRaw)).toUpperCase();
+        if (stayUpper.includes('HT')) {
+          summary.staySet.htQty += stayQty;
+        } else if (stayUpper.includes('LT')) {
+          summary.staySet.ltQty += stayQty;
+        }
+        summary.staySet.byType[stayLabel] = (summary.staySet.byType[stayLabel] || 0) + stayQty;
+        summary.staySet.total += stayQty;
+      }
+
+      // 4. EARTHING
+      const earthTypeRaw = attrs.earthing_used ?? attrs.earthing_type ?? attrs.earthing ?? attrs.earthingUsed;
+      const earthQty = Number(attrs.earthing_quantity ?? attrs.earthingQuantity) || (earthTypeRaw ? 1 : 0);
+      if (earthTypeRaw && earthQty > 0) {
+        const earthLabel = getDomainLabel('earthing', earthTypeRaw) || String(earthTypeRaw);
+        const earthUpper = (earthLabel + ' ' + String(earthTypeRaw)).toUpperCase();
+        if (earthUpper.includes('COIL')) {
+          summary.earthing.coilQty += earthQty;
+        } else if (earthUpper.includes('PIPE')) {
+          summary.earthing.pipeQty += earthQty;
+        } else if (earthUpper.includes('PLATE')) {
+          summary.earthing.plateQty += earthQty;
+        }
+        summary.earthing.byType[earthLabel] = (summary.earthing.byType[earthLabel] || 0) + earthQty;
+        summary.earthing.total += earthQty;
+      }
+
+      // 5. CONDUCTORS & SPANS
+      const conductorId = attrs.conductor_type_id ?? attrs.conductorType ?? attrs.cableSize;
+      if (conductorId) {
+        const condObj = conductors.find((c: any) => String(c.id) === String(conductorId));
+        const condName = condObj?.conductor_name || String(conductorId);
+        const spanDist = Number(attrs.spanDistance) || 0;
+
+        if (!summary.conductors[condName]) {
+          summary.conductors[condName] = { name: condName, spans: 0, totalLength: 0 };
+        }
+        summary.conductors[condName].spans += 1;
+        summary.conductors[condName].totalLength += spanDist;
+        summary.totalSpans += 1;
+        summary.totalLineLengthMeters += spanDist;
+      }
+
+      // 6. POLE DB
+      const dbCodes = attrs.pole_db_type_codes || (attrs.pole_db ? (Array.isArray(attrs.pole_db) ? attrs.pole_db : [attrs.pole_db]) : []);
+      const dbQtys = attrs.pole_db_quantities || attrs.poleDbQuantities || {};
+      if (Array.isArray(dbCodes)) {
+        dbCodes.forEach((code: any) => {
+          if (!code) return;
+          const dbName = getDomainLabel('pole_db', code) || String(code);
+          const qty = Number(dbQtys[code]) || 1;
+          if (!summary.poleDb[dbName]) {
+            summary.poleDb[dbName] = { name: dbName, qty: 0 };
+          }
+          summary.poleDb[dbName].qty += qty;
+          summary.totalPoleDb += qty;
+        });
+      }
+
+      // 7. ACCESSORIES & SAFETY
+      if (attrs.danger_board_fitted) {
+        summary.accessories.dangerBoards += 1;
+      }
+      if (attrs.anticlimbing_fitted) {
+        summary.accessories.antiClimbing += 1;
+      }
+      const servQty = Number(attrs.service_connection_qty) || 0;
+      if (servQty > 0) {
+        summary.accessories.serviceConnectionsTotal += servQty;
+        const servType = attrs.service_connection_type || 'Standard';
+        summary.accessories.serviceConnectionsByType[servType] = (summary.accessories.serviceConnectionsByType[servType] || 0) + servQty;
+      }
+      if (attrs.clamping_arrangement) {
+        const clampLabel = getDomainLabel('clamping_arrangement', attrs.clamping_arrangement) || String(attrs.clamping_arrangement);
+        summary.accessories.clampingByType[clampLabel] = (summary.accessories.clampingByType[clampLabel] || 0) + 1;
+      }
+    });
+
+    return summary;
+  }, [survey?.nodes, poles, conductors, transformers, domains]);
 
   const [selectedPhotoModal, setSelectedPhotoModal] = useState<string | null>(null);
 
@@ -392,20 +573,6 @@ export default function ErectionDetailsScreen() {
     toast.success('Structure details updated successfully.');
     setSelectedNodeId(null);
     setSelectedSpanNodeId(null);
-  };
-
-  const handleSaveMetadata = () => {
-    if (isLocked) return;
-    dispatch(updateSurveyLineMetadata({
-      id: survey.id,
-      contractorName: contractor.trim(),
-      remarks: remarks.trim(),
-      location: location.trim(),
-      block: block.trim(),
-      district: district.trim(),
-      preparedBy: preparedBy.trim(),
-    }));
-    toast.success('Erection metadata parameters saved.');
   };
 
   const selectedPole = selectedNodeId
@@ -827,6 +994,418 @@ export default function ErectionDetailsScreen() {
           </View>
         )}
 
+        {/* 6. MATERIAL & BoQ SUMMARY SECTION */}
+        <View style={styles.materialSection}>
+          <View style={styles.materialSectionHeader}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={styles.materialHeaderIcon}>📦</Text>
+              <View>
+                <Text style={styles.materialHeaderTitle}>MATERIAL & BoQ SUMMARY</Text>
+                <Text style={styles.materialHeaderSubtitle}>
+                  Computed Bill of Quantities across {nodes.length} structure(s)
+                </Text>
+              </View>
+            </View>
+            <View style={styles.materialTotalBadge}>
+              <Text style={styles.materialTotalBadgeText}>{nodes.length} STRUCTURES</Text>
+            </View>
+          </View>
+
+          {/* Quick Metrics Bar */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.metricScroll} contentContainerStyle={styles.metricScrollContent}>
+            <View style={styles.metricChip}>
+              <Text style={styles.metricChipNum}>{materialSummary.poles.total}</Text>
+              <Text style={styles.metricChipLabel}>Poles</Text>
+            </View>
+            <View style={styles.metricChip}>
+              <Text style={styles.metricChipNum}>{materialSummary.dtr.total}</Text>
+              <Text style={styles.metricChipLabel}>DTRs</Text>
+            </View>
+            <View style={styles.metricChip}>
+              <Text style={styles.metricChipNum}>{materialSummary.staySet.total}</Text>
+              <Text style={styles.metricChipLabel}>Stay Sets</Text>
+            </View>
+            <View style={styles.metricChip}>
+              <Text style={styles.metricChipNum}>{materialSummary.earthing.total}</Text>
+              <Text style={styles.metricChipLabel}>Earthing</Text>
+            </View>
+            <View style={styles.metricChip}>
+              <Text style={styles.metricChipNum}>{materialSummary.totalPoleDb}</Text>
+              <Text style={styles.metricChipLabel}>Pole DBs</Text>
+            </View>
+            <View style={styles.metricChip}>
+              <Text style={styles.metricChipNum}>{materialSummary.totalSpans}</Text>
+              <Text style={styles.metricChipLabel}>Spans</Text>
+            </View>
+          </ScrollView>
+
+          {/* 1. POLE SUMMARY CARD */}
+          <View style={styles.matCard}>
+            <View style={styles.matCardHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={styles.matCardIcon}>🪵</Text>
+                <Text style={styles.matCardTitle}>1. POLE INVENTORY</Text>
+              </View>
+              <View style={styles.matCardBadge}>
+                <Text style={styles.matCardBadgeText}>{materialSummary.poles.total} TOTAL</Text>
+              </View>
+            </View>
+
+            {/* Global Pole Subtotals */}
+            <View style={styles.poleGlobalPillsRow}>
+              <View style={[styles.polePill, styles.polePillConcrete]}>
+                <Text style={styles.polePillLabel}>Concrete (PCC/RCC)</Text>
+                <Text style={styles.polePillValue}>{materialSummary.poles.totalConcrete}</Text>
+              </View>
+              <View style={[styles.polePill, styles.polePillNonConcrete]}>
+                <Text style={styles.polePillLabel}>Non-Concrete (STP/Steel)</Text>
+                <Text style={styles.polePillValue}>{materialSummary.poles.totalNonConcrete}</Text>
+              </View>
+              <View style={[styles.polePill, styles.polePillNew]}>
+                <Text style={styles.polePillLabel}>New Poles</Text>
+                <Text style={styles.polePillValue}>{materialSummary.poles.totalNew}</Text>
+              </View>
+              <View style={[styles.polePill, styles.polePillOld]}>
+                <Text style={styles.polePillLabel}>Existing Poles</Text>
+                <Text style={styles.polePillValue}>{materialSummary.poles.totalOld}</Text>
+              </View>
+            </View>
+
+            {/* Height Breakdown Items */}
+            <View style={styles.heightBreakdownList}>
+              {/* a. 8M Poles */}
+              <View style={styles.heightItemBox}>
+                <View style={styles.heightItemHeader}>
+                  <Text style={styles.heightItemTitle}>a. 8M Poles</Text>
+                  <Text style={styles.heightItemTotal}>{materialSummary.poles['8M'].total} Poles</Text>
+                </View>
+                <View style={styles.heightItemChipsRow}>
+                  <View style={styles.heightSubChip}>
+                    <Text style={styles.heightSubChipLabel}>Concrete Pole Qty:</Text>
+                    <Text style={styles.heightSubChipVal}>{materialSummary.poles['8M'].concrete}</Text>
+                  </View>
+                  <View style={styles.heightSubChip}>
+                    <Text style={styles.heightSubChipLabel}>Non-Concrete Pole Qty:</Text>
+                    <Text style={styles.heightSubChipVal}>{materialSummary.poles['8M'].nonConcrete}</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* b. 9M Poles */}
+              <View style={styles.heightItemBox}>
+                <View style={styles.heightItemHeader}>
+                  <Text style={styles.heightItemTitle}>b. 9M Poles</Text>
+                  <Text style={styles.heightItemTotal}>{materialSummary.poles['9M'].total} Poles</Text>
+                </View>
+                <View style={styles.heightItemChipsRow}>
+                  <View style={styles.heightSubChip}>
+                    <Text style={styles.heightSubChipLabel}>Concrete Pole Qty:</Text>
+                    <Text style={styles.heightSubChipVal}>{materialSummary.poles['9M'].concrete}</Text>
+                  </View>
+                  <View style={styles.heightSubChip}>
+                    <Text style={styles.heightSubChipLabel}>Non-Concrete Pole Qty:</Text>
+                    <Text style={styles.heightSubChipVal}>{materialSummary.poles['9M'].nonConcrete}</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* c. 11M Poles */}
+              <View style={styles.heightItemBox}>
+                <View style={styles.heightItemHeader}>
+                  <Text style={styles.heightItemTitle}>c. 11M Poles</Text>
+                  <Text style={styles.heightItemTotal}>{materialSummary.poles['11M'].total} Poles</Text>
+                </View>
+                <View style={styles.heightItemChipsRow}>
+                  <View style={styles.heightSubChip}>
+                    <Text style={styles.heightSubChipLabel}>Concrete Pole Qty:</Text>
+                    <Text style={styles.heightSubChipVal}>{materialSummary.poles['11M'].concrete}</Text>
+                  </View>
+                  <View style={styles.heightSubChip}>
+                    <Text style={styles.heightSubChipLabel}>Non-Concrete Pole Qty:</Text>
+                    <Text style={styles.heightSubChipVal}>{materialSummary.poles['11M'].nonConcrete}</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Other Poles (if any) */}
+              {materialSummary.poles['other'].total > 0 && (
+                <View style={styles.heightItemBox}>
+                  <View style={styles.heightItemHeader}>
+                    <Text style={styles.heightItemTitle}>d. Other / Custom Poles</Text>
+                    <Text style={styles.heightItemTotal}>{materialSummary.poles['other'].total} Poles</Text>
+                  </View>
+                  <View style={styles.heightItemChipsRow}>
+                    <View style={styles.heightSubChip}>
+                      <Text style={styles.heightSubChipLabel}>Concrete Pole Qty:</Text>
+                      <Text style={styles.heightSubChipVal}>{materialSummary.poles['other'].concrete}</Text>
+                    </View>
+                    <View style={styles.heightSubChip}>
+                      <Text style={styles.heightSubChipLabel}>Non-Concrete Pole Qty:</Text>
+                      <Text style={styles.heightSubChipVal}>{materialSummary.poles['other'].nonConcrete}</Text>
+                    </View>
+                  </View>
+                </View>
+              )}
+            </View>
+          </View>
+
+          {/* 2. DTR CARD */}
+          <View style={styles.matCard}>
+            <View style={styles.matCardHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={styles.matCardIcon}>⚡</Text>
+                <Text style={styles.matCardTitle}>2. DISTRIBUTION TRANSFORMERS (DTR)</Text>
+              </View>
+              <View style={styles.matCardBadgeDtr}>
+                <Text style={styles.matCardBadgeTextDtr}>{materialSummary.dtr.total} DTRs</Text>
+              </View>
+            </View>
+
+            {materialSummary.dtr.total === 0 ? (
+              <View style={styles.emptyMatRow}>
+                <Text style={styles.emptyMatText}>No DTR substation structures recorded in this line.</Text>
+              </View>
+            ) : (
+              <View style={styles.dtrBreakdownList}>
+                {Object.entries(materialSummary.dtr.byCapacity).map(([capacity, dtrData]) => (
+                  <View key={capacity} style={styles.dtrItemRow}>
+                    <View style={styles.dtrCapacityBadge}>
+                      <Text style={styles.dtrCapacityText}>{capacity}</Text>
+                    </View>
+                    <View style={styles.dtrQuantitiesGroup}>
+                      <View style={styles.dtrQtyChipNew}>
+                        <Text style={styles.dtrQtyLabelNew}>New:</Text>
+                        <Text style={styles.dtrQtyValNew}>{dtrData.newQty}</Text>
+                      </View>
+                      <View style={styles.dtrQtyChipOld}>
+                        <Text style={styles.dtrQtyLabelOld}>Existing:</Text>
+                        <Text style={styles.dtrQtyValOld}>{dtrData.existingQty}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.dtrRowTotalBox}>
+                      <Text style={styles.dtrRowTotalText}>{dtrData.total} Unit(s)</Text>
+                    </View>
+                  </View>
+                ))}
+
+                <View style={styles.matCardSubtotalRow}>
+                  <Text style={styles.matCardSubtotalText}>
+                    Total DTRs: {materialSummary.dtr.total} (New: {materialSummary.dtr.totalNew}, Existing: {materialSummary.dtr.totalExisting})
+                  </Text>
+                </View>
+              </View>
+            )}
+          </View>
+
+          {/* 3. STAY SET CARD */}
+          <View style={styles.matCard}>
+            <View style={styles.matCardHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={styles.matCardIcon}>⚓</Text>
+                <Text style={styles.matCardTitle}>3. STAY SETS & ANCHORING</Text>
+              </View>
+              <View style={styles.matCardBadge}>
+                <Text style={styles.matCardBadgeText}>{materialSummary.staySet.total} SETS</Text>
+              </View>
+            </View>
+
+            <View style={styles.matGrid2Cols}>
+              <View style={styles.matStatCard}>
+                <Text style={styles.matStatCardLabel}>HT Stay Set</Text>
+                <Text style={styles.matStatCardValue}>{materialSummary.staySet.htQty}</Text>
+                <Text style={styles.matStatCardUnit}>Installed Sets</Text>
+              </View>
+              <View style={styles.matStatCard}>
+                <Text style={styles.matStatCardLabel}>LT Stay Set</Text>
+                <Text style={styles.matStatCardValue}>{materialSummary.staySet.ltQty}</Text>
+                <Text style={styles.matStatCardUnit}>Installed Sets</Text>
+              </View>
+            </View>
+
+            {Object.keys(materialSummary.staySet.byType).length > 2 && (
+              <View style={styles.matSubTypesList}>
+                {Object.entries(materialSummary.staySet.byType).map(([typeName, qty]) => (
+                  <View key={typeName} style={styles.matSubTypeRow}>
+                    <Text style={styles.matSubTypeLabel}>{typeName}</Text>
+                    <Text style={styles.matSubTypeQty}>{qty} Sets</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+
+          {/* 4. EARTHING CARD */}
+          <View style={styles.matCard}>
+            <View style={styles.matCardHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={styles.matCardIcon}>⏚</Text>
+                <Text style={styles.matCardTitle}>4. EARTHING INSTALLATIONS</Text>
+              </View>
+              <View style={styles.matCardBadge}>
+                <Text style={styles.matCardBadgeText}>{materialSummary.earthing.total} UNITS</Text>
+              </View>
+            </View>
+
+            <View style={styles.matGrid3Cols}>
+              <View style={styles.matStatCard}>
+                <Text style={styles.matStatCardLabel}>Coil Earthing</Text>
+                <Text style={styles.matStatCardValue}>{materialSummary.earthing.coilQty}</Text>
+                <Text style={styles.matStatCardUnit}>Qty</Text>
+              </View>
+              <View style={styles.matStatCard}>
+                <Text style={styles.matStatCardLabel}>Pipe Earthing</Text>
+                <Text style={styles.matStatCardValue}>{materialSummary.earthing.pipeQty}</Text>
+                <Text style={styles.matStatCardUnit}>Qty</Text>
+              </View>
+              <View style={styles.matStatCard}>
+                <Text style={styles.matStatCardLabel}>Plate Earthing</Text>
+                <Text style={styles.matStatCardValue}>{materialSummary.earthing.plateQty}</Text>
+                <Text style={styles.matStatCardUnit}>Qty</Text>
+              </View>
+            </View>
+
+            {Object.keys(materialSummary.earthing.byType).length > 3 && (
+              <View style={styles.matSubTypesList}>
+                {Object.entries(materialSummary.earthing.byType).map(([typeName, qty]) => (
+                  <View key={typeName} style={styles.matSubTypeRow}>
+                    <Text style={styles.matSubTypeLabel}>{typeName}</Text>
+                    <Text style={styles.matSubTypeQty}>{qty} Units</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+
+          {/* 5. CONDUCTORS & CABLING CARD */}
+          <View style={styles.matCard}>
+            <View style={styles.matCardHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={styles.matCardIcon}>〰️</Text>
+                <Text style={styles.matCardTitle}>5. CONDUCTORS & CABLING</Text>
+              </View>
+              <View style={styles.matCardBadge}>
+                <Text style={styles.matCardBadgeText}>{materialSummary.totalSpans} SPANS</Text>
+              </View>
+            </View>
+
+            {Object.keys(materialSummary.conductors).length === 0 ? (
+              <View style={styles.emptyMatRow}>
+                <Text style={styles.emptyMatText}>No conductor or cabling parameters recorded.</Text>
+              </View>
+            ) : (
+              <View style={styles.matConductorList}>
+                {Object.values(materialSummary.conductors).map((cond) => (
+                  <View key={cond.name} style={styles.matConductorRow}>
+                    <View style={styles.matConductorMain}>
+                      <Text style={styles.matConductorName}>{cond.name}</Text>
+                      <Text style={styles.matConductorSub}>
+                        {cond.spans} span(s)
+                        {cond.totalLength > 0 ? ` • ${cond.totalLength} meters` : ''}
+                      </Text>
+                    </View>
+                    <View style={styles.matConductorSpansBadge}>
+                      <Text style={styles.matConductorSpansText}>{cond.spans} Spans</Text>
+                    </View>
+                  </View>
+                ))}
+                {materialSummary.totalLineLengthMeters > 0 && (
+                  <View style={styles.matCardSubtotalRow}>
+                    <Text style={styles.matCardSubtotalText}>
+                      Total Recorded Line Length: ~{materialSummary.totalLineLengthMeters} meters
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
+
+          {/* 6. POLE DISTRIBUTION BOXES (DB) */}
+          <View style={styles.matCard}>
+            <View style={styles.matCardHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={styles.matCardIcon}>🔲</Text>
+                <Text style={styles.matCardTitle}>6. POLE DISTRIBUTION BOXES (DB)</Text>
+              </View>
+              <View style={styles.matCardBadge}>
+                <Text style={styles.matCardBadgeText}>{materialSummary.totalPoleDb} TOTAL</Text>
+              </View>
+            </View>
+
+            {Object.keys(materialSummary.poleDb).length === 0 ? (
+              <View style={styles.emptyMatRow}>
+                <Text style={styles.emptyMatText}>No Pole DB units recorded in this erection section.</Text>
+              </View>
+            ) : (
+              <View style={styles.matSubTypesList}>
+                {Object.values(materialSummary.poleDb).map((db) => (
+                  <View key={db.name} style={styles.matSubTypeRow}>
+                    <Text style={styles.matSubTypeLabel}>{db.name}</Text>
+                    <Text style={styles.matSubTypeQty}>{db.qty} Installed</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+
+          {/* 7. ACCESSORIES & SAFETY HARDWARE */}
+          <View style={styles.matCard}>
+            <View style={styles.matCardHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={styles.matCardIcon}>🛡️</Text>
+                <Text style={styles.matCardTitle}>7. ACCESSORIES & HARDWARE</Text>
+              </View>
+            </View>
+
+            <View style={styles.matGrid2Cols}>
+              <View style={styles.matStatCard}>
+                <Text style={styles.matStatCardLabel}>Danger Boards</Text>
+                <Text style={styles.matStatCardValue}>{materialSummary.accessories.dangerBoards}</Text>
+                <Text style={styles.matStatCardUnit}>Fitted</Text>
+              </View>
+              <View style={styles.matStatCard}>
+                <Text style={styles.matStatCardLabel}>Anti-Climbing</Text>
+                <Text style={styles.matStatCardValue}>{materialSummary.accessories.antiClimbing}</Text>
+                <Text style={styles.matStatCardUnit}>Devices</Text>
+              </View>
+            </View>
+
+            {/* Service Connections */}
+            <View style={styles.serviceConnBox}>
+              <View style={styles.serviceConnHeader}>
+                <Text style={styles.serviceConnTitle}>Service Connections</Text>
+                <Text style={styles.serviceConnTotal}>
+                  {materialSummary.accessories.serviceConnectionsTotal} Connections
+                </Text>
+              </View>
+              {Object.keys(materialSummary.accessories.serviceConnectionsByType).length > 0 ? (
+                <View style={styles.serviceConnTypeList}>
+                  {Object.entries(materialSummary.accessories.serviceConnectionsByType).map(([sName, sQty]) => (
+                    <View key={sName} style={styles.serviceConnTypeRow}>
+                      <Text style={styles.serviceConnTypeLabel}>{sName}:</Text>
+                      <Text style={styles.serviceConnTypeQty}>{sQty} Nos</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+            </View>
+
+            {/* Clamping Arrangements */}
+            {Object.keys(materialSummary.accessories.clampingByType).length > 0 && (
+              <View style={styles.clampingBox}>
+                <Text style={styles.clampingTitle}>Clamping Arrangements Fitted</Text>
+                <View style={styles.clampingList}>
+                  {Object.entries(materialSummary.accessories.clampingByType).map(([cName, cQty]) => (
+                    <View key={cName} style={styles.clampingRow}>
+                      <Text style={styles.clampingLabel}>{cName}:</Text>
+                      <Text style={styles.clampingQty}>{cQty} Nos</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
+
         {/* INLINE ATTRS EDITOR */}
         {!isLocked && <SurveyAttributeEditor
           selectedNodeId={selectedNodeId}
@@ -866,24 +1445,6 @@ export default function ErectionDetailsScreen() {
             </TouchableOpacity>
           </View>
         )}
-
-        {/* METADATA LEGEND FORM */}
-        {!isLocked && <SurveyLegendForm
-          location={location}
-          setLocation={setLocation}
-          block={block}
-          setBlock={setBlock}
-          district={district}
-          setDistrict={setDistrict}
-          preparedBy={preparedBy}
-          setPreparedBy={setPreparedBy}
-          contractor={contractor}
-          setContractor={setContractor}
-          remarks={remarks}
-          setRemarks={setRemarks}
-          accentColor={accentColor}
-          onSave={handleSaveMetadata}
-        />}
       </ScrollView>
 
       {/* Photo Viewer Modal */}
@@ -1997,5 +2558,520 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 380,
     borderRadius: 12,
+  },
+
+  /* Material Summary Section */
+  materialSection: {
+    marginTop: 8,
+    marginBottom: 24,
+  },
+  materialSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  materialHeaderIcon: {
+    fontSize: 22,
+  },
+  materialHeaderTitle: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#0F172A',
+    letterSpacing: 1,
+  },
+  materialHeaderSubtitle: {
+    fontSize: 9.5,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  materialTotalBadge: {
+    backgroundColor: '#0284C7',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  materialTotalBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 8.5,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  metricScroll: {
+    marginBottom: 16,
+  },
+  metricScrollContent: {
+    gap: 8,
+    paddingVertical: 2,
+  },
+  metricChip: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(2, 132, 199, 0.15)',
+    alignItems: 'center',
+    minWidth: 70,
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  metricChipNum: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#0284C7',
+  },
+  metricChipLabel: {
+    fontSize: 8.5,
+    fontWeight: '700',
+    color: '#64748B',
+    marginTop: 2,
+  },
+
+  /* Material Card General */
+  matCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1.2,
+    borderColor: 'rgba(2, 132, 199, 0.15)',
+    padding: 16,
+    marginBottom: 14,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  matCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    paddingBottom: 10,
+    marginBottom: 12,
+  },
+  matCardIcon: {
+    fontSize: 18,
+  },
+  matCardTitle: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#0F172A',
+    letterSpacing: 0.8,
+  },
+  matCardBadge: {
+    backgroundColor: 'rgba(2, 132, 199, 0.08)',
+    borderColor: '#0284C7',
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+  },
+  matCardBadgeText: {
+    fontSize: 8.5,
+    fontWeight: '800',
+    color: '#0284C7',
+    letterSpacing: 0.5,
+  },
+  matCardBadgeDtr: {
+    backgroundColor: 'rgba(124, 58, 237, 0.08)',
+    borderColor: '#7C3AED',
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+  },
+  matCardBadgeTextDtr: {
+    fontSize: 8.5,
+    fontWeight: '800',
+    color: '#7C3AED',
+    letterSpacing: 0.5,
+  },
+
+  /* Pole Global Pills */
+  poleGlobalPillsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 12,
+  },
+  polePill: {
+    flex: 1,
+    minWidth: '47%',
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  polePillConcrete: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#86EFAC',
+  },
+  polePillNonConcrete: {
+    backgroundColor: '#F0F9FF',
+    borderColor: '#BAE6FD',
+  },
+  polePillNew: {
+    backgroundColor: '#F5F3FF',
+    borderColor: '#DDD6FE',
+  },
+  polePillOld: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
+  },
+  polePillLabel: {
+    fontSize: 8.5,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  polePillValue: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+
+  /* Height Breakdown List */
+  heightBreakdownList: {
+    gap: 8,
+  },
+  heightItemBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 10,
+  },
+  heightItemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  heightItemTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: 0.5,
+  },
+  heightItemTotal: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#0284C7',
+  },
+  heightItemChipsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  heightSubChip: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  heightSubChipLabel: {
+    fontSize: 8.5,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  heightSubChipVal: {
+    fontSize: 11,
+    color: '#0F172A',
+    fontWeight: '800',
+  },
+
+  /* DTR Breakdown List */
+  dtrBreakdownList: {
+    gap: 8,
+  },
+  dtrItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 10,
+  },
+  dtrCapacityBadge: {
+    backgroundColor: '#EDE9FE',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    minWidth: 72,
+    alignItems: 'center',
+  },
+  dtrCapacityText: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#7C3AED',
+  },
+  dtrQuantitiesGroup: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  dtrQtyChipNew: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDF4',
+    borderColor: '#86EFAC',
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    gap: 4,
+  },
+  dtrQtyLabelNew: {
+    fontSize: 8.5,
+    color: '#15803D',
+    fontWeight: '600',
+  },
+  dtrQtyValNew: {
+    fontSize: 10.5,
+    color: '#15803D',
+    fontWeight: '800',
+  },
+  dtrQtyChipOld: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    borderColor: '#CBD5E1',
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    gap: 4,
+  },
+  dtrQtyLabelOld: {
+    fontSize: 8.5,
+    color: '#475569',
+    fontWeight: '600',
+  },
+  dtrQtyValOld: {
+    fontSize: 10.5,
+    color: '#475569',
+    fontWeight: '800',
+  },
+  dtrRowTotalBox: {
+    minWidth: 64,
+    alignItems: 'flex-end',
+  },
+  dtrRowTotalText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  matCardSubtotalRow: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  matCardSubtotalText: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    color: '#64748B',
+    textAlign: 'right',
+  },
+
+  /* Mat Grid Multi-Cols */
+  matGrid2Cols: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  matGrid3Cols: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  matStatCard: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 10,
+    alignItems: 'center',
+  },
+  matStatCardLabel: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#64748B',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  matStatCardValue: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#0284C7',
+  },
+  matStatCardUnit: {
+    fontSize: 8,
+    fontWeight: '600',
+    color: '#94A3B8',
+    marginTop: 2,
+  },
+
+  /* SubTypes List */
+  matSubTypesList: {
+    marginTop: 8,
+    gap: 6,
+  },
+  matSubTypeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  matSubTypeLabel: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  matSubTypeQty: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#0284C7',
+  },
+
+  /* Conductor List */
+  matConductorList: {
+    gap: 8,
+  },
+  matConductorRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 10,
+  },
+  matConductorMain: {
+    flex: 1,
+    paddingRight: 8,
+  },
+  matConductorName: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  matConductorSub: {
+    fontSize: 9.5,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  matConductorSpansBadge: {
+    backgroundColor: '#E0F2FE',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  matConductorSpansText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#0284C7',
+  },
+
+  /* Empty Mat Row */
+  emptyMatRow: {
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  emptyMatText: {
+    fontSize: 10.5,
+    color: '#94A3B8',
+    fontStyle: 'italic',
+  },
+
+  /* Service Connections & Clamping in accessories */
+  serviceConnBox: {
+    marginTop: 10,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 10,
+  },
+  serviceConnHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  serviceConnTitle: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  serviceConnTotal: {
+    fontSize: 10.5,
+    fontWeight: '900',
+    color: '#059669',
+  },
+  serviceConnTypeList: {
+    marginTop: 6,
+    gap: 4,
+  },
+  serviceConnTypeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  serviceConnTypeLabel: {
+    fontSize: 9,
+    color: '#64748B',
+  },
+  serviceConnTypeQty: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  clampingBox: {
+    marginTop: 10,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 10,
+  },
+  clampingTitle: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 6,
+  },
+  clampingList: {
+    gap: 4,
+  },
+  clampingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  clampingLabel: {
+    fontSize: 9,
+    color: '#64748B',
+  },
+  clampingQty: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    color: '#334155',
   },
 });
