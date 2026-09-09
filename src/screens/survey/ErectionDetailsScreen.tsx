@@ -34,7 +34,7 @@ export default function ErectionDetailsScreen() {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const dispatch = useDispatch();
-  
+
   const { surveyId } = route.params;
   const historyList = useSelector((state: RootState) => state.survey.historyList) || [];
   const survey = Array.isArray(historyList) ? historyList.find(l => l.id === surveyId) : undefined;
@@ -329,8 +329,8 @@ export default function ErectionDetailsScreen() {
 
         const poleMasterId = attrs.pole_type_id ?? attrs.pole_master_id ?? attrs.poleMaster ?? attrs.poleType ?? attrs.pole_type;
         const poleObj = Array.isArray(poles) ? poles.find((p: any) => String(p.id) === String(poleMasterId)) : undefined;
-        const poleName = (poleObj?.pole_name || attrs.poleTypeName || attrs.pole_name || attrs.poleType || '').toUpperCase();
-        const poleCode = (poleObj?.pole_code || '').toUpperCase();
+        const poleName = (poleObj && poleObj?.pole_name || attrs && attrs.poleTypeName || attrs.pole_name || attrs.poleType || '')?.toString()?.toUpperCase() || '';
+        const poleCode = (poleObj?.pole_code || '').toString()?.toUpperCase();
         const heightAttr = String(attrs.height || '').toUpperCase();
 
         // Determine height category
@@ -530,7 +530,7 @@ export default function ErectionDetailsScreen() {
       setNodeTilt(node.attributes?.tilt !== undefined && node.attributes?.tilt !== null ? String(node.attributes.tilt) : '');
       setNodeSag(node.attributes?.sag !== undefined && node.attributes?.sag !== null ? String(node.attributes.sag) : '');
       setNodeSpanDistance(node.attributes?.spanDistance !== undefined && node.attributes?.spanDistance !== null ? String(node.attributes.spanDistance) : '');
-      
+
       let resolvedParent = node.parentLabel || (index > 0 ? projectedPoints[index - 1]?.nameLabel : '');
       setNodeParentLabel(resolvedParent);
     }
@@ -551,7 +551,7 @@ export default function ErectionDetailsScreen() {
     setNodeTilt(node.attributes?.tilt !== undefined && node.attributes?.tilt !== null ? String(node.attributes.tilt) : '');
     setNodeSag(node.attributes?.sag !== undefined && node.attributes?.sag !== null ? String(node.attributes.sag) : '');
     setNodeSpanDistance(node.attributes?.spanDistance !== undefined && node.attributes?.spanDistance !== null ? String(node.attributes.spanDistance) : '');
-    
+
     let resolvedParent = node.parentLabel || (index > 0 ? projectedPoints[index - 1]?.nameLabel : '');
     setNodeParentLabel(resolvedParent);
   };
@@ -1464,17 +1464,17 @@ export default function ErectionDetailsScreen() {
       >
         <Pressable style={styles.photoModalOverlay} onPress={() => setSelectedPhotoModal(null)}>
           <View style={styles.photoModalCard}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.photoModalCloseBtn}
               onPress={() => setSelectedPhotoModal(null)}
             >
               <Text style={styles.photoModalCloseText}>✕ CLOSE</Text>
             </TouchableOpacity>
             {selectedPhotoModal && (
-              <Image 
-                source={{ uri: selectedPhotoModal }} 
-                style={styles.photoModalFullImage} 
-                resizeMode="contain" 
+              <Image
+                source={{ uri: selectedPhotoModal }}
+                style={styles.photoModalFullImage}
+                resizeMode="contain"
               />
             )}
           </View>
@@ -1490,8 +1490,8 @@ export default function ErectionDetailsScreen() {
           if (!loadingPoleDetails) setConfirmEditModalVisible(false);
         }}
       >
-        <Pressable 
-          style={styles.modalOverlayCenter} 
+        <Pressable
+          style={styles.modalOverlayCenter}
           onPress={() => {
             if (!loadingPoleDetails) setConfirmEditModalVisible(false);
           }}
@@ -1513,9 +1513,9 @@ export default function ErectionDetailsScreen() {
 
             {/* Pole Selection List */}
             <Text style={styles.polePickerLabel}>CHOOSE POLE / STRUCTURE:</Text>
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false} 
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
               style={styles.poleChipsScroll}
               contentContainerStyle={styles.poleChipsContent}
             >
