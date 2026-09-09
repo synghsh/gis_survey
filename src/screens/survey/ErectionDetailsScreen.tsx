@@ -83,21 +83,22 @@ export default function ErectionDetailsScreen() {
         setLoadingPoleDetails(false);
         setConfirmEditModalVisible(false);
         const serverNode = data?.selected_node;
+        const finalNode = serverNode || targetNode;
         dispatch(resumeSurveyWithPole({
           lineId: survey.id,
           poleLabel,
-          editingNode: serverNode || targetNode,
+          editingNode: finalNode,
         }));
         navigation.navigate('ActiveSurvey', {
           isEditingNode: true,
           targetPoleLabel: poleLabel,
-          serverNodeData: serverNode || null,
+          serverNodeData: finalNode || null,
           workflowType: 'ERECTION',
         });
       },
       (err) => {
         setLoadingPoleDetails(false);
-        console.warn('Could not fetch server pole details, falling back to local:', err);
+        console.log('Using local pole details for edit:', err);
         setConfirmEditModalVisible(false);
         dispatch(resumeSurveyWithPole({
           lineId: survey.id,
@@ -107,6 +108,7 @@ export default function ErectionDetailsScreen() {
         navigation.navigate('ActiveSurvey', {
           isEditingNode: true,
           targetPoleLabel: poleLabel,
+          serverNodeData: targetNode || null,
           workflowType: 'ERECTION',
         });
       }

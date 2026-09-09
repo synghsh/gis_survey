@@ -125,7 +125,7 @@ export const fetchErectionPoleDetailsAction = (
         }
       })
       .catch((error: any) => {
-        console.warn('Axios fetch pole details error:', error);
+        console.log('Axios fetch pole details error:', error?.message || error);
         const errorMsg = error.response?.data?.Message || error.message || 'Network error or server unreachable';
         errorCallback?.(errorMsg);
       });

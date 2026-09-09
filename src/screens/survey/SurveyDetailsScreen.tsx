@@ -84,16 +84,17 @@ export default function SurveyDetailsScreen() {
           setLoadingPoleDetails(false);
           setConfirmEditModalVisible(false);
           const serverNode = data?.selected_node;
+          const finalNode = serverNode || targetNode;
           dispatch(resumeSurveyWithPole({
             lineId: survey.id,
             poleLabel,
-            editingNode: serverNode || targetNode,
+            editingNode: finalNode,
           }));
           const isErect = survey.workflowType === 'ERECTION' || survey.id.startsWith('erect-') || Boolean(survey.drawingNo && !survey.id.startsWith('srv-'));
           navigation.navigate('ActiveSurvey', {
             isEditingNode: true,
             targetPoleLabel: poleLabel,
-            serverNodeData: serverNode || null,
+            serverNodeData: finalNode || null,
             workflowType: isErect ? 'ERECTION' : 'SURVEY',
           });
         },
@@ -109,6 +110,7 @@ export default function SurveyDetailsScreen() {
           navigation.navigate('ActiveSurvey', {
             isEditingNode: true,
             targetPoleLabel: poleLabel,
+            serverNodeData: targetNode || null,
             workflowType: isErect ? 'ERECTION' : 'SURVEY',
           });
         }
@@ -124,6 +126,7 @@ export default function SurveyDetailsScreen() {
       navigation.navigate('ActiveSurvey', {
         isEditingNode: true,
         targetPoleLabel: poleLabel,
+        serverNodeData: targetNode || null,
         workflowType: isErect ? 'ERECTION' : 'SURVEY',
       });
     }
