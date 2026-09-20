@@ -681,6 +681,68 @@ export default function ActiveSurveyScreen() {
     dispatch(addNode(newNode));
     return true;
   };
+  const uploadSinglePhoto = async (
+    uri: string,
+    category: string,
+    targetNodeLabel: string,
+    erectionId: string | number
+  ): Promise<string> => {
+    if (!uri) return '';
+    // If already uploaded (starts with GIS/ or http:// or https://), return directly
+    if (uri.startsWith('GIS/') || uri.startsWith('http://') || uri.startsWith('https://')) {
+      return uri;
+    }
+    // Only process local file paths
+    if (!uri.startsWith('file://') && !uri.startsWith('content://') && !uri.startsWith('ph://')) {
+      return uri;
+    }
+    try {
+      console.log(`[Upload] Compressing ${category} photo... (URI: ${uri})`);
+      const compressedUri = await compressImageIfNeeded(uri, 5 * 1024 * 1024);
+      console.log(`[Upload] Compressed ${category} photo ready at: ${compressedUri}`);
+
+      const formData = new FormData();
+      const filename = compressedUri.split('/').pop() || `${category.toLowerCase()}_${Date.now()}.jpg`;
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1].toLowerCase()}` : 'image/jpeg';
+
+      formData.append('file', {
+        uri: compressedUri,
+        name: filename,
+        type,
+      } as any);
+      formData.append('category', category);
+      formData.append('prefix', 'GIS/erections');
+      formData.append('erection_id', String(erectionId || ''));
+      formData.append('pole_label', targetNodeLabel);
+      formData.append('bucket', 'gis-image');
+
+      console.log(`[Upload] Uploading ${category} photo to Cloudflare R2...`);
+      const res = await UploadErectionImageService(formData);
+
+      // Django FinalResponseMiddleware envelopes responses in capitalized 'Data'
+      const responseData = res?.data?.Data || res?.data?.data || res?.data;
+      const uploadedKey = responseData?.key || responseData?.signed_url;
+
+      if (uploadedKey) {
+        console.log(`✅ [Upload] Successfully uploaded ${category} photo to Cloudflare R2:`, uploadedKey);
+        return uploadedKey;
+      }
+
+      console.warn(`⚠️ [Upload] Response did not contain R2 key for ${category}:`, res?.data);
+      return uri;
+    } catch (uploadErr: any) {
+      const errorMsg = extractBackendErrorMessage(uploadErr);
+      console.error(`🚨 [Upload] Failed to upload ${category} photo to R2:`, {
+        category,
+        status: uploadErr?.response?.status,
+        backendMessage: errorMsg,
+        rawResponse: uploadErr?.response?.data,
+      });
+      toast.error(`Failed to upload ${category} photo: ${errorMsg}`, { title: 'Upload Failed' });
+      return uri;
+    }
+  };
 
   const saveErectionNodeToServer = (data: SurveyNodeFormInputs, onSuccess: () => void) => {
     if (!lat || !lng) {
@@ -835,67 +897,16 @@ export default function ActiveSurveyScreen() {
       remarks: data.remarks || '',
     };
 
-    const uploadSinglePhoto = async (uri: string, category: string): Promise<string> => {
-      if (!uri || (!uri.startsWith('file://') && !uri.startsWith('content://') && !uri.startsWith('ph://'))) {
-        return uri;
-      }
-      try {
-        console.log(`[Upload] Compressing ${category} photo... (URI: ${uri})`);
-        const compressedUri = await compressImageIfNeeded(uri, 5 * 1024 * 1024);
-        console.log(`[Upload] Compressed ${category} photo ready at: ${compressedUri}`);
-
-        const formData = new FormData();
-        const filename = compressedUri.split('/').pop() || `${category.toLowerCase()}_${Date.now()}.jpg`;
-        const match = /\.(\w+)$/.exec(filename);
-        const type = match ? `image/${match[1].toLowerCase()}` : 'image/jpeg';
-
-        formData.append('file', {
-          uri: compressedUri,
-          name: filename,
-          type,
-        } as any);
-        formData.append('category', category);
-        formData.append('prefix', 'GIS/erections');
-        formData.append('erection_id', String(validErectionId || rawErectionId || ''));
-        formData.append('pole_label', nodeLabel);
-        formData.append('bucket', 'gis-image');
-
-        console.log(`[Upload] Uploading ${category} photo to Cloudflare R2...`);
-        const res = await UploadErectionImageService(formData);
-
-        // Django FinalResponseMiddleware envelopes responses in capitalized 'Data'
-        const responseData = res?.data?.Data || res?.data?.data || res?.data;
-        const uploadedKey = responseData?.key || responseData?.signed_url;
-
-        if (uploadedKey) {
-          console.log(`✅ [Upload] Successfully uploaded ${category} photo to Cloudflare R2:`, uploadedKey);
-          return uploadedKey;
-        }
-
-        console.warn(`⚠️ [Upload] Response did not contain R2 key for ${category}:`, res?.data);
-        return uri;
-      } catch (uploadErr: any) {
-        const errorMsg = extractBackendErrorMessage(uploadErr);
-        console.error(`🚨 [Upload] Failed to upload ${category} photo to R2:`, {
-          category,
-          status: uploadErr?.response?.status,
-          backendMessage: errorMsg,
-          rawResponse: uploadErr?.response?.data,
-        });
-        toast.error(`Failed to upload ${category} photo: ${errorMsg}`, { title: 'Upload Failed' });
-        return uri;
-      }
-    };
-
     setSavingNode(true);
     toast.info('Uploading compliance photos to Cloudflare R2...', { title: 'Cloudflare R2' });
 
     (async () => {
       try {
-        const uploadedPolePhotos = await Promise.all(polePhotos.map(p => uploadSinglePhoto(p, 'POLE')));
-        const uploadedEarthingPhotos = await Promise.all(earthingPhotos.map(p => uploadSinglePhoto(p, 'EARTHING')));
-        const uploadedStaySetPhotos = await Promise.all(staySetPhotos.map(p => uploadSinglePhoto(p, 'STAY_SET')));
-        const uploadedPoleDbPhotos = await Promise.all(poleDbPhotos.map(p => uploadSinglePhoto(p, 'POLE_DB')));
+        const targetErectionId = validErectionId || rawErectionId;
+        const uploadedPolePhotos = await Promise.all(polePhotos.map(p => uploadSinglePhoto(p, 'POLE', nodeLabel, targetErectionId)));
+        const uploadedEarthingPhotos = await Promise.all(earthingPhotos.map(p => uploadSinglePhoto(p, 'EARTHING', nodeLabel, targetErectionId)));
+        const uploadedStaySetPhotos = await Promise.all(staySetPhotos.map(p => uploadSinglePhoto(p, 'STAY_SET', nodeLabel, targetErectionId)));
+        const uploadedPoleDbPhotos = await Promise.all(poleDbPhotos.map(p => uploadSinglePhoto(p, 'POLE_DB', nodeLabel, targetErectionId)));
 
         mappedAttrs.polePhotos = uploadedPolePhotos;
         mappedAttrs.earthingPhotos = uploadedEarthingPhotos;
@@ -958,16 +969,12 @@ export default function ActiveSurveyScreen() {
     }
   };
 
-  const handleUpdateCurrentPole = (data: SurveyNodeFormInputs) => {
+  const handleUpdateCurrentPole = async (data: SurveyNodeFormInputs, onDone?: () => void) => {
     if (!activeLine) return;
     if (!lat || !lng) {
       toast.warning('Waiting for valid GPS location coordinates.', { title: 'GPS required' });
       return;
     }
-
-    const allPhotos = isErectionFlow
-      ? [...polePhotos, ...earthingPhotos, ...staySetPhotos, ...poleDbPhotos]
-      : capturedPhotos;
 
     const nodeLabel = data.nameLabel.trim() || editingPoleLabel || `P-${currentSeq}`;
 
@@ -1032,10 +1039,6 @@ export default function ActiveSurveyScreen() {
       mappedAttrs.ipcQty = data.ipcQty ? Number(data.ipcQty) : null;
       mappedAttrs.extraConsumption = data.extraConsumption ? Number(data.extraConsumption) : null;
       mappedAttrs.assetStatus = data.assetStatus || null;
-      mappedAttrs.polePhotos = polePhotos;
-      mappedAttrs.earthingPhotos = earthingPhotos;
-      mappedAttrs.staySetPhotos = staySetPhotos;
-      mappedAttrs.poleDbPhotos = poleDbPhotos;
     } else {
       mappedAttrs.poleType = 'Concrete';
       mappedAttrs.cableSize = data.cableSize.trim() || '100 sqmm ACSR';
@@ -1043,98 +1046,149 @@ export default function ActiveSurveyScreen() {
 
     const targetLocalNode = activeLine.nodes.find(n => n.nameLabel === (editingPoleLabel || nodeLabel) || (editingNodeSeq != null && n.sequenceNumber === editingNodeSeq));
 
-    const updatedNode: SurveyNode = {
-      id: targetLocalNode?.id || `node-${Date.now()}`,
-      nodeType,
-      assetStatus: data.assetStatus || undefined,
-      lineSection: lineSectionVal,
-      sequenceNumber: editingNodeSeq != null ? editingNodeSeq : currentSeq,
-      nameLabel: nodeLabel,
-      latitude: lat,
-      longitude: lng,
-      attributes: mappedAttrs,
-      imageUri: isErectionFlow ? (polePhotos[0] || allPhotos[0] || null) : (capturedPhotos[0] || null),
-      imageUris: allPhotos,
-      capturedAt: targetLocalNode?.capturedAt || new Date().toISOString(),
-      parentLabel: targetLocalNode?.parentLabel,
-    };
-
-    dispatch(updateActiveNode(updatedNode));
-    dispatch(updateSurveyNode({
-      lineId: activeLine.id,
-      nodeId: updatedNode.id,
-      nameLabel: updatedNode.nameLabel,
-      latitude: updatedNode.latitude,
-      longitude: updatedNode.longitude,
-      parentLabel: updatedNode.parentLabel,
-      attributes: mappedAttrs,
-    }));
-
     if (isErectionFlow) {
       const rawErectionId = activeLine.id.replace('erect-', '');
       const validErectionId = !isNaN(Number(rawErectionId)) ? Number(rawErectionId) : null;
       const targetNodeDbId = serverNodeDataParam?.id || (!isNaN(Number(targetLocalNode?.id)) ? Number(targetLocalNode?.id) : null);
-
-      const payload: any = {
-        erection_execution_id: validErectionId || rawErectionId,
-        drawing_no: activeLine.drawingNo || undefined,
-        node_id: targetNodeDbId || undefined,
-        id: targetNodeDbId || undefined,
-        node_type: nodeType,
-        sequence_number: editingNodeSeq != null ? editingNodeSeq : currentSeq,
-        name_label: nodeLabel,
-        latitude: lat,
-        longitude: lng,
-        parent_label: updatedNode.parentLabel,
-        attributes: mappedAttrs,
-        images: allPhotos,
-        captured_at: new Date().toISOString(),
-        user_id: userId || null,
-        dtr_capacity: mappedAttrs.dtrCapacity,
-        dtr_serial_no: nodeType === 'DTR' ? data.nameLabel : null,
-        conductor: mappedAttrs.conductor,
-        pole_type_id: mappedAttrs.pole_type_id,
-        pole_type: mappedAttrs.pole_type_id,
-        pole_master_id: mappedAttrs.pole_type_id,
-        pole_master: mappedAttrs.pole_type_id,
-        poleMaster: mappedAttrs.pole_type_id,
-        poleType: mappedAttrs.pole_type_id,
-        pole_qty: mappedAttrs.poleQty,
-        structure_condition: data.assetStatus || null,
-        earthing_used: mappedAttrs.earthingUsed,
-        earthing_quantity: mappedAttrs.earthingQuantity,
-        stay_set_used: mappedAttrs.staySetUsed,
-        stay_set_quantity: mappedAttrs.staySetQuantity,
-        pole_db_type_codes: data.poleDbTypes,
-        pole_db_quantities: mappedAttrs.poleDbQuantities ? JSON.parse(mappedAttrs.poleDbQuantities) : {},
-        dead_end_clamp_qty: mappedAttrs.deadEndClampQty,
-        suspension_clamp_qty: mappedAttrs.suspensionClampQty,
-        pole_clamp_qty: mappedAttrs.poleClampQty,
-        ipc_qty: mappedAttrs.ipcQty,
-        service_connection_qty: mappedAttrs.service_connection_qty,
-        serviceConnectionQty: mappedAttrs.service_connection_qty,
-        service_connection_quantity: mappedAttrs.service_connection_qty,
-        extra_consumption: mappedAttrs.extraConsumption,
-        remarks: data.remarks || '',
-      };
+      const targetErectionId = validErectionId || rawErectionId;
 
       setSavingNode(true);
-      SaveErectionNodeService(payload)
-        .then((res: any) => {
-          setSavingNode(false);
-          if (res.status === 200 && res.data && !res.data.Exception) {
-            toast.success(`Pole ${nodeLabel} updated successfully in database.`);
-          } else {
-            toast.error(res.data?.Message || 'Failed to update pole on server');
-          }
-        })
-        .catch((err: any) => {
-          setSavingNode(false);
-          console.log('Update pole server error:', err);
-          toast.warning('Updated locally, but server update failed.');
-        });
+      toast.info('Uploading compliance photos to Cloudflare R2...', { title: 'Cloudflare R2' });
+
+      try {
+        const uploadedPolePhotos = await Promise.all(polePhotos.map(p => uploadSinglePhoto(p, 'POLE', nodeLabel, targetErectionId)));
+        const uploadedEarthingPhotos = await Promise.all(earthingPhotos.map(p => uploadSinglePhoto(p, 'EARTHING', nodeLabel, targetErectionId)));
+        const uploadedStaySetPhotos = await Promise.all(staySetPhotos.map(p => uploadSinglePhoto(p, 'STAY_SET', nodeLabel, targetErectionId)));
+        const uploadedPoleDbPhotos = await Promise.all(poleDbPhotos.map(p => uploadSinglePhoto(p, 'POLE_DB', nodeLabel, targetErectionId)));
+
+        mappedAttrs.polePhotos = uploadedPolePhotos;
+        mappedAttrs.earthingPhotos = uploadedEarthingPhotos;
+        mappedAttrs.staySetPhotos = uploadedStaySetPhotos;
+        mappedAttrs.poleDbPhotos = uploadedPoleDbPhotos;
+
+        const allUploadedPhotos = [
+          ...uploadedPolePhotos,
+          ...uploadedEarthingPhotos,
+          ...uploadedStaySetPhotos,
+          ...uploadedPoleDbPhotos,
+        ];
+
+        const updatedNode: SurveyNode = {
+          id: targetLocalNode?.id || `node-${Date.now()}`,
+          nodeType,
+          assetStatus: data.assetStatus || undefined,
+          lineSection: lineSectionVal,
+          sequenceNumber: editingNodeSeq != null ? editingNodeSeq : currentSeq,
+          nameLabel: nodeLabel,
+          latitude: lat,
+          longitude: lng,
+          attributes: mappedAttrs,
+          imageUri: uploadedPolePhotos[0] || allUploadedPhotos[0] || null,
+          imageUris: allUploadedPhotos,
+          capturedAt: targetLocalNode?.capturedAt || new Date().toISOString(),
+          parentLabel: targetLocalNode?.parentLabel,
+        };
+
+        dispatch(updateActiveNode(updatedNode));
+        dispatch(updateSurveyNode({
+          lineId: activeLine.id,
+          nodeId: updatedNode.id,
+          nameLabel: updatedNode.nameLabel,
+          latitude: updatedNode.latitude,
+          longitude: updatedNode.longitude,
+          parentLabel: updatedNode.parentLabel,
+          attributes: mappedAttrs,
+        }));
+
+        const payload: any = {
+          erection_execution_id: targetErectionId,
+          drawing_no: activeLine.drawingNo || undefined,
+          node_id: targetNodeDbId || undefined,
+          id: targetNodeDbId || undefined,
+          node_type: nodeType,
+          sequence_number: editingNodeSeq != null ? editingNodeSeq : currentSeq,
+          name_label: nodeLabel,
+          latitude: lat,
+          longitude: lng,
+          parent_label: updatedNode.parentLabel,
+          attributes: mappedAttrs,
+          images: allUploadedPhotos,
+          captured_at: new Date().toISOString(),
+          user_id: userId || null,
+          dtr_capacity: mappedAttrs.dtrCapacity,
+          dtr_serial_no: nodeType === 'DTR' ? data.nameLabel : null,
+          conductor: mappedAttrs.conductor,
+          pole_type_id: mappedAttrs.pole_type_id,
+          pole_type: mappedAttrs.pole_type_id,
+          pole_master_id: mappedAttrs.pole_type_id,
+          pole_master: mappedAttrs.pole_type_id,
+          poleMaster: mappedAttrs.pole_type_id,
+          poleType: mappedAttrs.pole_type_id,
+          pole_qty: mappedAttrs.poleQty,
+          structure_condition: data.assetStatus || null,
+          earthing_used: mappedAttrs.earthingUsed,
+          earthing_quantity: mappedAttrs.earthingQuantity,
+          stay_set_used: mappedAttrs.staySetUsed,
+          stay_set_quantity: mappedAttrs.staySetQuantity,
+          pole_db_type_codes: data.poleDbTypes,
+          pole_db_quantities: mappedAttrs.poleDbQuantities ? JSON.parse(mappedAttrs.poleDbQuantities) : {},
+          dead_end_clamp_qty: mappedAttrs.deadEndClampQty,
+          suspension_clamp_qty: mappedAttrs.suspensionClampQty,
+          pole_clamp_qty: mappedAttrs.poleClampQty,
+          ipc_qty: mappedAttrs.ipcQty,
+          service_connection_qty: mappedAttrs.service_connection_qty,
+          serviceConnectionQty: mappedAttrs.service_connection_qty,
+          service_connection_quantity: mappedAttrs.service_connection_qty,
+          extra_consumption: mappedAttrs.extraConsumption,
+          remarks: data.remarks || '',
+        };
+
+        const res = await SaveErectionNodeService(payload);
+        setSavingNode(false);
+        if (res.status === 200 && res.data && !res.data.Exception) {
+          toast.success(`Pole ${nodeLabel} updated successfully in database.`);
+          if (onDone) onDone();
+        } else {
+          const errorMsg = extractBackendErrorMessage(res.data) || 'Failed to update pole on server';
+          console.error('🚨 [Update Pole] Server error:', errorMsg);
+          toast.error(errorMsg, { title: 'Server error' });
+        }
+      } catch (err: any) {
+        setSavingNode(false);
+        const errorMsg = extractBackendErrorMessage(err);
+        console.error('🚨 [Update Pole] Server exception:', errorMsg);
+        toast.warning('Updated locally, but server update failed.');
+      }
     } else {
+      const allPhotos = capturedPhotos;
+      const updatedNode: SurveyNode = {
+        id: targetLocalNode?.id || `node-${Date.now()}`,
+        nodeType,
+        assetStatus: data.assetStatus || undefined,
+        lineSection: lineSectionVal,
+        sequenceNumber: editingNodeSeq != null ? editingNodeSeq : currentSeq,
+        nameLabel: nodeLabel,
+        latitude: lat,
+        longitude: lng,
+        attributes: mappedAttrs,
+        imageUri: capturedPhotos[0] || null,
+        imageUris: allPhotos,
+        capturedAt: targetLocalNode?.capturedAt || new Date().toISOString(),
+        parentLabel: targetLocalNode?.parentLabel,
+      };
+
+      dispatch(updateActiveNode(updatedNode));
+      dispatch(updateSurveyNode({
+        lineId: activeLine.id,
+        nodeId: updatedNode.id,
+        nameLabel: updatedNode.nameLabel,
+        latitude: updatedNode.latitude,
+        longitude: updatedNode.longitude,
+        parentLabel: updatedNode.parentLabel,
+        attributes: mappedAttrs,
+      }));
       toast.success(`Structure ${nodeLabel} updated.`);
+      if (onDone) onDone();
     }
   };
 
@@ -1142,33 +1196,32 @@ export default function ActiveSurveyScreen() {
     if (!activeLine) return;
     const parentLabel = data.nameLabel.trim() || editingPoleLabel || `P-${currentSeq}`;
     
-    // Save any pending edits to this pole first
-    handleUpdateCurrentPole(data);
-
     confirm({
       title: 'Continue Line from this Pole?',
       message: `New structures will connect from ${parentLabel} via GPS connecting line.`,
       confirmLabel: 'START CONTINUATION',
-      onConfirm: () => {
-        setIsEditingNode(false);
-        setEditingPoleLabel(undefined);
-        setEditingNodeSeq(null);
-        setContinuationParentLabel(parentLabel);
-        if (lat && lng) {
-          setContinuationParentCoords({ lat, lng });
-        }
-        dispatch(setContinuationParent(parentLabel));
+      onConfirm: async () => {
+        await handleUpdateCurrentPole(data, () => {
+          setIsEditingNode(false);
+          setEditingPoleLabel(undefined);
+          setEditingNodeSeq(null);
+          setContinuationParentLabel(parentLabel);
+          if (lat && lng) {
+            setContinuationParentCoords({ lat, lng });
+          }
+          dispatch(setContinuationParent(parentLabel));
 
-        // Reset form for next node
-        resetPhotos();
-        setLat(null);
-        setLng(null);
-        setGpsAccuracy('WAITING...');
-        lastInitializedSeqRef.current = null;
-        acquireGps();
+          // Reset form for next node
+          resetPhotos();
+          setLat(null);
+          setLng(null);
+          setGpsAccuracy('WAITING...');
+          lastInitializedSeqRef.current = null;
+          acquireGps();
 
-        toast.info(`Continuation active from ${parentLabel}. Move to next pole location.`);
-      }
+          toast.info(`Continuation active from ${parentLabel}. Move to next pole location.`);
+        });
+      },
     });
   };
 
@@ -1258,13 +1311,14 @@ export default function ActiveSurveyScreen() {
         };
 
         if (isEditingNode) {
-          handleUpdateCurrentPole(data);
-          dispatch(finishSurvey());
-          if (isErectionFlow) {
-            dispatch(fetchErectionListAction() as any);
-          }
-          toast.success('Structure updated and session finished. Line remains in progress.');
-          navigation.navigate('MainTabs');
+          handleUpdateCurrentPole(data, () => {
+            dispatch(finishSurvey());
+            if (isErectionFlow) {
+              dispatch(fetchErectionListAction() as any);
+            }
+            toast.success('Structure updated and session finished. Line remains in progress.');
+            navigation.navigate('MainTabs');
+          });
         } else if (isErectionFlow) {
           saveErectionNodeToServer(data, proceed);
         } else {
@@ -1447,7 +1501,7 @@ export default function ActiveSurveyScreen() {
               editingPoleLabel={editingPoleLabel}
               continuationParentLabel={continuationParentLabel || undefined}
               spanDistance={spanDistance}
-              onUpdatePole={handleSubmit(handleUpdateCurrentPole)}
+              onUpdatePole={handleSubmit((data) => handleUpdateCurrentPole(data))}
               onContinueFromPole={handleSubmit(handleContinueFromCurrentPole)}
             />
           </ScrollView>
