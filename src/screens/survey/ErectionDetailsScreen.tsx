@@ -255,8 +255,16 @@ export default function ErectionDetailsScreen() {
     if (Array.isArray(activeInspectedNode.imageUris)) {
       photos.push(...activeInspectedNode.imageUris);
     }
+    if (Array.isArray(activeAttrs.images)) {
+      photos.push(...activeAttrs.images);
+    }
     if (Array.isArray(activeAttrs.all_photos)) {
       photos.push(...activeAttrs.all_photos);
+    }
+    for (const key of ['polePhotos', 'earthingPhotos', 'staySetPhotos', 'poleDbPhotos']) {
+      if (Array.isArray(activeAttrs[key])) {
+        photos.push(...activeAttrs[key]);
+      }
     }
     if (activeInspectedNode.imageUri && !photos.includes(activeInspectedNode.imageUri)) {
       photos.push(activeInspectedNode.imageUri);
@@ -264,7 +272,10 @@ export default function ErectionDetailsScreen() {
     if (activeAttrs.image_url && !photos.includes(activeAttrs.image_url)) {
       photos.push(activeAttrs.image_url);
     }
-    return photos.filter(Boolean);
+    if (activeAttrs.imageUri && !photos.includes(activeAttrs.imageUri)) {
+      photos.push(activeAttrs.imageUri);
+    }
+    return Array.from(new Set(photos.filter(Boolean)));
   }, [activeInspectedNode, activeAttrs]);
 
   const materialSummary = useMemo(() => {

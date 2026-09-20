@@ -43,3 +43,10 @@ export const GetErectionPoleDetailsService = (data: { drawing_no?: string; erect
   return serviceClient.post(url, data);
 };
 
+export const UploadErectionImageService = (formData: FormData) => {
+  const url = `${apiPrefix}s3/upload/`;
+  return serviceClient.post(url, formData, {
+    transformRequest: (data: any) => data,
+  });
+};
+

@@ -20,8 +20,10 @@ import { useToast } from '../../components/ToastProvider';
 import { useConfirmation } from '../../components/ConfirmationProvider';
 import { getLineTypeLabel } from '../../utils/surveyLabels';
 import { fetchDomainsAction, fetchTransformersAction, fetchConductorsAction, fetchPolesAction } from '../../store/actions/masterAction';
-import { SaveErectionNodeService } from '../../services/erectionService';
+import { SaveErectionNodeService, UploadErectionImageService } from '../../services/erectionService';
 import { fetchErectionListAction } from '../../store/actions/erectionAction';
+import { compressImageIfNeeded } from '../../utils/imageCompressor';
+import { extractBackendErrorMessage } from '../../utils/errorHandler';
 
 import ActiveSurveyCamera from './components/ActiveSurveyCamera';
 import ActiveSurveyForm from './components/ActiveSurveyForm';
@@ -532,8 +534,7 @@ export default function ActiveSurveyScreen() {
         setTimeout(() => setCameraFlash(false), 150);
         
         const photo = await cameraRef.current.takePictureAsync({
-          quality: 0.6,
-          skipProcessing: true
+          quality: 0.7,
         });
         
         if (photo && photo.uri) {
@@ -834,23 +835,103 @@ export default function ActiveSurveyScreen() {
       remarks: data.remarks || '',
     };
 
+    const uploadSinglePhoto = async (uri: string, category: string): Promise<string> => {
+      if (!uri || (!uri.startsWith('file://') && !uri.startsWith('content://') && !uri.startsWith('ph://'))) {
+        return uri;
+      }
+      try {
+        console.log(`[Upload] Compressing ${category} photo... (URI: ${uri})`);
+        const compressedUri = await compressImageIfNeeded(uri, 5 * 1024 * 1024);
+        console.log(`[Upload] Compressed ${category} photo ready at: ${compressedUri}`);
+
+        const formData = new FormData();
+        const filename = compressedUri.split('/').pop() || `${category.toLowerCase()}_${Date.now()}.jpg`;
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1].toLowerCase()}` : 'image/jpeg';
+
+        formData.append('file', {
+          uri: compressedUri,
+          name: filename,
+          type,
+        } as any);
+        formData.append('category', category);
+        formData.append('prefix', 'GIS/erections');
+        formData.append('erection_id', String(validErectionId || rawErectionId || ''));
+        formData.append('pole_label', nodeLabel);
+        formData.append('bucket', 'gis-image');
+
+        console.log(`[Upload] Uploading ${category} photo to Cloudflare R2...`);
+        const res = await UploadErectionImageService(formData);
+
+        // Django FinalResponseMiddleware envelopes responses in capitalized 'Data'
+        const responseData = res?.data?.Data || res?.data?.data || res?.data;
+        const uploadedKey = responseData?.key || responseData?.signed_url;
+
+        if (uploadedKey) {
+          console.log(`✅ [Upload] Successfully uploaded ${category} photo to Cloudflare R2:`, uploadedKey);
+          return uploadedKey;
+        }
+
+        console.warn(`⚠️ [Upload] Response did not contain R2 key for ${category}:`, res?.data);
+        return uri;
+      } catch (uploadErr: any) {
+        const errorMsg = extractBackendErrorMessage(uploadErr);
+        console.error(`🚨 [Upload] Failed to upload ${category} photo to R2:`, {
+          category,
+          status: uploadErr?.response?.status,
+          backendMessage: errorMsg,
+          rawResponse: uploadErr?.response?.data,
+        });
+        toast.error(`Failed to upload ${category} photo: ${errorMsg}`, { title: 'Upload Failed' });
+        return uri;
+      }
+    };
+
     setSavingNode(true);
-    SaveErectionNodeService(payload)
-      .then((res: any) => {
+    toast.info('Uploading compliance photos to Cloudflare R2...', { title: 'Cloudflare R2' });
+
+    (async () => {
+      try {
+        const uploadedPolePhotos = await Promise.all(polePhotos.map(p => uploadSinglePhoto(p, 'POLE')));
+        const uploadedEarthingPhotos = await Promise.all(earthingPhotos.map(p => uploadSinglePhoto(p, 'EARTHING')));
+        const uploadedStaySetPhotos = await Promise.all(staySetPhotos.map(p => uploadSinglePhoto(p, 'STAY_SET')));
+        const uploadedPoleDbPhotos = await Promise.all(poleDbPhotos.map(p => uploadSinglePhoto(p, 'POLE_DB')));
+
+        mappedAttrs.polePhotos = uploadedPolePhotos;
+        mappedAttrs.earthingPhotos = uploadedEarthingPhotos;
+        mappedAttrs.staySetPhotos = uploadedStaySetPhotos;
+        mappedAttrs.poleDbPhotos = uploadedPoleDbPhotos;
+
+        const allUploadedPhotos = [
+          ...uploadedPolePhotos,
+          ...uploadedEarthingPhotos,
+          ...uploadedStaySetPhotos,
+          ...uploadedPoleDbPhotos,
+        ];
+        payload.images = allUploadedPhotos;
+        payload.attributes = mappedAttrs;
+
+        const res = await SaveErectionNodeService(payload);
         setSavingNode(false);
         if (res.status === 200 && res.data && !res.data.Exception) {
-          toast.success(res.data.Message || 'Structure saved successfully to server.');
+          toast.success(res.data.Message || 'Structure and photos saved successfully to server.');
           onSuccess();
         } else {
-          const errorMsg = res.data?.Message || 'Failed to save structure';
+          const errorMsg = extractBackendErrorMessage(res.data) || 'Failed to save structure';
+          console.error('🚨 [Save Structure] Backend reported error:', errorMsg);
           toast.error(errorMsg, { title: 'Server error' });
         }
-      })
-      .catch((err: any) => {
+      } catch (err: any) {
         setSavingNode(false);
-        console.log('Save erection node error:', err);
-        toast.error(err.message || 'Server connection error', { title: 'Network error' });
-      });
+        const errorMsg = extractBackendErrorMessage(err);
+        console.error('🚨 [Save Structure] Network/Server exception:', {
+          message: errorMsg,
+          status: err?.response?.status,
+          response: err?.response?.data,
+        });
+        toast.error(errorMsg, { title: 'Network error' });
+      }
+    })();
   };
 
   const handleAddNew = (data: SurveyNodeFormInputs) => {

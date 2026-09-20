@@ -2,6 +2,7 @@ import { UserLoginService } from '../../services/authService';
 import { login, logout } from '../index';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../../utils/api';
+import { extractBackendErrorMessage } from '../../utils/errorHandler';
 
 export const userLoginAction = (
   payload: any,
@@ -37,13 +38,13 @@ export const userLoginAction = (
           successCallback?.(loginPayload);
           console.log('[AuthAction] User Login payload saved to store & AsyncStorage:', loginPayload);
         } else {
-          const errorMsg = response.data?.Errors || response.data?.Data?.Message || 'Authentication Failed';
+          const errorMsg = extractBackendErrorMessage(response.data) || 'Authentication Failed';
           errorCallback?.(errorMsg);
         }
       })
       .catch((error: any) => {
-        console.warn('Axios login connection error:', error);
-        const errorMsg = error.response?.data?.Message || error.message || 'SERVER UNREACHABLE OR PORT CLOSED';
+        const errorMsg = extractBackendErrorMessage(error) || error.message || 'SERVER UNREACHABLE OR PORT CLOSED';
+        console.error('🚨 [AuthAction] Login failed:', errorMsg);
         errorCallback?.(errorMsg);
       });
   };
