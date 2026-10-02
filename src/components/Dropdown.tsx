@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import Svg, { Path } from 'react-native-svg';
 import { FlatList, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export interface DropdownOption {
@@ -7,6 +8,7 @@ export interface DropdownOption {
 }
 
 interface DropdownProps {
+  appearance?: 'default' | 'erection';
   label: string;
   placeholder?: string;
   options: readonly DropdownOption[];
@@ -17,26 +19,26 @@ interface DropdownProps {
   required?: boolean;
 }
 
-export default function Dropdown({ label, placeholder, options, value, onChange, onSelect, disabled = false }: DropdownProps) {
+export default function Dropdown({ appearance = 'default', label, placeholder, options, value, onChange, onSelect, disabled = false }: DropdownProps) {
   const [open, setOpen] = useState(false);
   const selectedLabel = options.find(option => 
     option.value === value || (value != null && value !== '' && String(option.value) === String(value))
   )?.label;
 
   return (
-    <View style={styles.field}>
-      <Text style={styles.label}>{label}</Text>
+    <View style={[styles.field, appearance === 'erection' && styles.erectionField]}>
+      <Text style={[styles.label, appearance === 'erection' && styles.erectionLabel]}>{label}</Text>
       <TouchableOpacity
         accessibilityRole="button"
         accessibilityState={{ disabled, expanded: open }}
         disabled={disabled}
         onPress={() => setOpen(true)}
-        style={[styles.trigger, disabled && styles.triggerDisabled]}
+        style={[styles.trigger, appearance === 'erection' && styles.erectionTrigger, disabled && styles.triggerDisabled]}
       >
-        <Text style={[styles.value, !selectedLabel && styles.placeholder]} numberOfLines={1}>
+        <Text style={[styles.value, appearance === 'erection' && styles.erectionValue, !selectedLabel && styles.placeholder]} numberOfLines={1}>
           {selectedLabel ?? placeholder}
         </Text>
-        <Text style={styles.chevron}>v</Text>
+        {appearance === 'erection' ? <Svg width={14} height={14} viewBox="0 0 16 16"><Path d="M3 6L8 11L13 6" stroke="#1677FF" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" fill="none" /></Svg> : <Text style={styles.chevron}>v</Text>}
       </TouchableOpacity>
 
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
@@ -79,6 +81,10 @@ export default function Dropdown({ label, placeholder, options, value, onChange,
 }
 
 const styles = StyleSheet.create({
+  erectionField: { marginBottom: 0 },
+  erectionLabel: { color: '#52628F', fontSize: 10.5, lineHeight: 15, fontWeight: '600', letterSpacing: 0, marginBottom: 4 },
+  erectionTrigger: { minHeight: 40, borderWidth: 1, borderColor: '#CFD7EE', borderRadius: 7, paddingHorizontal: 10, backgroundColor: '#FCFEFF' },
+  erectionValue: { color: '#1E2952', fontSize: 12, fontWeight: '400' },
   field: { marginBottom: 16 },
   label: { color: '#64748B', fontSize: 9, fontWeight: '800', letterSpacing: 1.2, marginBottom: 7 },
   trigger: {

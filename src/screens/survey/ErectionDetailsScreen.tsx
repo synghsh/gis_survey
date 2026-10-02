@@ -10,10 +10,12 @@ import {
   Pressable,
   ActivityIndicator,
   Image,
+  ImageBackground,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
+import Svg, { Defs, LinearGradient, Stop, Rect, Path } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RootState, resumeSurvey, resumeSurveyWithPole, updateSurveyNode, SurveyNode } from '../../store';
 import { fetchErectionPoleDetailsAction, fetchErectionListAction, updateSpanDistanceAction } from '../../store/actions/erectionAction';
 import { fetchDomainsAction, fetchTransformersAction, fetchConductorsAction, fetchPolesAction } from '../../store/actions/masterAction';
@@ -29,6 +31,9 @@ const SVG_WIDTH = 320;
 const SVG_HEIGHT = 240;
 
 export default function ErectionDetailsScreen() {
+  const insets = useSafeAreaInsets();
+  const [detailsTab, setDetailsTab] = useState<'routing' | 'materials'>('routing');
+  const [showBasicDetails, setShowBasicDetails] = useState(false);
   const toast = useToast();
   const { confirm } = useConfirmation();
   const route = useRoute<any>();
@@ -721,21 +726,37 @@ export default function ErectionDetailsScreen() {
         </Svg>
       </View>
 
-      {/* 2. HUD HEADER */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Text style={styles.backText}>&lt; LOGS</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>ERECTION DETAILS</Text>
-        <View style={[styles.classBadge, { borderColor: accentColor }]}>
-          <Text style={[styles.classBadgeText, { color: accentColor }]}>
-            {getLineTypeLabel(survey?.lineType || erectionItem?.type_of_work || 'HT_33KV')}
-          </Text>
-        </View>
-      </View>
-
-      {/* 3. SCROLLABLE LAYOUT */}
       <ScrollView style={styles.scrollContainerWrapper} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <ImageBackground source={require('../../../assets/erection-details-hero.png')} style={StyleSheet.absoluteFill} resizeMode="stretch" />
+          </View>
+          <TouchableOpacity accessibilityLabel="Go back" style={styles.backBtn} onPress={() => navigation.goBack()}>
+            <Text style={styles.backText}>{"\u2039"}</Text>
+          </TouchableOpacity>
+          <View style={styles.heroText}>
+            <Text style={styles.headerTitle}>Erection <Text style={styles.headerAccent}>Details</Text></Text>
+            <Text style={styles.headerSubtitle}>Manage structure details, materials{ '\n' }and installation</Text>
+          </View>
+        </View>
+        <View style={styles.pageContent}>
+          <TouchableOpacity style={styles.projectSummary} activeOpacity={0.85} onPress={() => setShowBasicDetails(value => !value)} accessibilityRole="button" accessibilityLabel="Show drawing and administrative details" accessibilityState={{ expanded: showBasicDetails }}>
+            <View style={styles.projectAvatar}><Svg width={23} height={26} viewBox="0 0 24 28"><Path d="M3 26V3H14V26M14 11H21V26M1 26H23M7 7H10M7 12H10M7 17H10M7 22H10M17 15H19M17 20H19" fill="none" stroke="white" strokeWidth="2" /></Svg></View>
+            <View style={styles.projectSummaryCopy}>
+              <Text style={styles.projectCompany}>{contractorName}</Text>
+              <Text style={styles.projectMeta}>Drawing No.: {drawingNumber}</Text>
+              <Text style={styles.projectLocation}>{villageName || 'N/A'}{blockName ? `, ${blockName}` : ''}{districtName ? `, ${districtName}` : ''}</Text>
+              {updatedDate ? <Text style={styles.projectMeta}>Updated: {String(updatedDate)}</Text> : null}
+              <View style={styles.projectChips}>
+                <View style={styles.projectVoltage}><Text style={styles.projectVoltageText}>{typeOfWorkLabel}</Text></View>
+                <View style={[styles.statusPill, isRejectedParam ? styles.statusPillRejected : (isLocked ? styles.statusPillCompleted : styles.statusPillPending)]}>
+                  <Text style={[styles.statusPillText, isRejectedParam ? styles.statusPillTextRejected : (isLocked ? styles.statusPillTextCompleted : styles.statusPillTextPending)]}>{statusLabel}</Text>
+                </View>
+              </View>
+            </View>
+            <Text style={styles.projectChevron}>{showBasicDetails ? '\u2303' : '\u203A'}</Text>
+          </TouchableOpacity>
+        <View style={{ display: showBasicDetails ? 'flex' : 'none' }}>
         {/* 1. BASIC ERECTION DETAILS CARD */}
         <View style={styles.basicCard}>
           <View style={styles.basicHeader}>
@@ -833,6 +854,21 @@ export default function ErectionDetailsScreen() {
           ) : null}
         </View>
 
+        </View>
+        <View style={styles.sectionTabs}>
+          {([{ key: 'routing', label: 'Line Routing Layout' }, { key: 'materials', label: 'Material Summary' }] as const).map(tab => (
+            <TouchableOpacity key={tab.key} style={[styles.sectionTab, detailsTab === tab.key && styles.sectionTabActive]} onPress={() => setDetailsTab(tab.key)} accessibilityRole="tab" accessibilityState={{ selected: detailsTab === tab.key }}>
+              {detailsTab === tab.key && <View style={[StyleSheet.absoluteFill, { borderRadius: 12, overflow: 'hidden' }]} pointerEvents="none"><Svg width="100%" height="100%"><Defs><LinearGradient id={`tab-${tab.key}`} x1="0%" y1="100%" x2="100%" y2="0%"><Stop offset="0%" stopColor="#1744FF" /><Stop offset="55%" stopColor="#783BFF" /><Stop offset="100%" stopColor="#D348FA" /></LinearGradient></Defs><Rect width="100%" height="100%" fill={`url(#tab-${tab.key})`} /></Svg></View>}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+                <Svg width={18} height={18} viewBox="0 0 24 24" stroke={detailsTab === tab.key ? '#FFFFFF' : '#7285AF'} strokeWidth={1.8} fill="none">
+                  <Path d={tab.key === 'routing' ? 'M3 5L9 2L15 5L21 2V19L15 22L9 19L3 22ZM9 2V19M15 5V22' : 'M3 7L12 2L21 7V17L12 22L3 17ZM3 7L12 12L21 7M12 12V22M7 4L16 9'} />
+                </Svg>
+                <Text style={[styles.sectionTabText, detailsTab === tab.key && styles.sectionTabTextActive]}>{tab.label}</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <View style={{ display: detailsTab === 'routing' ? 'flex' : 'none' }}>
         {/* 2. STATUS / EDIT GUIDE BANNER */}
         {isRejectedParam ? (
           <View style={styles.rejectedBanner}>
@@ -930,6 +966,15 @@ export default function ErectionDetailsScreen() {
                 <Text style={styles.legendText}>Old Pole / DTR</Text>
               </View>
             </View>
+          </View>
+        </View>
+
+        <View style={styles.lineStatsCard}>
+          <Text style={styles.sectionHeading}>Line Details</Text>
+          <View style={styles.lineStatsRow}>
+            <View style={[styles.lineStat, { backgroundColor: '#EEF7FF' }]}><Text style={styles.lineStatLabel}>Total Length</Text><Text style={styles.lineStatValue}>{materialSummary.totalLineLengthMeters} m</Text></View>
+            <View style={[styles.lineStat, { backgroundColor: '#EDFAF4' }]}><Text style={styles.lineStatLabel}>Structures</Text><Text style={styles.lineStatValue}>{nodes.length}</Text></View>
+            <View style={[styles.lineStat, { backgroundColor: '#F4EFFF' }]}><Text style={styles.lineStatLabel}>Total Spans</Text><Text style={styles.lineStatValue}>{materialSummary.totalSpans}</Text></View>
           </View>
         </View>
 
@@ -1109,6 +1154,7 @@ export default function ErectionDetailsScreen() {
 
         {/* INLINE ATTRS & SPAN EDITOR - POSITIONED ABOVE MATERIAL DETAILS */}
         {!isLocked && <SurveyAttributeEditor
+          appearance="erection"
           selectedNodeId={selectedNodeId}
           selectedSpanNodeId={selectedSpanNodeId}
           nodeName={nodeName}
@@ -1136,13 +1182,16 @@ export default function ErectionDetailsScreen() {
           onApply={handleSaveNodeUpdates}
         />}
 
+
+        </View>
+        <View style={{ display: detailsTab === 'materials' ? 'flex' : 'none' }}>
         {/* 6. MATERIAL & BoQ SUMMARY SECTION */}
         <View style={styles.materialSection}>
           <View style={styles.materialSectionHeader}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Text style={styles.materialHeaderIcon}>📦</Text>
               <View>
-                <Text style={styles.materialHeaderTitle}>MATERIAL & BoQ SUMMARY</Text>
+                <Text style={styles.materialHeaderTitle}>Overall Summary</Text>
                 <Text style={styles.materialHeaderSubtitle}>
                   Computed Bill of Quantities across {nodes.length} structure(s)
                 </Text>
@@ -1154,39 +1203,39 @@ export default function ErectionDetailsScreen() {
           </View>
 
           {/* Quick Metrics Bar */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.metricScroll} contentContainerStyle={styles.metricScrollContent}>
-            <View style={styles.metricChip}>
+          <View style={styles.overviewMetrics}>
+            <View style={[styles.metricChip, { backgroundColor: '#EFF8FF' }]}>
               <Text style={styles.metricChipNum}>{materialSummary.poles.total}</Text>
               <Text style={styles.metricChipLabel}>Poles</Text>
             </View>
-            <View style={styles.metricChip}>
+            <View style={[styles.metricChip, { backgroundColor: '#EDFAF3' }]}>
               <Text style={styles.metricChipNum}>{materialSummary.dtr.total}</Text>
               <Text style={styles.metricChipLabel}>DTRs</Text>
             </View>
-            <View style={styles.metricChip}>
+            <View style={[styles.metricChip, { backgroundColor: '#F4EFFF' }]}>
               <Text style={styles.metricChipNum}>{materialSummary.staySet.total}</Text>
               <Text style={styles.metricChipLabel}>Stay Sets</Text>
             </View>
-            <View style={styles.metricChip}>
+            <View style={[styles.metricChip, { backgroundColor: '#FFF4EF' }]}>
               <Text style={styles.metricChipNum}>{materialSummary.earthing.total}</Text>
               <Text style={styles.metricChipLabel}>Earthing</Text>
             </View>
-            <View style={styles.metricChip}>
+            <View style={[styles.metricChip, { backgroundColor: '#EFF8FF' }]}>
               <Text style={styles.metricChipNum}>{materialSummary.totalPoleDb}</Text>
               <Text style={styles.metricChipLabel}>Pole DBs</Text>
             </View>
-            <View style={styles.metricChip}>
+            <View style={[styles.metricChip, { backgroundColor: '#F4EFFF' }]}>
               <Text style={styles.metricChipNum}>{materialSummary.totalSpans}</Text>
               <Text style={styles.metricChipLabel}>Spans</Text>
             </View>
-          </ScrollView>
+          </View>
 
           {/* 1. POLE SUMMARY CARD */}
-          <View style={styles.matCard}>
+          <View style={[styles.matCard, { borderLeftColor: '#FFAB45', borderColor: '#F3C99A', shadowColor: '#FFAB45' }]}>
             <View style={styles.matCardHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Text style={styles.matCardIcon}>🪵</Text>
-                <Text style={styles.matCardTitle}>1. POLE INVENTORY</Text>
+                <Text style={styles.matCardTitle}>1. Pole Inventory</Text>
               </View>
               <View style={styles.matCardBadge}>
                 <Text style={styles.matCardBadgeText}>{materialSummary.poles.total} TOTAL</Text>
@@ -1292,11 +1341,11 @@ export default function ErectionDetailsScreen() {
           </View>
 
           {/* 2. DTR CARD */}
-          <View style={styles.matCard}>
+          <View style={[styles.matCard, { borderLeftColor: '#FFBC67', borderColor: '#F2D0A4', shadowColor: '#FFBC67' }]}>
             <View style={styles.matCardHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Text style={styles.matCardIcon}>⚡</Text>
-                <Text style={styles.matCardTitle}>2. DISTRIBUTION TRANSFORMERS (DTR)</Text>
+                <Text style={styles.matCardTitle}>2. Distribution Transformers (DTR)</Text>
               </View>
               <View style={styles.matCardBadgeDtr}>
                 <Text style={styles.matCardBadgeTextDtr}>{materialSummary.dtr.total} DTRs</Text>
@@ -1340,11 +1389,11 @@ export default function ErectionDetailsScreen() {
           </View>
 
           {/* 3. STAY SET CARD */}
-          <View style={styles.matCard}>
+          <View style={[styles.matCard, { borderLeftColor: '#28AAFF', borderColor: '#96CFF6', shadowColor: '#28AAFF' }]}>
             <View style={styles.matCardHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Text style={styles.matCardIcon}>⚓</Text>
-                <Text style={styles.matCardTitle}>3. STAY SETS & ANCHORING</Text>
+                <Text style={styles.matCardTitle}>3. Stay Sets & Anchoring</Text>
               </View>
               <View style={styles.matCardBadge}>
                 <Text style={styles.matCardBadgeText}>{materialSummary.staySet.total} SETS</Text>
@@ -1377,11 +1426,11 @@ export default function ErectionDetailsScreen() {
           </View>
 
           {/* 4. EARTHING CARD */}
-          <View style={styles.matCard}>
+          <View style={[styles.matCard, { borderLeftColor: '#23C68B', borderColor: '#9CDDBF', shadowColor: '#23C68B' }]}>
             <View style={styles.matCardHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Text style={styles.matCardIcon}>⏚</Text>
-                <Text style={styles.matCardTitle}>4. EARTHING INSTALLATIONS</Text>
+                <Text style={styles.matCardTitle}>4. Earthing Installations</Text>
               </View>
               <View style={styles.matCardBadge}>
                 <Text style={styles.matCardBadgeText}>{materialSummary.earthing.total} UNITS</Text>
@@ -1419,11 +1468,11 @@ export default function ErectionDetailsScreen() {
           </View>
 
           {/* 5. CONDUCTORS & CABLING CARD */}
-          <View style={styles.matCard}>
+          <View style={[styles.matCard, { borderLeftColor: '#B54DFA', borderColor: '#D3AEF4', shadowColor: '#B54DFA' }]}>
             <View style={styles.matCardHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Text style={styles.matCardIcon}>〰️</Text>
-                <Text style={styles.matCardTitle}>5. CONDUCTORS & CABLING</Text>
+                <Text style={styles.matCardTitle}>5. Conductors & Cabling</Text>
               </View>
               <View style={styles.matCardBadge}>
                 <Text style={styles.matCardBadgeText}>{materialSummary.totalSpans} SPANS</Text>
@@ -1462,11 +1511,11 @@ export default function ErectionDetailsScreen() {
           </View>
 
           {/* 6. POLE DISTRIBUTION BOXES (DB) */}
-          <View style={styles.matCard}>
+          <View style={[styles.matCard, { borderLeftColor: '#54A8FF', borderColor: '#A4CFF8', shadowColor: '#54A8FF' }]}>
             <View style={styles.matCardHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Text style={styles.matCardIcon}>🔲</Text>
-                <Text style={styles.matCardTitle}>6. POLE DISTRIBUTION BOXES (DB)</Text>
+                <Text style={styles.matCardTitle}>6. Pole Distribution Boxes (DB)</Text>
               </View>
               <View style={styles.matCardBadge}>
                 <Text style={styles.matCardBadgeText}>{materialSummary.totalPoleDb} TOTAL</Text>
@@ -1490,11 +1539,11 @@ export default function ErectionDetailsScreen() {
           </View>
 
           {/* 7. ACCESSORIES & SAFETY HARDWARE */}
-          <View style={styles.matCard}>
+          <View style={[styles.matCard, { borderLeftColor: '#719DFF', borderColor: '#B6C4F3', shadowColor: '#719DFF' }]}>
             <View style={styles.matCardHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Text style={styles.matCardIcon}>🛡️</Text>
-                <Text style={styles.matCardTitle}>7. ACCESSORIES & HARDWARE</Text>
+                <Text style={styles.matCardTitle}>7. Accessories & Hardware</Text>
               </View>
             </View>
 
@@ -1548,6 +1597,8 @@ export default function ErectionDetailsScreen() {
           </View>
         </View>
 
+        </View>
+        <View style={{ display: detailsTab === 'routing' ? 'flex' : 'none' }}>
         {!isLocked && selectedPole && (
           <View style={styles.continuationPanel}>
             <View style={styles.continuationCopy}>
@@ -1559,6 +1610,8 @@ export default function ErectionDetailsScreen() {
             </TouchableOpacity>
           </View>
         )}
+        </View>
+        </View>
       </ScrollView>
 
       {/* Photo Viewer Modal */}
@@ -1711,10 +1764,35 @@ export default function ErectionDetailsScreen() {
 }
 
 const styles = StyleSheet.create({
-  outerContainer: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-  },
+  overviewMetrics: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
+  heroText: { paddingLeft: 12 },
+  headerAccent: { color: '#BAA8FF' },
+  headerSubtitle: { color: '#EFF7FF', fontSize: 11, lineHeight: 16, marginTop: 4 },
+  pageContent: { paddingHorizontal: 12 },
+  projectSummary: { marginTop: -23, marginBottom: 10, padding: 12, flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: '#FCFEFF', borderRadius: 18, borderWidth: 1, borderColor: '#B9A0F5', shadowColor: '#B9A0F5', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.13, shadowRadius: 8, elevation: 3},
+  projectAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#7544FD', alignItems: 'center', justifyContent: 'center' },
+  projectAvatarText: { color: '#FFFFFF', fontSize: 26 },
+  projectSummaryCopy: { flex: 1 },
+  projectCompany: { color: '#151A54', fontSize: 12, fontWeight: '800', lineHeight: 17 },
+  projectMeta: { color: '#7685A8', fontSize: 9.5, lineHeight: 14, marginTop: 2 },
+  projectLocation: { color: '#4E618C', fontSize: 10, lineHeight: 14, marginTop: 4 },
+  projectChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 7 },
+  projectVoltage: { paddingVertical: 3, paddingHorizontal: 7, borderRadius: 6, borderWidth: 1, borderColor: '#78BEFF', backgroundColor: '#F0F9FF' },
+  projectVoltageText: { color: '#0083EF', fontSize: 8.5, fontWeight: '700' },
+  projectChevron: { fontSize: 24, color: '#3276FA', alignSelf: 'center' },
+  sectionTabs: { flexDirection: 'row', backgroundColor: '#FBFDFF', padding: 3, borderRadius: 15, borderWidth: 1, borderColor: '#C1B1F3', marginBottom: 12, shadowColor: '#C1B1F3', shadowOpacity: 0.13, shadowRadius: 8, elevation: 3, shadowOffset: { width: 0, height: 3 }, },
+  sectionTab: { flex: 1, minHeight: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  sectionTabActive: { backgroundColor: '#7940F6' },
+  sectionTabText: { color: '#53668F', fontSize: 10, fontWeight: '700' },
+  sectionTabTextActive: { color: '#FFFFFF' },
+  lineStatsCard: { backgroundColor: '#FCFEFF', padding: 12, borderRadius: 18, borderWidth: 1, borderColor: '#95D7BB', marginBottom: 12, shadowColor: '#95D7BB', shadowOpacity: 0.13, shadowRadius: 8, elevation: 3, shadowOffset: { width: 0, height: 3 }, },
+  sectionHeading: { fontSize: 12, fontWeight: '800', color: '#151A54', marginBottom: 9 },
+  lineStatsRow: { flexDirection: 'row', gap: 6 },
+  lineStat: { flex: 1, padding: 10, borderRadius: 10 },
+  lineStatLabel: { color: '#66789C', fontSize: 9 },
+  lineStatValue: { color: '#151A54', fontSize: 15, fontWeight: '800', marginTop: 4 },
+
+  outerContainer: { flex: 1, backgroundColor: '#EFF8FF', },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -1728,42 +1806,15 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 20,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderColor: 'rgba(2, 132, 199, 0.08)',
-    borderBottomWidth: 1.2,
-    paddingHorizontal: 20,
-    paddingTop: 55,
-    paddingBottom: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    zIndex: 20,
-  },
-  backBtn: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    backgroundColor: 'rgba(2, 132, 199, 0.06)',
-    borderColor: 'rgba(2, 132, 199, 0.15)',
-    borderWidth: 1.2,
-    borderRadius: 8,
-  },
-  backText: {
-    color: '#0284C7',
-    fontSize: 11,
-    fontWeight: 'bold',
-  },
+  header: { minHeight: 185, paddingHorizontal: 16, paddingBottom: 36, overflow: 'hidden', justifyContent: 'flex-end', },
+  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#EDF6FF', alignItems: 'center', justifyContent: 'center', marginBottom: 8, },
+  backText: { color: '#292B87', fontSize: 31, lineHeight: 34, },
   backBtnText: {
     color: '#0284C7',
     fontSize: 12,
     fontWeight: 'bold',
   },
-  headerTitle: {
-    color: '#0F172A',
-    fontSize: 16,
-    fontWeight: 'bold',
-    letterSpacing: 2,
-  },
+  headerTitle: { color: '#FFFFFF', fontSize: 25, lineHeight: 29, fontWeight: '800', letterSpacing: -0.6, },
   classBadge: {
     borderWidth: 1.2,
     borderRadius: 4,
@@ -1779,55 +1830,27 @@ const styles = StyleSheet.create({
     flex: 1,
     zIndex: 10,
   },
-  scrollContent: {
-    padding: 20,
-    paddingBottom: 40,
-  },
+  scrollContent: { paddingBottom: 24, },
   lockedBanner: {
     borderWidth: 1.2,
-    borderColor: '#94A3B8',
+    borderColor: '#9ECCB2',
     borderRadius: 8,
     backgroundColor: '#F1F5F9',
     padding: 14,
-    marginBottom: 14,
-  },
+    marginBottom: 14, shadowColor: '#9ECCB2', shadowOpacity: 0.13, shadowRadius: 8, elevation: 3, shadowOffset: { width: 0, height: 3 }, },
   lockedTitle: { color: '#334155', fontSize: 11, fontWeight: '900', letterSpacing: 1 },
   lockedText: { color: '#64748B', fontSize: 10.5, lineHeight: 16, marginTop: 4 },
-  editGuide: {
-    borderWidth: 1.2,
-    borderColor: 'rgba(2, 132, 199, 0.25)',
-    borderRadius: 8,
-    backgroundColor: 'rgba(2, 132, 199, 0.06)',
-    padding: 14,
-    marginBottom: 14,
-  },
-  editGuideTitle: { color: '#0369A1', fontSize: 11, fontWeight: '900', letterSpacing: 1 },
-  editGuideText: { color: '#475569', fontSize: 10.5, lineHeight: 16, marginTop: 4 },
-  canvasPanel: {
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
-    borderColor: 'rgba(255, 255, 255, 0.7)',
-    borderWidth: 1.5,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 20,
-    shadowColor: '#0284C7',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 4,
-  },
+  editGuide: { borderWidth: 1, borderColor: '#A8B8FF', borderRadius: 18, backgroundColor: '#FAFDFF', padding: 12, marginBottom: 10, shadowColor: '#A8B8FF', shadowOpacity: 0.13, shadowRadius: 8, elevation: 3, shadowOffset: { width: 0, height: 3 }, },
+  editGuideTitle: { color: '#151A54', fontSize: 13, fontWeight: '800', },
+  editGuideText: { color: '#586B94', fontSize: 10.5, lineHeight: 15, marginTop: 3, },
+  canvasPanel: { backgroundColor: '#FCFEFF', borderColor: '#8FCDEE', borderWidth: 1, borderRadius: 18, padding: 10, marginBottom: 12, shadowColor: '#8FCDEE', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.13, shadowRadius: 8, elevation: 3, },
   panelHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 6,
   },
-  panelTitle: {
-    color: '#0F172A',
-    fontSize: 11.5,
-    fontWeight: '800',
-    letterSpacing: 1.5,
-  },
+  panelTitle: { color: '#151A54', fontSize: 12, fontWeight: '800', },
   liveBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1869,33 +1892,15 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     letterSpacing: 1,
   },
-  legendBox: {
-    borderTopWidth: 1.2,
-    borderTopColor: 'rgba(2, 132, 199, 0.08)',
-    marginTop: 14,
-    paddingTop: 12,
-  },
-  legendTitle: {
-    color: 'rgba(15, 23, 42, 0.35)',
-    fontSize: 8.5,
-    fontWeight: '800',
-    letterSpacing: 1.5,
-    marginBottom: 8,
-  },
+  legendBox: { marginTop: 8, padding: 8, borderRadius: 10, backgroundColor: '#F0F7FF', },
+  legendTitle: { color: '#7180A6', fontSize: 8, fontWeight: '600', marginBottom: 4, },
   legendGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'flex-start',
     marginHorizontal: -4,
   },
-  legendItem: {
-    width: '50%',
-    minHeight: 30,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 4,
-    paddingVertical: 5,
-  },
+  legendItem: { width: '50%', minHeight: 22, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4, },
   legendSym: {
     width: 20,
     height: 12,
@@ -1941,27 +1946,11 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     marginRight: 6,
   },
-  continuationPanel: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1.2,
-    borderColor: '#059669',
-    borderRadius: 8,
-    backgroundColor: 'rgba(5, 150, 105, 0.06)',
-    padding: 14,
-    marginBottom: 20,
-  },
+  continuationPanel: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#BDA0F2', borderRadius: 16, backgroundColor: '#F8F4FF', padding: 12, marginBottom: 12, shadowColor: '#BDA0F2', shadowOpacity: 0.13, shadowRadius: 8, elevation: 3, shadowOffset: { width: 0, height: 3 }, },
   continuationCopy: { flex: 1, marginRight: 12 },
   continuationTitle: { color: '#047857', fontSize: 10.5, fontWeight: '900', letterSpacing: 0.8 },
   continuationText: { color: '#64748B', fontSize: 9.5, lineHeight: 14, marginTop: 3 },
-  continuationButton: {
-    minHeight: 38,
-    borderRadius: 8,
-    backgroundColor: '#059669',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 13,
-  },
+  continuationButton: { minHeight: 38, borderRadius: 10, backgroundColor: '#7940F6', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, },
   continuationButtonText: { color: '#FFFFFF', fontSize: 9.5, fontWeight: '900', letterSpacing: 0.8 },
   editIconButton: {
     marginLeft: 10,
@@ -2182,19 +2171,7 @@ const styles = StyleSheet.create({
   },
 
   /* Basic Details Card */
-  basicCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 1.2,
-    borderColor: 'rgba(2, 132, 199, 0.15)',
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: '#0284C7',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 3,
-  },
+  basicCard: { backgroundColor: '#FCFEFF', borderRadius: 18, borderWidth: 1, borderColor: '#9EC8F7', padding: 12, marginBottom: 10, shadowColor: '#9EC8F7', shadowOpacity: 0.13, shadowRadius: 8, elevation: 3, shadowOffset: { width: 0, height: 3 }, },
   basicHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -2308,12 +2285,11 @@ const styles = StyleSheet.create({
   /* Rejected Banner */
   rejectedBanner: {
     borderWidth: 1.2,
-    borderColor: '#FCA5A5',
+    borderColor: '#F0A1AC',
     borderRadius: 12,
     backgroundColor: '#FEF2F2',
     padding: 14,
-    marginBottom: 14,
-  },
+    marginBottom: 14, shadowColor: '#F0A1AC', shadowOpacity: 0.13, shadowRadius: 8, elevation: 3, shadowOffset: { width: 0, height: 3 }, },
   bannerHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -2377,19 +2353,7 @@ const styles = StyleSheet.create({
   },
 
   /* Read-Only Structure Inspector */
-  inspectorCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 1.2,
-    borderColor: 'rgba(2, 132, 199, 0.15)',
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-  },
+  inspectorCard: { backgroundColor: '#FCFEFF', borderWidth: 1, borderColor: '#C09AF0', borderLeftWidth: 3, borderLeftColor: '#983EFF', borderRadius: 18, padding: 12, marginBottom: 12, shadowColor: '#C09AF0', shadowOpacity: 0.13, shadowRadius: 8, elevation: 3, shadowOffset: { width: 0, height: 3 }, },
   inspectorHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -2402,12 +2366,7 @@ const styles = StyleSheet.create({
   inspectorHeaderIcon: {
     fontSize: 20,
   },
-  inspectorTitle: {
-    fontSize: 13,
-    fontWeight: '900',
-    color: '#0F172A',
-    letterSpacing: 0.5,
-  },
+  inspectorTitle: { color: '#151A54', fontSize: 12, fontWeight: '800', },
   inspectorSubtitle: {
     fontSize: 9.5,
     color: '#0284C7',
@@ -2439,18 +2398,8 @@ const styles = StyleSheet.create({
   inspectorItem: {
     paddingVertical: 2,
   },
-  inspectorLabel: {
-    fontSize: 8,
-    fontWeight: '800',
-    color: '#64748B',
-    letterSpacing: 0.8,
-    marginBottom: 2,
-  },
-  inspectorValue: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#1E293B',
-  },
+  inspectorLabel: { color: '#5B6D96', fontSize: 9, fontWeight: '600', marginBottom: 3, },
+  inspectorValue: { color: '#222356', fontSize: 11, fontWeight: '600', },
   inspectorValueMono: {
     fontSize: 10.5,
     fontWeight: '700',
@@ -2537,14 +2486,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     borderWidth: 1.2,
-    borderColor: 'rgba(2, 132, 199, 0.15)',
+    borderColor: '#9BCBCC',
     padding: 16,
     marginBottom: 20,
-    shadowColor: '#000000',
+    shadowColor: '#9BCBCC',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
+    shadowOpacity: 0.13,
     shadowRadius: 8,
-    elevation: 2,
+    elevation: 3,
   },
   structuresListHeader: {
     flexDirection: 'row',
@@ -2675,31 +2624,13 @@ const styles = StyleSheet.create({
   },
 
   /* Material Summary Section */
-  materialSection: {
-    marginTop: 8,
-    marginBottom: 24,
-  },
-  materialSectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-    paddingHorizontal: 4,
-  },
+  materialSection: { marginTop: 4, marginBottom: 12, },
+  materialSectionHeader: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, paddingHorizontal: 4, },
   materialHeaderIcon: {
     fontSize: 22,
   },
-  materialHeaderTitle: {
-    fontSize: 13,
-    fontWeight: '900',
-    color: '#0F172A',
-    letterSpacing: 1,
-  },
-  materialHeaderSubtitle: {
-    fontSize: 9.5,
-    color: '#64748B',
-    marginTop: 1,
-  },
+  materialHeaderTitle: { fontSize: 13, fontWeight: '800', color: '#151A54', },
+  materialHeaderSubtitle: { fontSize: 9, color: '#7180A6', marginTop: 3, },
   materialTotalBadge: {
     backgroundColor: '#0284C7',
     paddingHorizontal: 8,
@@ -2723,11 +2654,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     paddingVertical: 8,
-    paddingHorizontal: 14,
+    paddingHorizontal: 8,
     borderWidth: 1,
     borderColor: 'rgba(2, 132, 199, 0.15)',
     alignItems: 'center',
-    minWidth: 70,
+    width: '31%',
+    flexGrow: 1,
     shadowColor: '#0284C7',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -2747,37 +2679,12 @@ const styles = StyleSheet.create({
   },
 
   /* Material Card General */
-  matCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 1.2,
-    borderColor: 'rgba(2, 132, 199, 0.15)',
-    padding: 16,
-    marginBottom: 14,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  matCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-    paddingBottom: 10,
-    marginBottom: 12,
-  },
+  matCard: { backgroundColor: '#FCFEFF', borderRadius: 16, borderWidth: 1, borderColor: '#ADC8F1', borderLeftWidth: 3, padding: 10, marginBottom: 9, shadowColor: '#ADC8F1', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.13, shadowRadius: 8, elevation: 3, },
+  matCardHeader: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'space-between', alignItems: 'center', paddingBottom: 6, marginBottom: 6, },
   matCardIcon: {
     fontSize: 18,
   },
-  matCardTitle: {
-    fontSize: 12,
-    fontWeight: '900',
-    color: '#0F172A',
-    letterSpacing: 0.8,
-  },
+  matCardTitle: { fontSize: 10.5, fontWeight: '800', color: '#151A54', },
   matCardBadge: {
     backgroundColor: 'rgba(2, 132, 199, 0.08)',
     borderColor: '#0284C7',
@@ -2814,17 +2721,7 @@ const styles = StyleSheet.create({
     gap: 6,
     marginBottom: 12,
   },
-  polePill: {
-    flex: 1,
-    minWidth: '47%',
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
+  polePill: { flex: 1, minWidth: '47%', paddingVertical: 10, paddingHorizontal: 9, borderRadius: 8, borderWidth: 1, flexDirection: 'column', alignItems: 'flex-start', gap: 3, },
   polePillConcrete: {
     backgroundColor: '#F0FDF4',
     borderColor: '#86EFAC',
@@ -2846,29 +2743,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#475569',
   },
-  polePillValue: {
-    fontSize: 12,
-    fontWeight: '900',
-    color: '#0F172A',
-  },
+  polePillValue: { fontSize: 17, fontWeight: '800', color: '#20235C', },
 
   /* Height Breakdown List */
   heightBreakdownList: {
     gap: 8,
   },
-  heightItemBox: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 10,
-  },
-  heightItemHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
+  heightItemBox: { backgroundColor: '#F8FBFF', borderRadius: 9, borderWidth: 1, borderColor: '#E2ECFB', padding: 8, },
+  heightItemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, },
   heightItemTitle: {
     fontSize: 11,
     fontWeight: '800',
@@ -2884,18 +2766,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
   },
-  heightSubChip: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    paddingVertical: 5,
-    paddingHorizontal: 8,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
+  heightSubChip: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 3, alignItems: 'center', },
   heightSubChipLabel: {
     fontSize: 8.5,
     color: '#64748B',
@@ -3011,15 +2882,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
   },
-  matStatCard: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 10,
-    alignItems: 'center',
-  },
+  matStatCard: { flex: 1, backgroundColor: '#F0F7FF', borderRadius: 9, borderWidth: 1, borderColor: '#E1EBFF', padding: 9, alignItems: 'center', },
   matStatCardLabel: {
     fontSize: 9,
     fontWeight: '700',
@@ -3107,15 +2970,8 @@ const styles = StyleSheet.create({
   },
 
   /* Empty Mat Row */
-  emptyMatRow: {
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  emptyMatText: {
-    fontSize: 10.5,
-    color: '#94A3B8',
-    fontStyle: 'italic',
-  },
+  emptyMatRow: { paddingVertical: 6, paddingHorizontal: 4, },
+  emptyMatText: { fontSize: 9.5, color: '#8592B3', fontStyle: 'italic', },
 
   /* Service Connections & Clamping in accessories */
   serviceConnBox: {
@@ -3123,9 +2979,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 10,
-  },
+    borderColor: '#ACD7F4',
+    padding: 10, shadowColor: '#ACD7F4', shadowOpacity: 0.13, shadowRadius: 8, elevation: 3, shadowOffset: { width: 0, height: 3 }, },
   serviceConnHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -3163,9 +3018,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 10,
-  },
+    borderColor: '#D3B2F0',
+    padding: 10, shadowColor: '#D3B2F0', shadowOpacity: 0.13, shadowRadius: 8, elevation: 3, shadowOffset: { width: 0, height: 3 }, },
   clampingTitle: {
     fontSize: 10.5,
     fontWeight: '800',

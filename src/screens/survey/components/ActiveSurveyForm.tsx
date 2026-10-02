@@ -1,31 +1,35 @@
 import React, { useState, useMemo } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, TextInput, Image, Modal, Pressable, ScrollView } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, TextInput, Image, Modal, Pressable, ScrollView, ImageBackground } from 'react-native';
 import { Controller, useWatch } from 'react-hook-form';
+import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import Dropdown from '../../../components/Dropdown';
+
+function PoleFieldIcon({ name }: { name: string }) {
+  const quantity = /Qty|Quantity|Consumption/.test(name);
+  const palette = name.includes('earth') ? ['#E5FAF3', '#08A777'] : name.includes('stay') ? ['#FFF2E8', '#F58725'] : name === 'conductor' ? ['#E5FAF3', '#08A777'] : name === 'poleMaster' ? ['#FFF2E8', '#F58725'] : quantity || name === 'nameLabel' ? ['#E8F5FF', '#0087F4'] : ['#F1EBFF', '#9047ED'];
+  const path = quantity || name === 'nameLabel' ? 'M8 3L5 21M17 3L14 21M3 9H21M2 16H20' : name === 'remarks' ? 'M4 3H21V19H10L4 23ZM8 8H17M8 12H17M8 16H13' : name === 'conductor' || name === 'earthingUsed' ? 'M12 3C0 3 0 21 12 21C24 21 24 3 12 3ZM12 6C4 6 4 18 12 18C20 18 20 6 12 6Z' : name === 'assetStatus' ? 'M2 11L12 3L22 11M5 9V22H19V9M10 22V15H15V22' : 'M12 2L4 23M12 2L20 23M2 23H22M8 9H16M6 15H18M5 7H19M8 9L18 15L4 23M16 9L6 15L20 23';
+  return <View style={[formStyles.fieldIcon, { backgroundColor: palette[0] }]}><Svg width={20} height={23} viewBox="0 0 24 26" fill="none" stroke={palette[1]} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><Path d={path} /></Svg></View>;
+}
+function ComplianceCameraIcon() {
+  return <Svg width={21} height={21} viewBox="0 0 24 24"><Path d="M3 7H7L9 4H15L17 7H21V20H3Z" fill="#078AF4" /><Circle cx="12" cy="13" r="4" stroke="white" strokeWidth={1.5} fill="none" /></Svg>;
+}
 
 const THEMES = {
   POLE: { text: '#0284C7', bg: '#F0F9FF', border: '#BAE6FD', accent: '#0284C7' },
   EARTHING: { text: '#0D9488', bg: '#F0FDFA', border: '#CCFBF1', accent: '#0D9488' },
   STAY_SET: { text: '#D97706', bg: '#FFFBEB', border: '#FEF3C7', accent: '#D97706' },
   POLE_DB: { text: '#7C3AED', bg: '#F5F3FF', border: '#DDD6FE', accent: '#7C3AED' },
-  HARNESS: { text: '#475569', bg: '#F8FAFC', border: '#E2E8F0', accent: '#64748B' },
+  HARNESS: { text: '#8239E8', bg: '#F5EEFF', border: '#DFCBFF', accent: '#9B43F2' },
 };
 
 const formStyles = StyleSheet.create({
+  fieldIcon: { position: 'absolute', top: 0, left: 0, width: 24, height: 29, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
+  sectionNumber: { position: 'absolute', top: 9, left: 6, width: 25, height: 25, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  sectionNumberText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
   detailsContainer: {
     flex: 1,
   },
-  gpsStickyCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderColor: '#E2E8F0',
-    borderWidth: 1.2,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    marginBottom: 14,
-  },
+  gpsStickyCard: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FCFEFF', borderColor: '#D9EDFF', borderWidth: 1, borderRadius: 14, padding: 12, marginBottom: 9, shadowColor: '#75ABD2', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.13, shadowRadius: 8, elevation: 3, },
   gpsCardLeft: {
     flex: 1,
   },
@@ -35,16 +39,8 @@ const formStyles = StyleSheet.create({
     color: '#64748B',
     letterSpacing: 1.2,
   },
-  gpsCoordsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 3,
-  },
-  gpsCoordVal: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
+  gpsCoordsRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', marginTop: 3, },
+  gpsCoordVal: { fontSize: 10, fontWeight: '700', color: '#233452', },
   gpsCoordSpacer: {
     marginHorizontal: 8,
     color: '#CBD5E1',
@@ -91,14 +87,7 @@ const formStyles = StyleSheet.create({
     letterSpacing: 1.2,
     textAlign: 'center',
   },
-  editingBanner: {
-    backgroundColor: '#EFF6FF',
-    borderColor: '#3B82F6',
-    borderWidth: 1.5,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 16,
-  },
+  editingBanner: { backgroundColor: '#F4FAFF', borderColor: '#569BFF', borderWidth: 1.5, borderRadius: 12, padding: 12, paddingRight: 65, marginBottom: 12, shadowColor: '#5492D8', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.15, shadowRadius: 7, elevation: 3, },
   editingBannerBadge: {
     fontSize: 10,
     fontWeight: '900',
@@ -112,11 +101,7 @@ const formStyles = StyleSheet.create({
     color: '#0F172A',
     marginBottom: 3,
   },
-  editingBannerHelp: {
-    fontSize: 10.5,
-    color: '#475569',
-    lineHeight: 15,
-  },
+  editingBannerHelp: { fontSize: 10, color: '#7188A9', lineHeight: 14, },
   continuationBanner: {
     backgroundColor: '#F0FDF4',
     borderColor: '#22C55E',
@@ -143,97 +128,22 @@ const formStyles = StyleSheet.create({
     color: '#166534',
     lineHeight: 15,
   },
-  updatePoleBtn: {
-    flex: 1,
-    marginRight: 6,
-    paddingVertical: 12,
-    alignItems: 'center',
-    backgroundColor: '#0284C7',
-    borderRadius: 10,
-    shadowColor: '#0284C7',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 5,
-    elevation: 3,
-  },
-  updatePoleBtnText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 0.8,
-  },
-  continueLineBtn: {
-    flex: 1,
-    marginLeft: 6,
-    paddingVertical: 12,
-    alignItems: 'center',
-    backgroundColor: '#0D9488',
-    borderRadius: 10,
-    shadowColor: '#0D9488',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 5,
-    elevation: 3,
-  },
+  updatePoleBtn: { flex: 1, paddingVertical: 11, alignItems: 'center', backgroundColor: '#EFF8FF', borderWidth: 1, borderColor: '#1682FF', borderRadius: 9, },
+  updatePoleBtnText: { color: '#087EF5', fontSize: 11, fontWeight: '800', letterSpacing: 0.4, },
+  continueLineBtn: { flex: 1, marginLeft: 6, paddingVertical: 11, alignItems: 'center', backgroundColor: '#087FF2', borderRadius: 9, },
   continueLineBtnText: {
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '900',
     letterSpacing: 0.8,
   },
-  sectionCard: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#E2E8F0',
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 16,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.02,
-    shadowRadius: 4,
-    elevation: 2,
-    borderLeftWidth: 4,
-  },
-  sectionHeaderContainer: {
-    marginBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-    paddingBottom: 8,
-  },
-  sectionHeaderTitle: {
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 1.2,
-  },
-  sectionHeaderHelper: {
-    fontSize: 9,
-    color: '#64748B',
-    marginTop: 4,
-    lineHeight: 12,
-    fontWeight: '500',
-  },
-  formGroup: {
-    marginBottom: 12,
-  },
-  label: {
-    color: '#64748B',
-    fontSize: 8.5,
-    fontWeight: '800',
-    letterSpacing: 1.2,
-    marginBottom: 5,
-  },
-  input: {
-    backgroundColor: '#F8FAFC',
-    borderColor: '#E2E8F0',
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    color: '#0F172A',
-    fontSize: 12.5,
-    fontWeight: '600',
-  },
+  sectionCard: { backgroundColor: '#FCFEFF', borderColor: '#E1F0FC', borderWidth: 1, borderRadius: 14, padding: 10, marginBottom: 11, shadowColor: '#6FA8D4', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.1, shadowRadius: 7, elevation: 3, borderLeftWidth: 3, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', },
+  sectionHeaderContainer: { width: '100%', marginBottom: 10, borderRadius: 9, paddingVertical: 9, paddingLeft: 37, paddingRight: 6, minHeight: 46, },
+  sectionHeaderTitle: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.2, },
+  sectionHeaderHelper: { fontSize: 8.5, color: '#6480A7', marginTop: 3, lineHeight: 12, fontWeight: '500', },
+  formGroup: { width: '48%', paddingLeft: 29, marginBottom: 11, },
+  label: { color: '#607BA3', fontSize: 9, fontWeight: '600', marginBottom: 4, },
+  input: { minHeight: 36, backgroundColor: '#FCFEFF', borderColor: '#D5E3F6', borderWidth: 1, borderRadius: 7, paddingVertical: 7, paddingHorizontal: 8, color: '#253754', fontSize: 11, fontWeight: '500', },
   inputError: {
     borderColor: '#EF4444',
   },
@@ -251,54 +161,27 @@ const formStyles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
   },
-  conditionOption: {
-    flex: 1,
-    minHeight: 38,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F8FAFC',
-    borderColor: '#E2E8F0',
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-  },
+  conditionOption: { flex: 1, minHeight: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F6FAFF', borderColor: '#DCE8F7', borderWidth: 1, borderRadius: 7, paddingHorizontal: 5, },
   conditionOldSelected: {
     borderColor: '#64748B',
     backgroundColor: 'rgba(100, 116, 139, 0.08)',
   },
-  conditionNewSelected: {
-    borderColor: '#16A34A',
-    backgroundColor: 'rgba(22, 163, 74, 0.07)',
-  },
+  conditionNewSelected: { borderColor: '#20C8A7', backgroundColor: '#E6FAF4', },
   conditionDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
     marginRight: 6,
   },
-  conditionText: {
-    color: '#64748B',
-    fontSize: 9.5,
-    fontWeight: '800',
-  },
+  conditionText: { color: '#6F82A4', fontSize: 8.5, fontWeight: '600', },
   conditionOldText: {
     color: '#475569',
   },
   conditionNewText: {
     color: '#15803D',
   },
-  photoSectionLabel: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#475569',
-    marginTop: 6,
-    marginBottom: 8,
-    letterSpacing: 0.5,
-  },
-  slotsContainer: {
-    marginVertical: 4,
-  },
+  photoSectionLabel: { width: '100%', fontSize: 8.5, fontWeight: '700', color: '#547198', marginTop: 4, marginBottom: 6, letterSpacing: 0.2, },
+  slotsContainer: { width: '100%', padding: 6, borderRadius: 9, backgroundColor: '#F5FAFF', borderWidth: 1, borderColor: '#E5F0FB', marginVertical: 3, },
   slotsScroll: {
     gap: 8,
     paddingVertical: 2,
@@ -338,36 +221,13 @@ const formStyles = StyleSheet.create({
     fontSize: 9,
     fontWeight: 'bold',
   },
-  slotEmptyCard: {
-    width: 68,
-    height: 68,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 4,
-  },
+  slotEmptyCard: { width: 66, height: 68, borderRadius: 7, borderWidth: 1, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', padding: 4, },
   slotCameraIcon: {
     fontSize: 14,
   },
-  slotLabel: {
-    fontSize: 7.5,
-    fontWeight: '800',
-    marginTop: 4,
-    textAlign: 'center',
-    letterSpacing: 0.2,
-  },
-  gridRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-    marginHorizontal: -4,
-  },
-  gridCol: {
-    flex: 1,
-    marginHorizontal: 4,
-  },
+  slotLabel: { fontSize: 7, fontWeight: '600', marginTop: 4, textAlign: 'center', },
+  gridRow: { width: '100%', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10, gap: 8, },
+  gridCol: { flex: 1, paddingLeft: 29, },
   dropdownTrigger: {
     minHeight: 42,
     flexDirection: 'row',
@@ -644,7 +504,7 @@ export default function ActiveSurveyForm({
         >
           <Text style={[formStyles.slotCameraIcon, { color: colorTheme.text }]}>📸</Text>
           <Text style={[formStyles.slotLabel, { color: colorTheme.text }]}>
-            {isMandatorySlot ? 'MANDATORY' : 'OPTIONAL'}
+            Add Photo{ '\n' }{isMandatorySlot ? 'Required' : 'Optional'}
           </Text>
         </TouchableOpacity>
       );
@@ -687,6 +547,7 @@ export default function ActiveSurveyForm({
       <View style={formStyles.detailsContainer}>
         {/* GPS Sticky Info Card */}
         <View style={formStyles.gpsStickyCard}>
+          <View style={[StyleSheet.absoluteFill, { borderRadius: 12, overflow: 'hidden', opacity: 0.12 }]} pointerEvents="none"><ImageBackground source={require('../../../../assets/erection-project-banner.png')} style={StyleSheet.absoluteFill} resizeMode="stretch" /></View>
           <View style={formStyles.gpsCardLeft}>
             <Text style={formStyles.gpsStickyTitle}>📡 LOCATION TELEMETRY</Text>
             <View style={formStyles.gpsCoordsRow}>
@@ -715,6 +576,7 @@ export default function ActiveSurveyForm({
 
           {isEditingNode && (
             <View style={formStyles.editingBanner}>
+              <View style={[StyleSheet.absoluteFill, { borderRadius: 12, overflow: 'hidden' }]} pointerEvents="none"><ImageBackground source={require('../../../../assets/pole-edit-banner.png')} style={StyleSheet.absoluteFill} resizeMode="stretch" /></View>
               <Text style={formStyles.editingBannerBadge}>✏️ EDITING POLE STRUCTURE</Text>
               <Text style={formStyles.editingBannerPole}>{editingPoleLabel || 'Selected Structure'}</Text>
               <Text style={formStyles.editingBannerHelp}>
@@ -736,7 +598,8 @@ export default function ActiveSurveyForm({
 
           {/* SECTION 1: PRIMARY DETAILS */}
           <View style={[formStyles.sectionCard, { borderLeftColor: THEMES.POLE.accent }]}>
-            <View style={formStyles.sectionHeaderContainer}>
+            <View style={[formStyles.sectionHeaderContainer, { backgroundColor: THEMES.POLE.bg }]}>
+              <View style={[formStyles.sectionNumber, { backgroundColor: THEMES.POLE.accent }]}><Text style={formStyles.sectionNumberText}>1</Text></View>
               <Text style={[formStyles.sectionHeaderTitle, { color: THEMES.POLE.text }]}>📡 STRUCTURE SPECIFICATION</Text>
               <Text style={formStyles.sectionHeaderHelper}>
                 {nodeType === 'POLE' 
@@ -749,12 +612,14 @@ export default function ActiveSurveyForm({
             {nodeType === 'DTR' ? (
               <>
                 <View style={formStyles.formGroup}>
+                <PoleFieldIcon name="dtrCapacity" />
                   <Controller
                     control={control}
                     name="dtrCapacity"
                     rules={{ required: 'DTR Capacity is required' }}
                     render={({ field: { onChange, value } }) => (
                       <Dropdown
+                        appearance="erection"
                         label="DTR CAPACITY"
                         placeholder="Select DTR capacity"
                         options={transformerOptions}
@@ -767,6 +632,7 @@ export default function ActiveSurveyForm({
                 </View>
 
                 <View style={formStyles.formGroup}>
+                <PoleFieldIcon name="nameLabel" />
                   <Text style={formStyles.label}>DTR SERIAL NO.</Text>
                   <Controller
                     control={control}
@@ -789,12 +655,14 @@ export default function ActiveSurveyForm({
                 {assetStatusVal === 'NEW' && (
                   <>
                     <View style={formStyles.formGroup}>
+                <PoleFieldIcon name="poleType" />
                       <Controller
                         control={control}
                         name="poleType"
                         rules={{ required: 'Pole Type is required' }}
                         render={({ field: { onChange, value } }) => (
                           <Dropdown
+                        appearance="erection"
                             label="POLE TYPE"
                             placeholder="Select Pole Type"
                             options={poleOptions}
@@ -807,12 +675,14 @@ export default function ActiveSurveyForm({
                     </View>
 
                     <View style={formStyles.formGroup}>
+                <PoleFieldIcon name="poleMaster" />
                       <Controller
                         control={control}
                         name="poleMaster"
                         rules={{ required: 'Pole Master specification is required' }}
                         render={({ field: { onChange, value } }) => (
                           <Dropdown
+                        appearance="erection"
                             label="POLE MASTER"
                             placeholder="Select Pole Master Specification"
                             options={poleMasterOptions}
@@ -825,6 +695,7 @@ export default function ActiveSurveyForm({
                     </View>
 
                     <View style={formStyles.formGroup}>
+                <PoleFieldIcon name="poleQty" />
                       <Text style={formStyles.label}>POLE QTY</Text>
                       <Controller
                         control={control}
@@ -850,12 +721,14 @@ export default function ActiveSurveyForm({
             ) : (
               <>
                 <View style={formStyles.formGroup}>
+                <PoleFieldIcon name="poleType" />
                   <Controller
                     control={control}
                     name="poleType"
                     rules={{ required: 'Pole Type specification is required' }}
                     render={({ field: { onChange, value } }) => (
                       <Dropdown
+                        appearance="erection"
                         label="POLE TYPE"
                         placeholder="Select Pole Type"
                         options={poleOptions}
@@ -868,12 +741,14 @@ export default function ActiveSurveyForm({
                 </View>
 
                 <View style={formStyles.formGroup}>
+                <PoleFieldIcon name="poleMaster" />
                   <Controller
                     control={control}
                     name="poleMaster"
                     rules={{ required: 'Pole Master specification is required' }}
                     render={({ field: { onChange, value } }) => (
                       <Dropdown
+                        appearance="erection"
                         label="POLE MASTER"
                         placeholder="Select Pole Master Specification"
                         options={poleMasterOptions}
@@ -886,6 +761,7 @@ export default function ActiveSurveyForm({
                 </View>
 
                 <View style={formStyles.formGroup}>
+                <PoleFieldIcon name="nameLabel" />
                   <Text style={formStyles.label}>POLE NO.</Text>
                   <Controller
                     control={control}
@@ -908,12 +784,14 @@ export default function ActiveSurveyForm({
             )}
 
             <View style={formStyles.formGroup}>
+                <PoleFieldIcon name="conductor" />
               <Controller
                 control={control}
                 name="conductor"
                 rules={{ required: 'Conductor specification is required' }}
                 render={({ field: { onChange, value } }) => (
                   <Dropdown
+                        appearance="erection"
                     label="CONDUC/CABLE"
                     placeholder="Select Conductor"
                     options={conductorOptions}
@@ -925,7 +803,8 @@ export default function ActiveSurveyForm({
               {errors.conductor && <Text style={formStyles.errorFeedback}>{errors.conductor.message}</Text>}
             </View>
 
-            <View style={formStyles.formGroup}>
+            <View style={[formStyles.formGroup, { width: '100%' }]}>
+                <PoleFieldIcon name="assetStatus" />
               <Text style={formStyles.label}>STRUCTURE CONDITION</Text>
               <Controller
                 control={control}
@@ -971,17 +850,20 @@ export default function ActiveSurveyForm({
 
           {/* SECTION 2: EARTHING INSTALLATION */}
           <View style={[formStyles.sectionCard, { borderLeftColor: THEMES.EARTHING.accent }]}>
-            <View style={formStyles.sectionHeaderContainer}>
+            <View style={[formStyles.sectionHeaderContainer, { backgroundColor: THEMES.EARTHING.bg }]}>
+              <View style={[formStyles.sectionNumber, { backgroundColor: THEMES.EARTHING.accent }]}><Text style={formStyles.sectionNumberText}>2</Text></View>
               <Text style={[formStyles.sectionHeaderTitle, { color: THEMES.EARTHING.text }]}>⚡ EARTHING INSTALLATION</Text>
               <Text style={formStyles.sectionHeaderHelper}>Specify earthing. Coil, Pipe or Spike options require 2 compliance photos.</Text>
             </View>
 
             <View style={formStyles.formGroup}>
+                <PoleFieldIcon name="earthingUsed" />
               <Controller
                 control={control}
                 name="earthingUsed"
                 render={({ field: { onChange, value } }) => (
                   <Dropdown
+                        appearance="erection"
                     label="EARTHING USED"
                     placeholder="Select Earthing type"
                     options={earthingOptions}
@@ -995,6 +877,7 @@ export default function ActiveSurveyForm({
             {selectedEarthing ? (
               <>
                 <View style={formStyles.formGroup}>
+                <PoleFieldIcon name="earthingQuantity" />
                   <Text style={formStyles.label}>EARTHING QUANTITY</Text>
                   <Controller
                     control={control}
@@ -1024,17 +907,20 @@ export default function ActiveSurveyForm({
 
           {/* SECTION 3: STAY SET SUPPORT */}
           <View style={[formStyles.sectionCard, { borderLeftColor: THEMES.STAY_SET.accent }]}>
-            <View style={formStyles.sectionHeaderContainer}>
+            <View style={[formStyles.sectionHeaderContainer, { backgroundColor: THEMES.STAY_SET.bg }]}>
+              <View style={[formStyles.sectionNumber, { backgroundColor: THEMES.STAY_SET.accent }]}><Text style={formStyles.sectionNumberText}>3</Text></View>
               <Text style={[formStyles.sectionHeaderTitle, { color: THEMES.STAY_SET.text }]}>⚓ STAY SET SUPPORT</Text>
               <Text style={formStyles.sectionHeaderHelper}>Specify stay set support. HT or LT Stay set options require 2 compliance photos.</Text>
             </View>
 
             <View style={formStyles.formGroup}>
+                <PoleFieldIcon name="staySetUsed" />
               <Controller
                 control={control}
                 name="staySetUsed"
                 render={({ field: { onChange, value } }) => (
                   <Dropdown
+                        appearance="erection"
                     label="STAY SET USED"
                     placeholder="Select Stay Set type"
                     options={staySetOptions}
@@ -1048,6 +934,7 @@ export default function ActiveSurveyForm({
             {selectedStaySet ? (
               <>
                 <View style={formStyles.formGroup}>
+                <PoleFieldIcon name="staySetQuantity" />
                   <Text style={formStyles.label}>STAY SET QUANTITY</Text>
                   <Controller
                     control={control}
@@ -1078,12 +965,14 @@ export default function ActiveSurveyForm({
           {/* SECTION 4: POLE DB ATTACHMENT */}
           {!isHtLine && showLtAccessories ? (
             <View style={[formStyles.sectionCard, { borderLeftColor: THEMES.POLE_DB.accent }]}>
-              <View style={formStyles.sectionHeaderContainer}>
+              <View style={[formStyles.sectionHeaderContainer, { backgroundColor: THEMES.POLE_DB.bg }]}>
+              <View style={[formStyles.sectionNumber, { backgroundColor: THEMES.POLE_DB.accent }]}><Text style={formStyles.sectionNumberText}>4</Text></View>
                 <Text style={[formStyles.sectionHeaderTitle, { color: THEMES.POLE_DB.text }]}>📦 DISTRIBUTION BOX (DB)</Text>
                 <Text style={formStyles.sectionHeaderHelper}>Specify DB attachments. Pole DB installations require 1 compliance photo.</Text>
               </View>
 
-              <View style={formStyles.formGroup}>
+              <View style={[formStyles.formGroup, { width: '100%' }]}>
+                <PoleFieldIcon name="poleDbTypes" />
                 <Text style={formStyles.label}>POLE DB TYPE</Text>
                 <Controller
                   control={control}
@@ -1219,11 +1108,13 @@ export default function ActiveSurveyForm({
           {/* SECTION 4 / REMARKS CARD FOR HT LINES, OR SECTION 5 ACCESSORIES FOR LT LINES */}
           {isHtLine ? (
             <View style={[formStyles.sectionCard, { borderLeftColor: THEMES.HARNESS.accent }]}>
-              <View style={formStyles.sectionHeaderContainer}>
+              <View style={[formStyles.sectionHeaderContainer, { backgroundColor: THEMES.HARNESS.bg }]}>
+              <View style={[formStyles.sectionNumber, { backgroundColor: THEMES.HARNESS.accent }]}><Text style={formStyles.sectionNumberText}>{isHtLine ? 4 : 5}</Text></View>
                 <Text style={[formStyles.sectionHeaderTitle, { color: THEMES.HARNESS.text }]}>📝 SITE REMARKS</Text>
                 <Text style={formStyles.sectionHeaderHelper}>Add any remarks, sag observations or terrain notes.</Text>
               </View>
-              <View style={formStyles.formGroup}>
+              <View style={[formStyles.formGroup, { width: '100%' }]}>
+                <PoleFieldIcon name="remarks" />
                 <Text style={formStyles.label}>SITE REMARKS</Text>
                 <Controller
                   control={control}
@@ -1245,12 +1136,14 @@ export default function ActiveSurveyForm({
             </View>
           ) : (
             <View style={[formStyles.sectionCard, { borderLeftColor: THEMES.HARNESS.accent }]}>
-              <View style={formStyles.sectionHeaderContainer}>
+              <View style={[formStyles.sectionHeaderContainer, { backgroundColor: THEMES.HARNESS.bg }]}>
+              <View style={[formStyles.sectionNumber, { backgroundColor: THEMES.HARNESS.accent }]}><Text style={formStyles.sectionNumberText}>{isHtLine ? 4 : 5}</Text></View>
                 <Text style={[formStyles.sectionHeaderTitle, { color: THEMES.HARNESS.text }]}>🔩 HARNESSING & SITE REMARKS</Text>
               </View>
 
               <View style={formStyles.gridRow}>
                 <View style={formStyles.gridCol}>
+                <PoleFieldIcon name="deadEndClampQty" />
                   <Text style={formStyles.label}>DEAD END CLAMP QTY</Text>
                   <Controller
                     control={control}
@@ -1269,6 +1162,7 @@ export default function ActiveSurveyForm({
                   />
                 </View>
                 <View style={formStyles.gridCol}>
+                <PoleFieldIcon name="suspensionClampQty" />
                   <Text style={formStyles.label}>SUSPENSION CLAMP QTY</Text>
                   <Controller
                     control={control}
@@ -1290,6 +1184,7 @@ export default function ActiveSurveyForm({
 
               <View style={formStyles.gridRow}>
                 <View style={formStyles.gridCol}>
+                <PoleFieldIcon name="poleClampQty" />
                   <Text style={formStyles.label}>POLE CLAMP QTY</Text>
                   <Controller
                     control={control}
@@ -1308,6 +1203,7 @@ export default function ActiveSurveyForm({
                   />
                 </View>
                 <View style={formStyles.gridCol}>
+                <PoleFieldIcon name="ipcQty" />
                   <Text style={formStyles.label}>IPC QTY</Text>
                   <Controller
                     control={control}
@@ -1329,6 +1225,7 @@ export default function ActiveSurveyForm({
 
               <View style={formStyles.gridRow}>
                 <View style={formStyles.gridCol}>
+                <PoleFieldIcon name="serviceConnectionQty" />
                   <Text style={formStyles.label}>NO. OF SERVICE CONN</Text>
                   <Controller
                     control={control}
@@ -1347,6 +1244,7 @@ export default function ActiveSurveyForm({
                   />
                 </View>
                 <View style={formStyles.gridCol}>
+                <PoleFieldIcon name="extraConsumption" />
                   <Text style={formStyles.label}>EXTRA CONSUMPTION (M)</Text>
                   <Controller
                     control={control}
@@ -1366,7 +1264,8 @@ export default function ActiveSurveyForm({
                 </View>
               </View>
 
-              <View style={formStyles.formGroup}>
+              <View style={[formStyles.formGroup, { width: '100%' }]}>
+                <PoleFieldIcon name="remarks" />
                 <Text style={formStyles.label}>SITE REMARKS</Text>
                 <Controller
                   control={control}
@@ -1398,7 +1297,7 @@ export default function ActiveSurveyForm({
                   activeOpacity={0.8}
                 >
                   <Text style={formStyles.updatePoleBtnText}>UPDATE POLE</Text>
-                  <Text style={[styles.btnSubtext, { color: '#E0F2FE' }]}>Save changes to database</Text>
+                  <Text style={[styles.btnSubtext, { color: '#559BDD' }]}>Save changes to database</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity 
@@ -1412,14 +1311,14 @@ export default function ActiveSurveyForm({
               </View>
 
               <TouchableOpacity 
-                style={[styles.finishSurveyBtn, { marginLeft: 0, marginTop: 10 }]} 
+                style={[styles.finishSurveyBtn, { marginLeft: 0, marginTop: 10, backgroundColor: '#E6FAF3', borderColor: '#1AC6A0', borderWidth: 1 }]}
                 onPress={onSubmitFinish} 
                 activeOpacity={0.8}
               >
-                <Text style={styles.finishSurveyBtnText}>
+                <Text style={[styles.finishSurveyBtnText, { color: '#078C72' }]}>
                   {workflowType === 'ERECTION' ? 'FINISH ERECTION' : (workflowType === 'SURVEY' ? 'FINISH SURVEY' : 'FINISH WORK')}
                 </Text>
-                <Text style={styles.btnSubtext}>Complete session & verify</Text>
+                <Text style={[styles.btnSubtext, { color: '#659DAD' }]}>Complete session & verify</Text>
               </TouchableOpacity>
             </>
           ) : (
@@ -1429,11 +1328,11 @@ export default function ActiveSurveyForm({
                 <Text style={styles.btnSubtext}>Saves current & moves to next node</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.finishSurveyBtn} onPress={onSubmitFinish} activeOpacity={0.8}>
-                <Text style={styles.finishSurveyBtnText}>
+              <TouchableOpacity style={[styles.finishSurveyBtn, { backgroundColor: '#E6FAF3', borderWidth: 1, borderColor: '#1AC6A0' }]} onPress={onSubmitFinish} activeOpacity={0.8}>
+                <Text style={[styles.finishSurveyBtnText, { color: '#078C72' }]}>
                   {workflowType === 'ERECTION' ? 'FINISH ERECTION' : (workflowType === 'SURVEY' ? 'FINISH SURVEY' : 'FINISH WORK')}
                 </Text>
-                <Text style={styles.btnSubtext}>Submit line for verification</Text>
+                <Text style={[styles.btnSubtext, { color: '#659DAD' }]}>Submit line for verification</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -2187,7 +2086,7 @@ export default function ActiveSurveyForm({
           </View>
 
           <TouchableOpacity 
-            style={[styles.finishSurveyBtn, { marginLeft: 0, marginTop: 10 }]} 
+            style={[styles.finishSurveyBtn, { marginLeft: 0, marginTop: 10 }]}
             onPress={onSubmitFinish} 
             activeOpacity={0.8}
           >

@@ -1,7 +1,9 @@
 import React from 'react';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { StyleSheet, View, Text, TouchableOpacity, TextInput } from 'react-native';
 
 interface SurveyAttributeEditorProps {
+  appearance?: 'default' | 'erection';
   selectedNodeId: string | null;
   selectedSpanNodeId: string | null;
   nodeName: string;
@@ -30,6 +32,7 @@ interface SurveyAttributeEditorProps {
 }
 
 export default function SurveyAttributeEditor({
+  appearance = 'default',
   selectedNodeId,
   selectedSpanNodeId,
   nodeName,
@@ -59,9 +62,9 @@ export default function SurveyAttributeEditor({
   if (!selectedNodeId && !selectedSpanNodeId) return null;
 
   return (
-    <View style={styles.editorPanel}>
+    <View style={[styles.editorPanel, appearance === 'erection' && styles.erectionPanel]}>
       <View style={styles.panelHeader}>
-        <Text style={styles.panelTitle}>
+        <Text style={[styles.panelTitle, appearance === 'erection' && styles.erectionTitle]}>
           {selectedNodeId ? `EDIT STRUCTURE NODE: ${nodeName}` : `EDIT SECTION SPAN: ${nodeName}`}
         </Text>
         <TouchableOpacity onPress={onCancel} disabled={isSaving}>
@@ -162,10 +165,11 @@ export default function SurveyAttributeEditor({
       </View>
 
       <TouchableOpacity 
-        style={[styles.saveBtn, isSaving && { opacity: 0.6 }]} 
+        style={[styles.saveBtn, appearance === 'erection' && styles.erectionSaveButton, isSaving && { opacity: 0.6 }]}
         onPress={onApply}
         disabled={isSaving}
       >
+        {appearance === 'erection' && <View style={[StyleSheet.absoluteFill, { borderRadius: 12, overflow: 'hidden' }]} pointerEvents="none"><Svg width="100%" height="100%"><Defs><LinearGradient id="structureSaveGradient" x1="0%" y1="100%" x2="100%" y2="0%"><Stop offset="0%" stopColor="#1744FF" /><Stop offset="55%" stopColor="#783BFF" /><Stop offset="100%" stopColor="#D348FA" /></LinearGradient></Defs><Rect width="100%" height="100%" fill="url(#structureSaveGradient)" /></Svg></View>}
         <Text style={styles.saveBtnText}>
           {isSaving ? 'APPLYING CHANGES...' : 'APPLY STRUCTURE CHANGES'}
         </Text>
@@ -175,6 +179,9 @@ export default function SurveyAttributeEditor({
 }
 
 const styles = StyleSheet.create({
+  erectionPanel: { backgroundColor: '#FCFEFF', borderColor: '#C09AF0', borderLeftWidth: 3, borderLeftColor: '#983EFF', borderRadius: 18, padding: 12, marginBottom: 12, shadowColor: '#C09AF0', shadowOpacity: 0.13, shadowRadius: 8, elevation: 3, shadowOffset: { width: 0, height: 3 }, },
+  erectionTitle: { color: '#151A54', fontSize: 11, letterSpacing: 0 },
+  erectionSaveButton: { backgroundColor: '#7940F6', borderRadius: 12 },
   editorPanel: {
     backgroundColor: 'rgba(255, 255, 255, 0.85)',
     borderColor: 'rgba(2, 132, 199, 0.15)',

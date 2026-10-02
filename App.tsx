@@ -7,7 +7,7 @@ import {
   Text,
   View
 } from 'react-native';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -25,6 +25,7 @@ import SyncQueueScreen from './src/screens/sync/SyncQueueScreen';
 import SurveyDetailsScreen from './src/screens/survey/SurveyDetailsScreen';
 import ErectionDetailsScreen from './src/screens/survey/ErectionDetailsScreen';
 import Theme from './src/theme';
+import ProjectTabBar from './src/components/ProjectTabBar';
 import { ToastProvider } from './src/components/ToastProvider';
 import { ConfirmationProvider } from './src/components/ConfirmationProvider';
 
@@ -32,46 +33,8 @@ const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 function MainTabNavigator() {
-  const insets = useSafeAreaInsets();
-  const queueLength = useSelector((state: RootState) => state.survey.syncQueue.length);
-  const tabLabels: Record<string, string> = {
-    Dashboard: 'DASH\nBOARD',
-    SurveyList: 'SURVEY\nRUNS',
-    ErectionExecution: 'ERECTION\nEXECUTION',
-    SyncQueue: 'SYNC\nTERMINAL',
-    Profile: 'MY\nPROFILE',
-  };
-
   return (
-    <Tab.Navigator
-      screenOptions={({ route }) => ({
-        headerShown: false,
-        tabBarStyle: {
-          backgroundColor: 'rgba(17, 24, 39, 0.96)',
-          borderTopWidth: 1.5,
-          borderTopColor: 'rgba(6, 182, 212, 0.25)',
-          paddingBottom: insets.bottom > 0 ? insets.bottom : 8,
-          paddingTop: 8,
-          height: 60 + (insets.bottom > 0 ? insets.bottom - 4 : 0),
-        },
-        tabBarActiveTintColor: Theme.colors.glowCyan,
-        tabBarInactiveTintColor: '#9CA3AF',
-        tabBarLabel: ({ color }) => (
-          <Text style={{ color, fontSize: 7.5, fontWeight: 'bold', textAlign: 'center', lineHeight: 9 }}>
-            {tabLabels[route.name] ?? route.name}
-          </Text>
-        ),
-        tabBarIcon: ({ color }) => {
-          let iconName = '🖥️';
-          if (route.name === 'Dashboard') iconName = '🖥️';
-          else if (route.name === 'SurveyList') iconName = '📋';
-          else if (route.name === 'ErectionExecution') iconName = '🏗️';
-          else if (route.name === 'SyncQueue') iconName = '📡';
-          else if (route.name === 'Profile') iconName = '👤';
-          return <Text style={{ fontSize: 18, color }}>{iconName}</Text>;
-        },
-      })}
-    >
+    <Tab.Navigator tabBar={(props) => <ProjectTabBar {...props} />} screenOptions={{ headerShown: false }}>
       <Tab.Screen name="Dashboard" component={DashboardScreen} options={{ title: 'DASHBOARD' }} />
       <Tab.Screen name="SurveyList" component={SurveyListScreen} options={{ title: 'SURVEY RUNS' }} />
       <Tab.Screen
@@ -82,16 +45,7 @@ function MainTabNavigator() {
       <Tab.Screen
         name="SyncQueue"
         component={SyncQueueScreen}
-        options={{
-          title: 'SYNC TERMINAL',
-          tabBarBadge: queueLength > 0 ? queueLength : undefined,
-          tabBarBadgeStyle: {
-            backgroundColor: Theme.colors.warning,
-            color: '#000',
-            fontSize: 9,
-            fontWeight: 'bold',
-          }
-        }}
+        options={{ title: 'SYNC TERMINAL' }}
       />
       <Tab.Screen name="Profile" component={ProfileScreen} options={{ title: 'MY PROFILE' }} />
     </Tab.Navigator>

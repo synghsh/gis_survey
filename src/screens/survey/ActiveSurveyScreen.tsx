@@ -8,6 +8,7 @@ import {
   Dimensions,
   ActivityIndicator,
   Modal,
+  ImageBackground,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useCameraPermissions } from 'expo-camera';
@@ -15,6 +16,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { useForm } from 'react-hook-form';
 import * as Location from 'expo-location';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RootState, addNode, updateActiveNode, updateSurveyNode, finishSurvey, cancelSurvey, setContinuationParent, SurveyNode } from '../../store';
 import { useToast } from '../../components/ToastProvider';
 import { useConfirmation } from '../../components/ConfirmationProvider';
@@ -101,6 +103,7 @@ interface SurveyNodeFormInputs {
 }
 
 export default function ActiveSurveyScreen() {
+  const insets = useSafeAreaInsets();
   const toast = useToast();
   const { confirm } = useConfirmation();
   const navigation = useNavigation<any>();
@@ -1621,28 +1624,30 @@ export default function ActiveSurveyScreen() {
 
       {/* 2. HEADER */}
       <View style={styles.headerWrapper}>
-        <View style={styles.surveyHeader}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <View style={[styles.surveyHeader, isErectionFlow && surveyStep !== 'CAPTURE' && { backgroundColor: '#116DBE', paddingTop: insets.top + 22, paddingBottom: 32, minHeight: 150, borderBottomWidth: 0, overflow: 'hidden' }]}>
+          {isErectionFlow && surveyStep !== 'CAPTURE' && <View style={StyleSheet.absoluteFill} pointerEvents="none"><ImageBackground source={require('../../../assets/erection-details-hero.png')} style={StyleSheet.absoluteFill} resizeMode="stretch" /></View>}
+          <View style={{ flexDirection: 'row', alignItems: 'center', flex: isErectionFlow && surveyStep !== 'CAPTURE' ? 1 : undefined }}>
             {(isEditingNode || activeLine?.editingExisting) && (
               <TouchableOpacity 
-                style={{ marginRight: 10, paddingVertical: 5, paddingHorizontal: 10, backgroundColor: '#F1F5F9', borderRadius: 6, borderWidth: 1, borderColor: '#CBD5E1' }} 
+                style={[{ marginRight: 10, paddingVertical: 5, paddingHorizontal: 10, backgroundColor: '#F1F5F9', borderRadius: 6, borderWidth: 1, borderColor: '#CBD5E1' }, isErectionFlow && surveyStep !== 'CAPTURE' && { width: 34, height: 34, borderRadius: 17, paddingHorizontal: 0, paddingVertical: 0, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }]}
                 onPress={() => navigation.goBack()}
               >
-                <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#475569' }}>&lt; BACK</Text>
+                <Text style={{ fontSize: isErectionFlow && surveyStep !== 'CAPTURE' ? 21 : 10.5, fontWeight: '800', color: '#1677E8' }}>{isErectionFlow && surveyStep !== 'CAPTURE' ? '\u2039' : '< BACK'}</Text>
               </TouchableOpacity>
             )}
-            <View>
-              <Text style={styles.subtitleText}>
+            <View style={{ flex: isErectionFlow && surveyStep !== 'CAPTURE' ? 1 : undefined }}>
+              <Text style={[styles.subtitleText, isErectionFlow && surveyStep !== 'CAPTURE' && { color: '#D4E8FF', fontSize: 8, letterSpacing: 1 }]} >
                 {isEditingNode 
                   ? `EDITING // ${editingPoleLabel || `NODE #${currentSeq}`}`
                   : (continuationParentLabel 
                       ? `FROM ${continuationParentLabel} // NODE #${currentSeq}`
                       : `ACTIVE ${isErectionFlow ? 'ERECTION' : 'SURVEY'} // NODE #${currentSeq}`)}
               </Text>
-              <Text style={styles.titleText}>{activeLine.contractorName || activeLine.drawingNo || 'Active Line'}</Text>
+              <Text style={[styles.titleText, isErectionFlow && surveyStep !== 'CAPTURE' && { color: '#FFFFFF', fontSize: 17, flexShrink: 1 }]}>{activeLine.contractorName || activeLine.drawingNo || 'Active Line'}</Text>
+              {isErectionFlow && surveyStep !== 'CAPTURE' && <Text style={{ color: '#D1E6FF', fontSize: 10, marginTop: 4 }}>Project location & assignment</Text>}
             </View>
           </View>
-          <View style={[styles.typeBadge, { borderColor: getLineAccent() }]}>
+          <View style={[styles.typeBadge, { borderColor: getLineAccent() }, isErectionFlow && surveyStep !== 'CAPTURE' && { backgroundColor: '#F2F8FF', marginLeft: 8, paddingHorizontal: 6 }]}>
             <Text style={[styles.typeBadgeText, { color: getLineAccent() }]}>
               {getLineTypeLabel(activeLine.lineType)}
             </Text>
@@ -1674,7 +1679,7 @@ export default function ActiveSurveyScreen() {
             }}
           />
         ) : (
-          <ScrollView style={styles.detailsScroll} contentContainerStyle={styles.detailsContent} keyboardShouldPersistTaps="handled">
+          <ScrollView style={styles.detailsScroll} contentContainerStyle={[styles.detailsContent, isErectionFlow && { padding: 12, paddingBottom: Math.max(insets.bottom, 20) }]} keyboardShouldPersistTaps="handled">
             <ActiveSurveyForm
               control={control}
               errors={errors}

@@ -9,11 +9,13 @@ import {
   Modal,
   Dimensions,
   ActivityIndicator,
+  ImageBackground,
   Alert,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
+import Svg, { Defs, LinearGradient, Stop, Rect, Path, Circle, Line } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RootState, SurveyLine, startSurvey, injectHistoryLine } from '../../store';
 import { useToast } from '../../components/ToastProvider';
 import { getLineTypeLabel } from '../../utils/surveyLabels';
@@ -45,6 +47,8 @@ type LtStartingPoint = NonNullable<SurveyLine['ltStartingPoint']>;
 const toOptions = (names: string[]): DropdownOption[] => names.map(name => ({ label: name, value: name }));
 
 export default function ErectionExecutionScreen() {
+  const insets = useSafeAreaInsets();
+  const [searchQuery, setSearchQuery] = useState('');
   const navigation = useNavigation<any>();
   const dispatch = useDispatch();
   const toast = useToast();
@@ -433,9 +437,10 @@ export default function ErectionExecutionScreen() {
         (statusFilter === 'PENDING' && item.status === 1) ||
         (statusFilter === 'COMPLETED' && item.status === 2) ||
         (statusFilter === 'REJECTED' && item.status === 3);
-      return matchesVoltage && matchesStatus;
+      const matchesSearch = [item.contractor_name, item.drawing_no, item.village_name, item.village].some(value => String(value || '').toLowerCase().includes(searchQuery.trim().toLowerCase()));
+      return matchesVoltage && matchesStatus && matchesSearch;
     }) : [];
-  }, [erectionList, voltageFilter, statusFilter]);
+  }, [erectionList, voltageFilter, statusFilter, searchQuery]);
 
   const getLineAccent = (type: string | number) => {
     switch (type) {
@@ -454,7 +459,7 @@ export default function ErectionExecutionScreen() {
             <LinearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
               <Stop offset="0%" stopColor="#FFFFFF" />
               <Stop offset="60%" stopColor="#F0F9FF" />
-              <Stop offset="100%" stopColor="#E0F2FE" />
+              <Stop offset="100%" stopColor="#EFF7FF" />
             </LinearGradient>
           </Defs>
           <Rect width="100%" height="100%" fill="url(#bgGradient)" />
@@ -462,11 +467,23 @@ export default function ErectionExecutionScreen() {
       </View>
 
       <View style={styles.mainWrapper}>
-        <View style={styles.header}>
-          <View style={{ width: 34 }} />
-          <Text style={styles.headerTitle}>ERECTION EXECUTION</Text>
-          <TouchableOpacity onPress={() => setShowFilterModal(true)} style={styles.menuBtn}>
-            <Text style={styles.menuBtnText}>⋮</Text>
+        <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <ImageBackground source={require('../../../assets/erection-hero-v2.png')} style={StyleSheet.absoluteFill} resizeMode="stretch" />
+          </View>
+          <View style={styles.heroCopy}>
+            <Text style={styles.headerTitle}>Erection</Text>
+            <Text style={styles.heroAccent}>Execution</Text>
+            <Text style={styles.heroSubtitle}>Manage your erection works, update progress and ensure completion</Text>
+          </View>
+        </View>
+        <View style={styles.searchPanel}>
+          <View style={styles.searchInputWrap}>
+            <Svg width={21} height={21} viewBox="0 0 24 24"><Circle cx="10" cy="10" r="7" stroke="#607399" strokeWidth="2" fill="none" /><Line x1="15" y1="15" x2="22" y2="22" stroke="#607399" strokeWidth="2" /></Svg>
+            <TextInput value={searchQuery} onChangeText={setSearchQuery} placeholder="Search company, drawing or village..." placeholderTextColor="#7383A2" style={styles.searchInput} accessibilityLabel="Search erection projects" />
+          </View>
+          <TouchableOpacity style={[styles.filterButton, (voltageFilter !== 'ALL' || statusFilter !== 'ALL') && styles.filterButtonActive]} onPress={() => setShowFilterModal(true)} accessibilityLabel="Filter erection projects">
+            <Svg width={25} height={25} viewBox="0 0 24 24" stroke="#1765E8" strokeWidth="2"><Line x1="3" y1="6" x2="21" y2="6" /><Line x1="3" y1="12" x2="21" y2="12" /><Line x1="3" y1="18" x2="21" y2="18" /><Circle cx="8" cy="6" r="2" fill="#1765E8" /><Circle cx="16" cy="12" r="2" fill="#1765E8" /><Circle cx="10" cy="18" r="2" fill="#1765E8" /></Svg>
           </TouchableOpacity>
         </View>
 
@@ -474,7 +491,7 @@ export default function ErectionExecutionScreen() {
         <Modal
           visible={showFilterModal}
           transparent
-          animationType="fade"
+          animationType="slide"
           onRequestClose={() => setShowFilterModal(false)}
         >
           <TouchableOpacity
@@ -482,16 +499,22 @@ export default function ErectionExecutionScreen() {
             activeOpacity={1}
             onPress={() => setShowFilterModal(false)}
           >
-            <View style={styles.filterDrawer} onStartShouldSetResponder={() => true}>
+            <View style={[styles.filterDrawer, { paddingBottom: Math.max(insets.bottom, 14) }]} onStartShouldSetResponder={() => true}>
+              <View style={styles.drawerHandle} />
               <View style={styles.drawerHeader}>
-                <Text style={styles.drawerTitle}>FILTERS</Text>
-                <TouchableOpacity onPress={() => setShowFilterModal(false)} style={styles.drawerCloseBtn}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.drawerEyebrow}>ERECTION EXECUTION</Text>
+                  <Text style={styles.drawerTitle}>Filter projects</Text>
+                  <Text style={styles.drawerSubtitle}>Find the works you want to manage.</Text>
+                </View>
+                <TouchableOpacity accessibilityLabel="Close project filters" onPress={() => setShowFilterModal(false)} style={styles.drawerCloseBtn}>
                   <Text style={styles.drawerCloseText}>✕</Text>
                 </TouchableOpacity>
               </View>
 
               <ScrollView contentContainerStyle={styles.drawerContent} showsVerticalScrollIndicator={false}>
-                <Text style={styles.drawerSectionTitle}>VOLTAGE CLASS</Text>
+                <Text style={styles.drawerSectionTitle}>Voltage class</Text>
+                <View style={styles.drawerOptionsGrid}>
                 {([
                   { label: 'ALL CLASS', value: 'ALL' },
                   { label: '11KV HT', value: 'HT_11KV' },
@@ -501,15 +524,22 @@ export default function ErectionExecutionScreen() {
                   <TouchableOpacity
                     key={opt.value}
                     style={[styles.drawerFilterTab, voltageFilter === opt.value && styles.drawerFilterTabActive]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: voltageFilter === opt.value }}
                     onPress={() => setVoltageFilter(opt.value)}
                   >
                     <Text style={[styles.drawerFilterTabText, voltageFilter === opt.value && styles.drawerFilterTabTextActive]}>
                       {opt.label}
                     </Text>
+                    <View style={[styles.drawerRadio, voltageFilter === opt.value && styles.drawerRadioActive]}>
+                      {voltageFilter === opt.value && <View style={styles.drawerRadioDot} />}
+                    </View>
                   </TouchableOpacity>
                 ))}
 
-                <Text style={[styles.drawerSectionTitle, { marginTop: 16 }]}>STATUS</Text>
+                </View>
+                <Text style={[styles.drawerSectionTitle, { marginTop: 16 }]}>Execution status</Text>
+                <View style={styles.drawerOptionsGrid}>
                 {([
                   { label: 'ALL STATUS', value: 'ALL' },
                   { label: 'PENDING', value: 'PENDING' },
@@ -519,14 +549,27 @@ export default function ErectionExecutionScreen() {
                   <TouchableOpacity
                     key={opt.value}
                     style={[styles.drawerFilterTab, statusFilter === opt.value && styles.drawerFilterTabActive]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: statusFilter === opt.value }}
                     onPress={() => setStatusFilter(opt.value)}
                   >
                     <Text style={[styles.drawerFilterTabText, statusFilter === opt.value && styles.drawerFilterTabTextActive]}>
                       {opt.label}
                     </Text>
+                    <View style={[styles.drawerRadio, statusFilter === opt.value && styles.drawerRadioActive]}>
+                      {statusFilter === opt.value && <View style={styles.drawerRadioDot} />}
+                    </View>
                   </TouchableOpacity>
                 ))}
+                </View>
               </ScrollView>
+              <View style={styles.drawerFooter}>
+                <Text style={styles.drawerResultText}>{filteredErections.length} matching project{filteredErections.length === 1 ? '' : 's'}</Text>
+                <TouchableOpacity accessibilityRole="button" style={styles.drawerDoneButton} onPress={() => setShowFilterModal(false)} activeOpacity={0.85}>
+                  <View style={[StyleSheet.absoluteFill, { borderRadius: 13, overflow: 'hidden' }]} pointerEvents="none"><Svg width="100%" height="100%"><Defs><LinearGradient id="filterDoneGradient" x1="0%" y1="100%" x2="100%" y2="0%"><Stop offset="0%" stopColor="#087CFF" /><Stop offset="100%" stopColor="#8A40F6" /></LinearGradient></Defs><Rect width="100%" height="100%" fill="url(#filterDoneGradient)" /></Svg></View>
+                  <Text style={styles.drawerDoneText}>Show projects</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </TouchableOpacity>
         </Modal>
@@ -541,23 +584,27 @@ export default function ErectionExecutionScreen() {
             {filteredErections.length === 0 ? (
               <View style={styles.emptyCard}>
                 <Text style={styles.emptyText}>NO ERECTIONS FOUND</Text>
-                <Text style={styles.emptySubText}>Tap the floating button below to configure and start a new erection execution.</Text>
+                <Text style={styles.emptySubText}>{searchQuery.trim() || voltageFilter !== 'ALL' || statusFilter !== 'ALL' ? 'Try another search or adjust your filters.' : 'Tap the + button to configure and start a new erection execution.'}</Text>
               </View>
             ) : (
-              filteredErections.map((item: any) => {
+              filteredErections.map((item: any, index: number) => {
                 const accent = getLineAccent(item.type_of_work);
                 return (
-                  <View key={item.id} style={styles.surveyCard}>
+                  <View key={item.id} style={[styles.surveyCard, { borderLeftColor: ['#8470FF', '#FFB13D', '#29ACF5', '#A348F5'][index % 4] }]}>
                     <View style={styles.cardHeader}>
+                      <View style={[styles.projectIcon, { backgroundColor: ['#7774FF', '#FFAA28', '#24A5FA', '#A348F5'][index % 4] }]}>
+                        <Svg width={24} height={28} viewBox="0 0 24 28"><Path d="M3 26V3H14V26M14 11H21V26" fill="none" stroke="white" strokeWidth="2.5" /><Path d="M7 7H10M7 12H10M7 17H10M7 22H10M17 15H19M17 20H19M1 26H23" stroke="white" strokeWidth="2" /></Svg>
+                      </View>
                       <View style={{ flex: 1, paddingRight: 6 }}>
-                        <Text style={styles.contractorName} numberOfLines={1}>{item.contractor_name}</Text>
+                        <Text style={styles.contractorName} numberOfLines={2}>{item.contractor_name}</Text>
                         <Text style={styles.cardMetaText}>
                           Drawing No.: {item.drawing_no}
                           {/* {item.feeder_name ? ` • FDR: ${item.feeder_name}` : ''}
                           {item.dtr_code ? ` • DTR: ${item.dtr_code}` : ''} */}
                         </Text>
                       </View>
-                      <View style={styles.badgeRow}>
+                      </View>
+                    <View style={styles.badgeRow}>
                         <View style={[styles.classBadge, { borderColor: accent, marginRight: 4 }]}>
                           <Text style={[styles.classBadgeText, { color: accent }]}>
                             {getLineTypeLabel(item.type_of_work_name)}
@@ -571,7 +618,6 @@ export default function ErectionExecutionScreen() {
                             {item.status === 2 ? 'COMPLETED' : (item.status === 3 ? 'REJECTED' : 'PENDING')}
                           </Text>
                         </View>
-                      </View>
                     </View>
 
                     <Text style={styles.cardLocationText}>
@@ -594,19 +640,19 @@ export default function ErectionExecutionScreen() {
                           style={styles.compactBtnEdit}
                           onPress={() => handleEditBasicDetails(item)}
                         >
-                          <Text style={styles.compactBtnTextEdit}>EDIT BASIC</Text>
+                          <Text style={styles.compactBtnTextEdit}>{"\u270E"}  Edit Basic</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                           style={styles.compactBtnUpdate}
                           onPress={() => handleUpdateErectionsClick(item)}
                         >
-                          <Text style={styles.compactBtnTextUpdate}>UPDATE</Text>
+                          <Text style={styles.compactBtnTextUpdate}>{"\u21BB"}  Update</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                           style={styles.compactBtnComplete}
                           onPress={() => handleCompleteConfirmation(item.id)}
                         >
-                          <Text style={styles.compactBtnTextComplete}>COMPLETE</Text>
+                          <Text style={styles.compactBtnTextComplete}>{"\u2713"}  Complete</Text>
                         </TouchableOpacity>
                       </View>
                     ) : (
@@ -624,14 +670,6 @@ export default function ErectionExecutionScreen() {
           </ScrollView>
         )}
       </View>
-
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => navigation.navigate('ErectionSetup')}
-        activeOpacity={0.8}
-      >
-        <Text style={styles.fabIcon}>+</Text>
-      </TouchableOpacity>
 
       {/* EDIT MODAL DIALOG */}
       <Modal
@@ -913,115 +951,58 @@ export default function ErectionExecutionScreen() {
 }
 
 const styles = StyleSheet.create({
+  drawerHandle: { width: 38, height: 4, borderRadius: 2, backgroundColor: '#CED8EF', alignSelf: 'center' },
+  drawerEyebrow: { color: '#8264BA', fontSize: 8, fontWeight: '800', letterSpacing: 1.2, marginBottom: 4 },
+  drawerSubtitle: { color: '#7A89A8', fontSize: 11, marginTop: 4 },
+  drawerOptionsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8 },
+  drawerRadio: { width: 17, height: 17, borderRadius: 9, borderWidth: 1.5, borderColor: '#C3CFE5', alignItems: 'center', justifyContent: 'center' },
+  drawerRadioActive: { borderColor: '#8450DD' },
+  drawerRadioDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#8450DD' },
+  drawerFooter: { borderTopWidth: 1, borderTopColor: '#E3E8F5', paddingTop: 12 },
+  drawerResultText: { color: '#7182A3', fontSize: 10, textAlign: 'center', marginBottom: 10 },
+  drawerDoneButton: { minHeight: 44, borderRadius: 13, backgroundColor: '#7045E8', alignItems: 'center', justifyContent: 'center' },
+  drawerDoneText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
+  heroCopy: { flex: 1, maxWidth: 220, paddingRight: 12, },
+  heroAccent: { color: '#9EDBFF', fontSize: 25, lineHeight: 28, fontWeight: '800', letterSpacing: -0.7, },
+  heroSubtitle: { color: '#EAF3FF', fontSize: 10.5, lineHeight: 14, marginTop: 5, maxWidth: 185, },
+  searchPanel: { flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 8, marginTop: -16, borderTopLeftRadius: 22, borderTopRightRadius: 22, backgroundColor: '#EFF7FF', },
+  searchInputWrap: { flex: 1, minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, borderRadius: 20, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#DAE6FA', },
+  searchInput: { flex: 1, fontSize: 11, color: '#233A60', paddingVertical: 8, },
+  filterButton: { width: 40, height: 40, borderRadius: 14, borderWidth: 1, borderColor: '#B8C9FF', backgroundColor: '#E4EEFF', alignItems: 'center', justifyContent: 'center', },
+  filterButtonActive: { backgroundColor: '#C4D8FF', borderColor: '#1765E8' },
+  projectIcon: { width: 34, height: 34, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 9, },
   outerContainer: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#EFF7FF',
   },
   mainWrapper: {
     flex: 1,
     zIndex: 10,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderColor: 'rgba(2, 132, 199, 0.08)',
-    borderBottomWidth: 1.2,
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 16,
+    minHeight: 150, paddingHorizontal: 18, paddingBottom: 22, flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', overflow: 'hidden',
   },
   headerTitle: {
-    color: '#0F172A',
-    fontSize: 16,
-    fontWeight: 'bold',
-    letterSpacing: 2,
+    color: '#FFFFFF', fontSize: 25, lineHeight: 28, fontWeight: '800', letterSpacing: -0.7,
   },
   menuBtn: {
-    padding: 8,
+    width: 32, height: 32, borderRadius: 16, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', marginTop: 2, elevation: 3,
   },
   menuBtnText: {
-    color: '#0284C7',
-    fontSize: 20,
-    fontWeight: 'bold',
+    color: '#5233BD', fontSize: 29, lineHeight: 33, fontWeight: '700',
   },
-  filterModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.3)',
-    justifyContent: 'flex-end',
-    flexDirection: 'row',
-  },
-  filterDrawer: {
-    width: '45%',
-    height: '100%',
-    backgroundColor: '#FFFFFF',
-    borderLeftWidth: 1,
-    borderLeftColor: 'rgba(2, 132, 199, 0.15)',
-    paddingTop: 50,
-    paddingHorizontal: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: -4, height: 0 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 16,
-  },
-  drawerHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomColor: 'rgba(2, 132, 199, 0.08)',
-    borderBottomWidth: 1.2,
-    paddingBottom: 8,
-    marginBottom: 12,
-  },
-  drawerTitle: {
-    color: '#0F172A',
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1,
-  },
-  drawerCloseBtn: {
-    padding: 4,
-  },
-  drawerCloseText: {
-    color: '#EF4444',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  drawerContent: {
-    flexGrow: 1,
-  },
-  drawerSectionTitle: {
-    color: '#64748B',
-    fontSize: 8.5,
-    fontWeight: '800',
-    letterSpacing: 1.2,
-    marginBottom: 6,
-  },
-  drawerFilterTab: {
-    paddingVertical: 6,
-    paddingHorizontal: 4,
-    borderRadius: 6,
-    borderWidth: 1.2,
-    borderColor: 'rgba(2, 132, 199, 0.12)',
-    backgroundColor: '#FFFFFF',
-    marginBottom: 6,
-    alignItems: 'center',
-  },
-  drawerFilterTabActive: {
-    borderColor: '#0284C7',
-    backgroundColor: 'rgba(2, 132, 199, 0.05)',
-  },
-  drawerFilterTabText: {
-    color: '#64748B',
-    fontSize: 8.5,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  drawerFilterTabTextActive: {
-    color: '#0284C7',
-    fontWeight: 'bold',
-  },
+  filterModalOverlay: { flex: 1, backgroundColor: 'rgba(14, 27, 62, 0.45)', justifyContent: 'flex-end', },
+  filterDrawer: { width: '100%', maxHeight: '85%', backgroundColor: '#F7FAFF', borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, borderColor: '#DCDFFA', paddingTop: 10, paddingHorizontal: 20, shadowColor: '#243D70', shadowOffset: { width: 0, height: -5 }, shadowOpacity: 0.18, shadowRadius: 18, elevation: 18, },
+  drawerHeader: { flexDirection: 'row', alignItems: 'center', paddingTop: 10, paddingBottom: 18, },
+  drawerTitle: { color: '#14234F', fontSize: 22, lineHeight: 28, fontWeight: '800', letterSpacing: -0.4, },
+  drawerCloseBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#EEEAFE', borderWidth: 1, borderColor: '#DFD5F8', alignItems: 'center', justifyContent: 'center', },
+  drawerCloseText: { color: '#7051AB', fontSize: 15, fontWeight: '600', },
+  drawerContent: { paddingBottom: 12, },
+  drawerSectionTitle: { color: '#30436B', fontSize: 12, fontWeight: '800', marginBottom: 9, },
+  drawerFilterTab: { width: '48%', minHeight: 44, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: '#DDE6F7', backgroundColor: '#FFFFFF', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 6, },
+  drawerFilterTabActive: { borderColor: '#9864F2', backgroundColor: '#F1EBFF', shadowColor: '#8456DA', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2, },
+  drawerFilterTabText: { color: '#627397', fontSize: 10.5, fontWeight: '600', flexShrink: 1, },
+  drawerFilterTabTextActive: { color: '#7041CB', fontWeight: '800', },
   filtersContainer: {
     paddingHorizontal: 20,
     paddingTop: 16,
@@ -1088,8 +1069,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollListContent: {
-    padding: 20,
-    paddingBottom: 90,
+    paddingHorizontal: 12, paddingTop: 4, paddingBottom: 24,
   },
   emptyCard: {
     backgroundColor: 'rgba(255, 255, 255, 0.85)',
@@ -1115,114 +1095,52 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   surveyCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
-    borderColor: 'rgba(255, 255, 255, 0.7)',
-    borderWidth: 1.5,
-    borderRadius: 12,
-    marginBottom: 10,
-    padding: 10,
-    shadowColor: '#0284C7',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 3,
+    backgroundColor: '#FBFDFF', borderWidth: 1, borderColor: '#E5EDFA', borderLeftWidth: 3, borderRadius: 16, marginBottom: 8, paddingHorizontal: 9, paddingVertical: 8, shadowColor: '#3974AF', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.09, shadowRadius: 6, elevation: 2,
   },
   cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: 'row', alignItems: 'center',
   },
   contractorName: {
-    color: '#0F172A',
-    fontSize: 13,
-    fontWeight: 'bold',
+    color: '#101E52', fontSize: 13, lineHeight: 17, fontWeight: '800',
   },
   badgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row', alignItems: 'center', marginTop: 7, flexWrap: 'wrap', gap: 6,
   },
   cardMetaText: {
-    color: '#64748B',
-    fontSize: 10,
-    marginTop: 2,
-    fontWeight: '500',
+    color: '#607399', fontSize: 10, lineHeight: 14, marginTop: 1,
   },
   cardLocationText: {
-    color: '#475569',
-    fontSize: 10.5,
-    fontWeight: '600',
-    marginTop: 4,
+    color: '#465B80', fontSize: 10, lineHeight: 14, marginTop: 7,
   },
   cardRemarksText: {
-    color: '#D97706',
-    fontSize: 10,
-    fontWeight: '600',
-    marginTop: 4,
+    color: '#EF850C', fontSize: 10, lineHeight: 14, marginTop: 3, fontWeight: '600',
   },
   cardTimestampText: {
-    color: '#64748B',
-    fontSize: 9,
-    marginTop: 4,
-    fontWeight: '500',
+    color: '#607399', fontSize: 10, lineHeight: 14, marginTop: 3,
   },
   buttonsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 8,
+    flexDirection: 'row', gap: 6, marginTop: 9,
   },
   compactBtnEdit: {
-    flex: 1.2,
-    height: 30,
-    backgroundColor: 'rgba(6, 182, 212, 0.05)',
-    borderWidth: 1.2,
-    borderColor: '#06B6D4',
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 4,
+    flex: 1, minHeight: 34, borderWidth: 1, borderColor: '#9873FF', borderRadius: 12, backgroundColor: '#FBF9FF', alignItems: 'center', justifyContent: 'center',
   },
   compactBtnTextEdit: {
-    color: '#06B6D4',
-    fontSize: 8.5,
-    fontWeight: 'bold',
+    color: '#783DFA', fontSize: 10, fontWeight: '700',
   },
   compactBtnUpdate: {
-    flex: 1.2,
-    height: 30,
-    backgroundColor: '#0284C7',
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 4,
+    flex: 1, minHeight: 34, borderRadius: 12, backgroundColor: '#087CFF', alignItems: 'center', justifyContent: 'center',
   },
   compactBtnTextUpdate: {
-    color: '#FFFFFF',
-    fontSize: 8.5,
-    fontWeight: 'bold',
+    color: '#FFFFFF', fontSize: 10, fontWeight: '700',
   },
   compactBtnComplete: {
-    flex: 1.5,
-    height: 30,
-    backgroundColor: '#DC2626',
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
+    flex: 1, minHeight: 34, borderRadius: 12, backgroundColor: '#FF4038', alignItems: 'center', justifyContent: 'center',
   },
   compactBtnTextComplete: {
-    color: '#FFFFFF',
-    fontSize: 8.5,
-    fontWeight: 'bold',
+    color: '#FFFFFF', fontSize: 10, fontWeight: '700',
   },
   compactBtnView: {
-    width: '100%',
-    height: 30,
-    backgroundColor: 'rgba(6, 182, 212, 0.06)',
-    borderWidth: 1.2,
-    borderColor: '#06B6D4',
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 6,
+    minHeight: 34, borderRadius: 12, backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#C5DDFB', alignItems: 'center', justifyContent: 'center', marginTop: 14,
   },
   compactBtnTextView: {
     color: '#06B6D4',
@@ -1247,15 +1165,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   classBadge: {
-    borderWidth: 1.2,
-    borderRadius: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    borderWidth: 0, borderRadius: 12, paddingHorizontal: 9, paddingVertical: 4, backgroundColor: '#EDF5FF', shadowColor: '#4075BA', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 3, elevation: 2,
   },
   classBadgeText: {
-    fontSize: 8.5,
-    fontWeight: 'bold',
-    letterSpacing: 0.5,
+    fontSize: 10, fontWeight: '700',
   },
   locationDetailsSection: {
     marginTop: 12,
@@ -1294,15 +1207,10 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   statusBadge: {
-    borderWidth: 1.2,
-    borderRadius: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    borderWidth: 0, borderRadius: 12, paddingHorizontal: 9, paddingVertical: 4, shadowColor: '#A47A32', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 3, elevation: 2,
   },
   statusBadgeText: {
-    fontSize: 8.5,
-    fontWeight: 'bold',
-    letterSpacing: 0.5,
+    fontSize: 10, fontWeight: '700',
   },
   buttonsContainer: {
     marginTop: 12,
@@ -1416,21 +1324,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   fab: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#0284C7',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#0284C7',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 8,
-    zIndex: 100,
+    position: 'absolute', bottom: 24, right: 24, width: 60, height: 60, borderRadius: 30, backgroundColor: '#7550F8', borderWidth: 3, borderColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#7550F8', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.35, shadowRadius: 10, elevation: 8, zIndex: 100,
   },
   fabIcon: {
     color: '#FFFFFF',
