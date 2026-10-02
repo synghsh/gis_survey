@@ -83,7 +83,7 @@ export default function SurveyDetailsScreen() {
         (data) => {
           setLoadingPoleDetails(false);
           setConfirmEditModalVisible(false);
-          const serverNode = data?.selected_node;
+          const serverNode = data?.selected_node || data?.Data?.selected_node || data?.data?.selected_node;
           const finalNode = serverNode || targetNode;
           dispatch(resumeSurveyWithPole({
             lineId: survey.id,

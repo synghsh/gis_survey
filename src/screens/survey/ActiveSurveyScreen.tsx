@@ -20,13 +20,59 @@ import { useToast } from '../../components/ToastProvider';
 import { useConfirmation } from '../../components/ConfirmationProvider';
 import { getLineTypeLabel } from '../../utils/surveyLabels';
 import { fetchDomainsAction, fetchTransformersAction, fetchConductorsAction, fetchPolesAction } from '../../store/actions/masterAction';
-import { SaveErectionNodeService, UploadErectionImageService } from '../../services/erectionService';
+import { 
+  SaveErectionNodeService, 
+  UploadErectionImageService,
+  GetSignedUrlService,
+  GetErectionPoleDetailsService,
+} from '../../services/erectionService';
 import { fetchErectionListAction } from '../../store/actions/erectionAction';
 import { compressImageIfNeeded } from '../../utils/imageCompressor';
 import { extractBackendErrorMessage } from '../../utils/errorHandler';
 
 import ActiveSurveyCamera from './components/ActiveSurveyCamera';
-import ActiveSurveyForm from './components/ActiveSurveyForm';
+import ActiveSurveyForm, { checkIsHt11kv, checkIsHt33kv } from './components/ActiveSurveyForm';
+
+const extractR2Key = (urlOrKey: string): string => {
+  if (!urlOrKey) return '';
+  if (urlOrKey.startsWith('GIS/')) return urlOrKey;
+  if (urlOrKey.includes('/gis-image/')) {
+    const afterBucket = urlOrKey.split('/gis-image/')[1];
+    if (afterBucket) {
+      return afterBucket.split('?')[0];
+    }
+  }
+  if (urlOrKey.includes('GIS/erections/')) {
+    const idx = urlOrKey.indexOf('GIS/erections/');
+    const sub = urlOrKey.substring(idx);
+    return sub.split('?')[0];
+  }
+  return urlOrKey;
+};
+
+const resolvePhotoUrlAsync = async (urlOrKey: string): Promise<string> => {
+  if (!urlOrKey) return '';
+  if (
+    urlOrKey.startsWith('http://') ||
+    urlOrKey.startsWith('https://') ||
+    urlOrKey.startsWith('file://') ||
+    urlOrKey.startsWith('data:') ||
+    urlOrKey.startsWith('content://')
+  ) {
+    return urlOrKey;
+  }
+  if (urlOrKey.startsWith('GIS/') || urlOrKey.includes('/erections/')) {
+    try {
+      const cleanKey = extractR2Key(urlOrKey);
+      const res = await GetSignedUrlService(cleanKey);
+      const signedUrl = res?.data?.Data?.signed_url || res?.data?.data?.signed_url || res?.data?.signed_url;
+      if (signedUrl) return signedUrl;
+    } catch (e) {
+      console.warn('Failed to sign R2 key:', urlOrKey, e);
+    }
+  }
+  return urlOrKey;
+};
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -106,13 +152,17 @@ export default function ActiveSurveyScreen() {
     }
   });
 
+  const isHt11kv = checkIsHt11kv(activeLine?.lineType, domains?.['type_of_work']);
+  const isHt33kv = checkIsHt33kv(activeLine?.lineType, domains?.['type_of_work']);
+  const isHtLine = Boolean(isHt11kv || isHt33kv);
+
   const isErectionFlow = Boolean(
     route.params?.workflowType === 'ERECTION' ||
     activeLine?.workflowType === 'ERECTION' ||
     activeLine?.id?.startsWith('erect-') ||
     (activeLine?.drawingNo && !activeLine?.id?.startsWith('srv-'))
   );
-  const [surveyStep, setSurveyStep] = useState<'CAPTURE' | 'DETAILS'>((isErectionFlow || isEditingParam) ? 'DETAILS' : 'CAPTURE');
+  const [surveyStep, setSurveyStep] = useState<'CAPTURE' | 'DETAILS'>((isErectionFlow || isEditingParam || isHtLine) ? 'DETAILS' : 'CAPTURE');
   const [cameraModalVisible, setCameraModalVisible] = useState(false);
   const [nodeType, setNodeType] = useState<'DTR' | 'POLE'>('POLE');
   const [dtrIsNext, setDtrIsNext] = useState(false);
@@ -146,18 +196,14 @@ export default function ActiveSurveyScreen() {
 
   const rawTypeOfWork = domains['type_of_work'];
   const lt440vCode = Array.isArray(rawTypeOfWork) ? rawTypeOfWork.find((d: any) => d.domain_value === 'LT_440V')?.domain_code : undefined;
-  const ht11kvCode = Array.isArray(rawTypeOfWork) ? rawTypeOfWork.find((d: any) => d.domain_value === 'HT_11KV')?.domain_code : undefined;
-  const ht33kvCode = Array.isArray(rawTypeOfWork) ? rawTypeOfWork.find((d: any) => d.domain_value === 'HT_33KV')?.domain_code : undefined;
 
-  const isLt440v = activeLine?.lineType === 'LT_440V' || activeLine?.lineType === lt440vCode;
-  const isHt11kv = activeLine?.lineType === 'HT_11KV' || activeLine?.lineType === ht11kvCode;
-  const isHt33kv = activeLine?.lineType === 'HT_33KV' || activeLine?.lineType === ht33kvCode;
+  const isLt440v = !isHtLine && (activeLine?.lineType === 'LT_440V' || activeLine?.lineType === lt440vCode);
 
   const rawLtStart = domains['lt_starting_point'];
   const existingLtCodeVal = Array.isArray(rawLtStart) ? rawLtStart.find((d: any) => d.domain_value === 'EXISTING_LT_LINE')?.domain_code : undefined;
   const isExistingLt = activeLine?.ltStartingPoint === 'EXISTING_LT_LINE' || activeLine?.ltStartingPoint === existingLtCodeVal;
 
-  const lineSectionVal = (isHt11kv || isHt33kv)
+  const lineSectionVal = isHtLine
     ? 'HT'
     : (isLt440v
         ? (isExistingLt ? 'LT' : (hasDtr ? 'LT' : 'HT'))
@@ -181,6 +227,23 @@ export default function ActiveSurveyScreen() {
   const spanDistance = (continuationParentCoords && lat && lng)
     ? calculateDistance(continuationParentCoords.lat, continuationParentCoords.lng, lat, lng)
     : null;
+
+  const getDerivedHeight = (poleId?: any) => {
+    if (!poleId) return '9m';
+    const selectedPoleObj = Array.isArray(poles) ? poles.find(p => String(p.id) === String(poleId)) : undefined;
+    const poleNameStr = (selectedPoleObj?.pole_name || '').toUpperCase();
+    const poleCodeStr = (selectedPoleObj?.pole_code || '').toUpperCase();
+    if (poleNameStr.includes('11M') || poleNameStr.includes('11 M') || poleCodeStr.includes('11M') || poleCodeStr.includes('11P')) {
+      return '11m';
+    }
+    if (poleNameStr.includes('8M') || poleNameStr.includes('8 M') || poleCodeStr.includes('8M') || poleCodeStr.includes('8P')) {
+      return '8m';
+    }
+    if (poleNameStr.includes('9M') || poleNameStr.includes('9 M') || poleCodeStr.includes('9M') || poleCodeStr.includes('9P')) {
+      return '9m';
+    }
+    return '9m';
+  };
 
   // Pre-fill node data when entering in edit mode or continuation mode
   useEffect(() => {
@@ -219,10 +282,33 @@ export default function ActiveSurveyScreen() {
         const conductorVal = targetData.conductor ?? targetData.conductor_type ?? targetData.attributes?.conductor;
         setValue('conductor', conductorVal != null && conductorVal !== '' ? String(conductorVal) : '');
 
-        const poleTypeVal = targetData.poleType ?? targetData.pole_type ?? targetData.attributes?.poleType;
-        setValue('poleType', poleTypeVal != null && poleTypeVal !== '' ? String(poleTypeVal) : '');
+        const rawAttrPoleType = targetData.attributes?.poleType ?? targetData.attributes?.pole_type;
+        const rawRootPoleType = targetData.poleType ?? (Number(targetData.pole_type) <= 2 ? targetData.pole_type : undefined);
+        let resolvedPoleType = '1';
+        const candidatePoleType = rawAttrPoleType ?? rawRootPoleType;
+        if (candidatePoleType != null && candidatePoleType !== '') {
+          const rawStr = String(candidatePoleType).trim().toLowerCase();
+          if (rawStr === '1' || rawStr === 'concrete' || rawStr.includes('concrete pole') || (rawStr.includes('concrete') && !rawStr.includes('non'))) {
+            resolvedPoleType = '1';
+          } else if (rawStr === '2' || rawStr === 'non-concrete' || rawStr.includes('non')) {
+            resolvedPoleType = '2';
+          } else if (!isNaN(Number(rawStr)) && Number(rawStr) <= 2) {
+            resolvedPoleType = String(Number(rawStr));
+          } else {
+            resolvedPoleType = '1';
+          }
+        }
+        setValue('poleType', resolvedPoleType);
 
-        const poleMasterVal = targetData.pole_type_id ?? targetData.pole_master_id ?? targetData.poleMaster ?? targetData.pole_master ?? targetData.attributes?.poleMaster ?? targetData.attributes?.pole_type_id;
+        const poleMasterVal = targetData.poleMaster ?? 
+                              targetData.pole_master ?? 
+                              targetData.pole_type_id ?? 
+                              targetData.pole_master_id ?? 
+                              targetData.attributes?.poleMaster ?? 
+                              targetData.attributes?.pole_master ?? 
+                              targetData.attributes?.pole_type_id ?? 
+                              (Number(targetData.pole_type) > 2 ? targetData.pole_type : '') ??
+                              (Number(targetData.poleType) > 2 ? targetData.poleType : '');
         setValue('poleMaster', poleMasterVal != null && poleMasterVal !== '' ? String(poleMasterVal) : '');
 
         const poleQtyVal = targetData.poleQty ?? targetData.pole_quantity ?? targetData.attributes?.poleQty;
@@ -311,23 +397,23 @@ export default function ActiveSurveyScreen() {
         };
 
         const poleImgs = parsePhotoArray(
-          targetData.polePhotos || targetData.attributes?.polePhotos || targetData.pole_photo_urls ||
+          targetData.polePhotos || targetData.pole_photo_urls || targetData.attributes?.polePhotos ||
           (targetData.imageUri ? [targetData.imageUri] : (targetData.photo_url ? [targetData.photo_url] : []))
         );
         if (poleImgs.length) setPolePhotos(poleImgs);
 
         const earthingImgs = parsePhotoArray(
-          targetData.earthingPhotos || targetData.attributes?.earthingPhotos || targetData.earthing_photo_urls
+          targetData.earthingPhotos || targetData.earthing_photo_urls || targetData.attributes?.earthingPhotos
         );
         if (earthingImgs.length) setEarthingPhotos(earthingImgs);
 
         const staySetImgs = parsePhotoArray(
-          targetData.staySetPhotos || targetData.attributes?.staySetPhotos || targetData.stay_set_photo_urls
+          targetData.staySetPhotos || targetData.stay_set_photo_urls || targetData.attributes?.staySetPhotos
         );
         if (staySetImgs.length) setStaySetPhotos(staySetImgs);
 
         const poleDbImgs = parsePhotoArray(
-          targetData.poleDbPhotos || targetData.attributes?.poleDbPhotos || targetData.pole_db_photo_urls
+          targetData.poleDbPhotos || targetData.pole_db_photo_urls || targetData.attributes?.poleDbPhotos
         );
         if (poleDbImgs.length) setPoleDbPhotos(poleDbImgs);
 
@@ -342,6 +428,20 @@ export default function ActiveSurveyScreen() {
         } else if (poleImgs.length) {
           setCapturedPhotos(poleImgs);
         }
+
+        // Asynchronously resolve any raw R2 storage keys to signed Cloudflare R2 URLs
+        const resolveBatch = async (list: string[], setter: React.Dispatch<React.SetStateAction<string[]>>) => {
+          const hasRawKeys = list.some(item => item.startsWith('GIS/') || (!item.startsWith('http') && !item.startsWith('file')));
+          if (hasRawKeys) {
+            const resolved = await Promise.all(list.map(resolvePhotoUrlAsync));
+            setter(resolved.filter(Boolean));
+          }
+        };
+        if (poleImgs.length) resolveBatch(poleImgs, setPolePhotos);
+        if (earthingImgs.length) resolveBatch(earthingImgs, setEarthingPhotos);
+        if (staySetImgs.length) resolveBatch(staySetImgs, setStaySetPhotos);
+        if (poleDbImgs.length) resolveBatch(poleDbImgs, setPoleDbPhotos);
+        if (allImgs.length) resolveBatch(allImgs, setCapturedPhotos);
 
         setNodeType(targetData.node_type || targetData.nodeType || 'POLE');
         setSurveyStep('DETAILS');
@@ -386,14 +486,13 @@ export default function ActiveSurveyScreen() {
 
       const rawTypeOfWorkSeq = domains['type_of_work'];
       const lt440vCode = Array.isArray(rawTypeOfWorkSeq) ? rawTypeOfWorkSeq.find((d: any) => d.domain_value === 'LT_440V')?.domain_code : undefined;
-      const ht11kvCode = Array.isArray(rawTypeOfWorkSeq) ? rawTypeOfWorkSeq.find((d: any) => d.domain_value === 'HT_11KV')?.domain_code : undefined;
-      const ht33kvCode = Array.isArray(rawTypeOfWorkSeq) ? rawTypeOfWorkSeq.find((d: any) => d.domain_value === 'HT_33KV')?.domain_code : undefined;
 
-      const isLt440v = activeLine.lineType === 'LT_440V' || activeLine.lineType === lt440vCode;
-      const isHt11kv = activeLine.lineType === 'HT_11KV' || activeLine.lineType === ht11kvCode;
-      const isHt33kv = activeLine.lineType === 'HT_33KV' || activeLine.lineType === ht33kvCode;
+      const isHt11kvSeq = checkIsHt11kv(activeLine.lineType, rawTypeOfWorkSeq);
+      const isHt33kvSeq = checkIsHt33kv(activeLine.lineType, rawTypeOfWorkSeq);
+      const isHtLineSeq = isHt11kvSeq || isHt33kvSeq;
+      const isLt440vSeq = !isHtLineSeq && (activeLine.lineType === 'LT_440V' || activeLine.lineType === lt440vCode);
 
-      if (isLt440v) {
+      if (isLt440vSeq) {
         if (isHtTapSurvey && dtrIsNext) {
           setNodeType('DTR');
           setValue('nameLabel', 'DTR-TRANS-01');
@@ -428,9 +527,9 @@ export default function ActiveSurveyScreen() {
           setValue('remarks', '');
           setValue('assetStatus', '');
         }
-      } else if (isHt11kv || isHt33kv) {
+      } else if (isHtLineSeq) {
         setNodeType('POLE');
-        setValue('nameLabel', `HT-P-${currentSeq}`);
+        setValue('nameLabel', `HT-P-${currentSeq + 1}`);
         setValue('cableSize', '100 sqmm ACSR');
         setValue('remarks', '');
         setValue('assetStatus', '');
@@ -505,7 +604,67 @@ export default function ActiveSurveyScreen() {
     dispatch(fetchConductorsAction(undefined, (err) => console.log('fetchConductorsAction error:', err)) as any);
     dispatch(fetchPolesAction(undefined, (err) => console.log('fetchPolesAction error:', err)) as any);
     dispatch(fetchDomainsAction(['type_of_work', 'lt_starting_point', 'earthing', 'stay_set', 'pole_db', 'pole_type']) as any);
-  }, [dispatch]);
+
+    // If editing pole in erection workflow, fetch fresh certified R2 signed URLs in background
+    if (isEditingNode && activeLine) {
+      const targetLabel = targetPoleLabelParam || activeLine.continuationParentLabel;
+      const rawErectionId = activeLine.id.replace('erect-', '').replace('srv-', '');
+      const erectionDbId = !isNaN(Number(rawErectionId)) ? Number(rawErectionId) : undefined;
+      const drawingNum = activeLine.drawingNo || undefined;
+
+      if (drawingNum || erectionDbId) {
+        GetErectionPoleDetailsService({
+          drawing_no: drawingNum,
+          erection_id: erectionDbId,
+          pole_no: targetLabel,
+        })
+          .then(res => {
+            const resData = res?.data?.Data?.Data || res?.data?.Data?.data || res?.data?.Data || res?.data?.data || res?.data;
+            const serverNode = resData?.selected_node;
+            if (serverNode) {
+              if (Array.isArray(serverNode.polePhotos) && serverNode.polePhotos.length > 0) {
+                setPolePhotos(serverNode.polePhotos.filter(Boolean));
+              }
+              if (Array.isArray(serverNode.earthingPhotos) && serverNode.earthingPhotos.length > 0) {
+                setEarthingPhotos(serverNode.earthingPhotos.filter(Boolean));
+              }
+              if (Array.isArray(serverNode.staySetPhotos) && serverNode.staySetPhotos.length > 0) {
+                setStaySetPhotos(serverNode.staySetPhotos.filter(Boolean));
+              }
+              if (Array.isArray(serverNode.poleDbPhotos) && serverNode.poleDbPhotos.length > 0) {
+                setPoleDbPhotos(serverNode.poleDbPhotos.filter(Boolean));
+              }
+              if (Array.isArray(serverNode.imageUris) && serverNode.imageUris.length > 0) {
+                setCapturedPhotos(serverNode.imageUris.filter(Boolean));
+              }
+
+              // Ensure poleType and poleMaster are synced from server details
+              const sRawAttrPoleType = serverNode.attributes?.poleType ?? serverNode.attributes?.pole_type;
+              const sRawRootPoleType = serverNode.poleType ?? (Number(serverNode.pole_type) <= 2 ? serverNode.pole_type : undefined);
+              const sPoleType = sRawAttrPoleType ?? sRawRootPoleType;
+              if (sPoleType != null && sPoleType !== '') {
+                const sStr = String(sPoleType).trim().toLowerCase();
+                const resolvedS = (sStr === '2' || sStr === 'non-concrete' || sStr.includes('non')) ? '2' : '1';
+                setValue('poleType', resolvedS);
+              }
+              const sPoleMaster = serverNode.poleMaster ?? 
+                                  serverNode.pole_master ?? 
+                                  serverNode.pole_type_id ?? 
+                                  serverNode.pole_master_id ?? 
+                                  serverNode.attributes?.poleMaster ?? 
+                                  serverNode.attributes?.pole_master ?? 
+                                  serverNode.attributes?.pole_type_id;
+              if (sPoleMaster != null && sPoleMaster !== '') {
+                setValue('poleMaster', String(sPoleMaster));
+              }
+            }
+          })
+          .catch(err => {
+            console.log('Background fetch pole details error:', err);
+          });
+      }
+    }
+  }, [dispatch, isEditingNode]);
 
   if (!activeLine) {
     return (
@@ -538,7 +697,7 @@ export default function ActiveSurveyScreen() {
         });
         
         if (photo && photo.uri) {
-          if (isErectionFlow) {
+          if (isErectionFlow || isHtLine) {
             saveCategorizedPhoto(photo.uri);
           }
           setCapturedPhotos(prev => [...prev, photo.uri]);
@@ -548,7 +707,7 @@ export default function ActiveSurveyScreen() {
       } catch (err) {
         console.log('Camera capture error, falling back to mock:', err);
         const mockUri = 'https://images.unsplash.com/photo-1548676924-48e71ceac151?w=400';
-        if (isErectionFlow) {
+        if (isErectionFlow || isHtLine) {
           saveCategorizedPhoto(mockUri);
         }
         setCapturedPhotos(prev => [...prev, mockUri]);
@@ -559,7 +718,7 @@ export default function ActiveSurveyScreen() {
       setCameraFlash(true);
       setTimeout(() => setCameraFlash(false), 150);
       const mockUri = 'https://images.unsplash.com/photo-1548676924-48e71ceac151?w=400';
-      if (isErectionFlow) {
+      if (isErectionFlow || isHtLine) {
         saveCategorizedPhoto(mockUri);
       }
       setCapturedPhotos(prev => [...prev, mockUri]);
@@ -586,17 +745,18 @@ export default function ActiveSurveyScreen() {
       return false;
     }
 
-    const allPhotos = isErectionFlow
+    const isMultiCategoryPhotos = isErectionFlow || isHtLine;
+
+    const allPhotos = isMultiCategoryPhotos
       ? [...polePhotos, ...earthingPhotos, ...staySetPhotos, ...poleDbPhotos]
       : capturedPhotos;
 
-    if (!isErectionFlow) {
+    if (!isMultiCategoryPhotos) {
       if (allPhotos.length === 0) {
         toast.warning('At least 1 compliance image is required to save.', { title: 'Image required' });
         return false;
       }
     } else {
-      // ERECTION flow validation
       // 1. Pole images validation (at least 1 mandatory)
       if (polePhotos.length === 0) {
         toast.warning('At least 1 compliance image for the Pole/Structure is mandatory.', { title: 'Pole Image required' });
@@ -612,17 +772,23 @@ export default function ActiveSurveyScreen() {
         toast.warning('At least 1 compliance image for Stay Set is mandatory.', { title: 'Stay Set Image required' });
         return false;
       }
-      // 4. Pole DB images validation (at least 1 mandatory if selected)
-      const showLtAccessories = nodeType === 'DTR' || (nodeType === 'POLE' && lineSectionVal === 'LT');
+      // 4. Pole DB images validation (only if not HT line and showLtAccessories)
+      const showLtAccessories = !isHtLine && (nodeType === 'DTR' || (nodeType === 'POLE' && lineSectionVal === 'LT'));
       if (showLtAccessories && data.poleDbTypes && data.poleDbTypes.length > 0 && poleDbPhotos.length === 0) {
         toast.warning('At least 1 compliance image for Pole DB is mandatory.', { title: 'Pole DB Image required' });
         return false;
       }
     }
 
-    const nodeLabel = data.nameLabel.trim() || (nodeType === 'DTR' ? 'DTR-0' : `P-${currentSeq}`);
+    const defaultNodeLabel = nodeType === 'DTR' ? 'DTR-0' : (isHtLine ? `HT-P-${currentSeq + 1}` : `P-${currentSeq}`);
+    const nodeLabel = data.nameLabel.trim() || defaultNodeLabel;
     const parentNode = currentSeq > 0 ? activeLine.nodes[currentSeq - 1] : null;
     const parentLabel = continuationParentLabel || activeLine.continuationParentLabel || parentNode?.nameLabel;
+
+    const selectedPoleMasterId = (data.poleMaster != null && data.poleMaster !== '' && !isNaN(Number(data.poleMaster)))
+      ? Number(data.poleMaster)
+      : (data.poleType != null && data.poleType !== '' && !isNaN(Number(data.poleType)) ? Number(data.poleType) : null);
+    const derivedHeight = getDerivedHeight(selectedPoleMasterId);
 
     const newNode: SurveyNode = {
       id: `node-${Date.now()}`,
@@ -630,17 +796,15 @@ export default function ActiveSurveyScreen() {
       assetStatus: data.assetStatus || undefined,
       lineSection: lineSectionVal,
       structureRole: (isHtTapSurvey || isExistingLtStart) && currentSeq === 0 ? 'TAP' : undefined,
-      sequenceNumber: currentSeq,
+      sequenceNumber: isEditingNode && editingNodeSeq != null ? editingNodeSeq : (isHtLine ? currentSeq + 1 : currentSeq),
       nameLabel: nodeLabel,
       latitude: lat,
       longitude: lng,
       attributes: {
-        height: '9m',
+        height: derivedHeight,
         tilt: '0°',
         sag: '0.4m',
-        pole_type_id: (data.poleMaster != null && data.poleMaster !== '' && !isNaN(Number(data.poleMaster)))
-          ? Number(data.poleMaster)
-          : (data.poleType != null && data.poleType !== '' && !isNaN(Number(data.poleType)) ? Number(data.poleType) : null),
+        pole_type_id: selectedPoleMasterId,
         poleType: nodeType === 'DTR'
           ? (data.assetStatus === 'NEW' ? (data.poleType ? Number(data.poleType) : null) : 'Transformer platform')
           : (data.poleType ? Number(data.poleType) : null),
@@ -654,25 +818,31 @@ export default function ActiveSurveyScreen() {
         earthingQuantity: data.earthingQuantity ? Number(data.earthingQuantity) : null,
         staySetUsed: data.staySetUsed || null,
         staySetQuantity: data.staySetQuantity ? Number(data.staySetQuantity) : null,
-        poleDbTypes: data.poleDbTypes.length > 0 ? JSON.stringify(data.poleDbTypes) : null,
+        poleDbTypes: !isHtLine && data.poleDbTypes && data.poleDbTypes.length > 0 ? JSON.stringify(data.poleDbTypes) : null,
         poleDbQuantities: (() => {
+          if (isHtLine) return null;
           const qtyMap: Record<string, string> = {};
-          data.poleDbTypes.forEach((type) => {
+          (data.poleDbTypes || []).forEach((type) => {
             qtyMap[type] = data.poleDbQuantities[type] || '0';
           });
-          return data.poleDbTypes.length > 0 ? JSON.stringify(qtyMap) : null;
+          return data.poleDbTypes && data.poleDbTypes.length > 0 ? JSON.stringify(qtyMap) : null;
         })(),
-        deadEndClampQty: data.deadEndClampQty ? Number(data.deadEndClampQty) : null,
-        suspensionClampQty: data.suspensionClampQty ? Number(data.suspensionClampQty) : null,
-        poleClampQty: data.poleClampQty ? Number(data.poleClampQty) : null,
-        ipcQty: data.ipcQty ? Number(data.ipcQty) : null,
-        serviceConnectionQty: (data.serviceConnectionQty != null && data.serviceConnectionQty !== '' && !isNaN(Number(data.serviceConnectionQty))) ? Number(data.serviceConnectionQty) : null,
-        service_connection_qty: (data.serviceConnectionQty != null && data.serviceConnectionQty !== '' && !isNaN(Number(data.serviceConnectionQty))) ? Number(data.serviceConnectionQty) : null,
-        extraConsumption: data.extraConsumption ? Number(data.extraConsumption) : null,
+        deadEndClampQty: !isHtLine && data.deadEndClampQty ? Number(data.deadEndClampQty) : null,
+        suspensionClampQty: !isHtLine && data.suspensionClampQty ? Number(data.suspensionClampQty) : null,
+        poleClampQty: !isHtLine && data.poleClampQty ? Number(data.poleClampQty) : null,
+        ipcQty: !isHtLine && data.ipcQty ? Number(data.ipcQty) : null,
+        serviceConnectionQty: !isHtLine && (data.serviceConnectionQty != null && data.serviceConnectionQty !== '' && !isNaN(Number(data.serviceConnectionQty))) ? Number(data.serviceConnectionQty) : null,
+        service_connection_qty: !isHtLine && (data.serviceConnectionQty != null && data.serviceConnectionQty !== '' && !isNaN(Number(data.serviceConnectionQty))) ? Number(data.serviceConnectionQty) : null,
+        extraConsumption: !isHtLine && data.extraConsumption ? Number(data.extraConsumption) : null,
         dtrCapacity: nodeType === 'DTR' ? (data.dtrCapacity ? Number(data.dtrCapacity) : null) : null,
         poleQty: (nodeType === 'DTR' && data.assetStatus === 'NEW') ? (data.poleQty ? Number(data.poleQty) : null) : null,
+        remarks: data.remarks || '',
+        polePhotos: isMultiCategoryPhotos ? polePhotos : [],
+        earthingPhotos: isMultiCategoryPhotos ? earthingPhotos : [],
+        staySetPhotos: isMultiCategoryPhotos ? staySetPhotos : [],
+        poleDbPhotos: !isHtLine ? poleDbPhotos : [],
       },
-      imageUri: isErectionFlow ? (polePhotos[0] || allPhotos[0] || null) : (capturedPhotos[0] || null),
+      imageUri: isMultiCategoryPhotos ? (polePhotos[0] || allPhotos[0] || null) : (capturedPhotos[0] || null),
       imageUris: allPhotos,
       capturedAt: new Date().toISOString(),
       parentLabel,
@@ -688,8 +858,16 @@ export default function ActiveSurveyScreen() {
     erectionId: string | number
   ): Promise<string> => {
     if (!uri) return '';
-    // If already uploaded (starts with GIS/ or http:// or https://), return directly
-    if (uri.startsWith('GIS/') || uri.startsWith('http://') || uri.startsWith('https://')) {
+    // If already an R2 key, return directly
+    if (uri.startsWith('GIS/')) {
+      return uri;
+    }
+    // If it's a Cloudflare R2 presigned URL, extract the canonical storage key
+    if (uri.startsWith('http://') || uri.startsWith('https://')) {
+      const extractedKey = extractR2Key(uri);
+      if (extractedKey && extractedKey.startsWith('GIS/')) {
+        return extractedKey;
+      }
       return uri;
     }
     // Only process local file paths
@@ -769,12 +947,18 @@ export default function ActiveSurveyScreen() {
     }
 
     const allPhotos = [...polePhotos, ...earthingPhotos, ...staySetPhotos, ...poleDbPhotos];
-    const nodeLabel = data.nameLabel?.trim() || editingPoleLabel || (nodeType === 'DTR' ? 'DTR-0' : `P-${currentSeq}`);
+    const defaultNodeLabel = nodeType === 'DTR' ? 'DTR-0' : (isHtLine ? `HT-P-${currentSeq + 1}` : `P-${currentSeq}`);
+    const nodeLabel = data.nameLabel?.trim() || editingPoleLabel || defaultNodeLabel;
     const parentNode = currentSeq > 0 ? activeLine.nodes[currentSeq - 1] : null;
     const parentLabel = continuationParentLabel || activeLine.continuationParentLabel || parentNode?.nameLabel;
 
+    const resolvedPoleTypeId = (data.poleMaster != null && data.poleMaster !== '' && !isNaN(Number(data.poleMaster)))
+      ? Number(data.poleMaster)
+      : (data.poleType != null && data.poleType !== '' && !isNaN(Number(data.poleType)) ? Number(data.poleType) : null);
+    const derivedHeight = getDerivedHeight(resolvedPoleTypeId);
+
     const mappedAttrs: any = {
-      height: '9m',
+      height: derivedHeight,
       tilt: '0°',
       sag: '0.4m',
     };
@@ -822,25 +1006,37 @@ export default function ActiveSurveyScreen() {
       mappedAttrs.staySetUsed = data.staySetUsed || null;
       mappedAttrs.staySetQuantity = data.staySetQuantity ? Number(data.staySetQuantity) : null;
 
-      // Pole DB Type mapping
-      mappedAttrs.poleDbTypes = (data.poleDbTypes && data.poleDbTypes.length > 0) ? JSON.stringify(data.poleDbTypes) : null;
-      const qtyMap: Record<string, string> = {};
-      (data.poleDbTypes || []).forEach((type) => {
-        qtyMap[type] = data.poleDbQuantities?.[type] || '0';
-      });
-      mappedAttrs.poleDbQuantities = (data.poleDbTypes && data.poleDbTypes.length > 0) ? JSON.stringify(qtyMap) : null;
+      if (!isHtLine) {
+        mappedAttrs.poleDbTypes = (data.poleDbTypes && data.poleDbTypes.length > 0) ? JSON.stringify(data.poleDbTypes) : null;
+        const qtyMap: Record<string, string> = {};
+        (data.poleDbTypes || []).forEach((type) => {
+          qtyMap[type] = data.poleDbQuantities?.[type] || '0';
+        });
+        mappedAttrs.poleDbQuantities = (data.poleDbTypes && data.poleDbTypes.length > 0) ? JSON.stringify(qtyMap) : null;
 
-      mappedAttrs.deadEndClampQty = data.deadEndClampQty ? Number(data.deadEndClampQty) : null;
-      mappedAttrs.suspensionClampQty = data.suspensionClampQty ? Number(data.suspensionClampQty) : null;
-      mappedAttrs.poleClampQty = data.poleClampQty ? Number(data.poleClampQty) : null;
-      mappedAttrs.ipcQty = data.ipcQty ? Number(data.ipcQty) : null;
-      mappedAttrs.extraConsumption = data.extraConsumption ? Number(data.extraConsumption) : null;
+        mappedAttrs.deadEndClampQty = data.deadEndClampQty ? Number(data.deadEndClampQty) : null;
+        mappedAttrs.suspensionClampQty = data.suspensionClampQty ? Number(data.suspensionClampQty) : null;
+        mappedAttrs.poleClampQty = data.poleClampQty ? Number(data.poleClampQty) : null;
+        mappedAttrs.ipcQty = data.ipcQty ? Number(data.ipcQty) : null;
+        mappedAttrs.extraConsumption = data.extraConsumption ? Number(data.extraConsumption) : null;
+      } else {
+        mappedAttrs.poleDbTypes = null;
+        mappedAttrs.poleDbQuantities = null;
+        mappedAttrs.deadEndClampQty = null;
+        mappedAttrs.suspensionClampQty = null;
+        mappedAttrs.poleClampQty = null;
+        mappedAttrs.ipcQty = null;
+        mappedAttrs.extraConsumption = null;
+        mappedAttrs.service_connection_qty = null;
+        mappedAttrs.serviceConnectionQty = null;
+        mappedAttrs.service_connection_quantity = null;
+      }
       
       mappedAttrs.assetStatus = data.assetStatus || null;
       mappedAttrs.polePhotos = polePhotos;
       mappedAttrs.earthingPhotos = earthingPhotos;
       mappedAttrs.staySetPhotos = staySetPhotos;
-      mappedAttrs.poleDbPhotos = poleDbPhotos;
+      mappedAttrs.poleDbPhotos = isHtLine ? [] : poleDbPhotos;
     } else {
       mappedAttrs.poleType = 'Concrete';
       mappedAttrs.cableSize = data.cableSize?.trim() || '100 sqmm ACSR';
@@ -860,7 +1056,7 @@ export default function ActiveSurveyScreen() {
       node_id: isEditingNode ? (targetNodeDbId || undefined) : undefined,
       id: isEditingNode ? (targetNodeDbId || undefined) : undefined,
       node_type: nodeType,
-      sequence_number: isEditingNode && editingNodeSeq != null ? editingNodeSeq : currentSeq,
+      sequence_number: isEditingNode && editingNodeSeq != null ? editingNodeSeq : (isHtLine ? currentSeq + 1 : currentSeq),
       name_label: nodeLabel,
       latitude: lat,
       longitude: lng,
@@ -877,7 +1073,7 @@ export default function ActiveSurveyScreen() {
       pole_master_id: mappedAttrs.pole_type_id,
       pole_master: mappedAttrs.pole_type_id,
       poleMaster: mappedAttrs.pole_type_id,
-      poleType: mappedAttrs.pole_type_id,
+      poleType: mappedAttrs.poleType,
       pole_qty: mappedAttrs.poleQty,
       structure_condition: data.assetStatus || null,
       earthing_used: mappedAttrs.earthingUsed,
@@ -906,7 +1102,7 @@ export default function ActiveSurveyScreen() {
         const uploadedPolePhotos = await Promise.all(polePhotos.map(p => uploadSinglePhoto(p, 'POLE', nodeLabel, targetErectionId)));
         const uploadedEarthingPhotos = await Promise.all(earthingPhotos.map(p => uploadSinglePhoto(p, 'EARTHING', nodeLabel, targetErectionId)));
         const uploadedStaySetPhotos = await Promise.all(staySetPhotos.map(p => uploadSinglePhoto(p, 'STAY_SET', nodeLabel, targetErectionId)));
-        const uploadedPoleDbPhotos = await Promise.all(poleDbPhotos.map(p => uploadSinglePhoto(p, 'POLE_DB', nodeLabel, targetErectionId)));
+        const uploadedPoleDbPhotos = isHtLine ? [] : await Promise.all(poleDbPhotos.map(p => uploadSinglePhoto(p, 'POLE_DB', nodeLabel, targetErectionId)));
 
         mappedAttrs.polePhotos = uploadedPolePhotos;
         mappedAttrs.earthingPhotos = uploadedEarthingPhotos;
@@ -949,16 +1145,23 @@ export default function ActiveSurveyScreen() {
     const proceed = () => {
       if (commitCurrentNode(data)) {
         if (nodeType === 'DTR') setDtrIsNext(false);
-        const addedPoleLabel = data.nameLabel.trim() || (nodeType === 'DTR' ? 'DTR-0' : `P-${currentSeq}`);
+        const defaultAddedLabel = nodeType === 'DTR' ? 'DTR-0' : (isHtLine ? `HT-P-${currentSeq + 1}` : `P-${currentSeq}`);
+        const addedPoleLabel = data.nameLabel.trim() || defaultAddedLabel;
         setContinuationParentLabel(addedPoleLabel);
         if (lat && lng) {
           setContinuationParentCoords({ lat, lng });
         }
+        setIsEditingNode(false);
+        setEditingPoleLabel(undefined);
+        setEditingNodeSeq(null);
         resetPhotos();
         setLat(null);
         setLng(null);
         setGpsAccuracy('WAITING...');
-        setSurveyStep(isErectionFlow ? 'DETAILS' : 'CAPTURE');
+        setSurveyStep((isErectionFlow || isHtLine) ? 'DETAILS' : 'CAPTURE');
+        if (isErectionFlow || isHtLine) {
+          acquireGps();
+        }
       }
     };
 
@@ -976,15 +1179,21 @@ export default function ActiveSurveyScreen() {
       return;
     }
 
-    const nodeLabel = data.nameLabel.trim() || editingPoleLabel || `P-${currentSeq}`;
+    const defaultNodeLabel = nodeType === 'DTR' ? 'DTR-0' : (isHtLine ? `HT-P-${currentSeq + 1}` : `P-${currentSeq}`);
+    const nodeLabel = data.nameLabel.trim() || editingPoleLabel || defaultNodeLabel;
+
+    const resolvedPoleTypeId = (data.poleMaster != null && data.poleMaster !== '' && !isNaN(Number(data.poleMaster)))
+      ? Number(data.poleMaster)
+      : (data.poleType != null && data.poleType !== '' && !isNaN(Number(data.poleType)) ? Number(data.poleType) : null);
+    const derivedHeight = getDerivedHeight(resolvedPoleTypeId);
 
     const mappedAttrs: any = {
-      height: '9m',
+      height: derivedHeight,
       tilt: '0°',
       sag: '0.4m',
     };
 
-    if (isErectionFlow) {
+    if (isErectionFlow || isHtLine) {
       mappedAttrs.lineSection = lineSectionVal;
 
       const resolvedPoleTypeId = (data.poleMaster != null && data.poleMaster !== '' && !isNaN(Number(data.poleMaster)))
@@ -1026,19 +1235,37 @@ export default function ActiveSurveyScreen() {
       mappedAttrs.staySetUsed = data.staySetUsed || null;
       mappedAttrs.staySetQuantity = data.staySetQuantity ? Number(data.staySetQuantity) : null;
 
-      mappedAttrs.poleDbTypes = data.poleDbTypes.length > 0 ? JSON.stringify(data.poleDbTypes) : null;
-      const qtyMap: Record<string, string> = {};
-      data.poleDbTypes.forEach((type) => {
-        qtyMap[type] = data.poleDbQuantities[type] || '0';
-      });
-      mappedAttrs.poleDbQuantities = data.poleDbTypes.length > 0 ? JSON.stringify(qtyMap) : null;
+      if (!isHtLine) {
+        mappedAttrs.poleDbTypes = data.poleDbTypes.length > 0 ? JSON.stringify(data.poleDbTypes) : null;
+        const qtyMap: Record<string, string> = {};
+        data.poleDbTypes.forEach((type) => {
+          qtyMap[type] = data.poleDbQuantities[type] || '0';
+        });
+        mappedAttrs.poleDbQuantities = data.poleDbTypes.length > 0 ? JSON.stringify(qtyMap) : null;
 
-      mappedAttrs.deadEndClampQty = data.deadEndClampQty ? Number(data.deadEndClampQty) : null;
-      mappedAttrs.suspensionClampQty = data.suspensionClampQty ? Number(data.suspensionClampQty) : null;
-      mappedAttrs.poleClampQty = data.poleClampQty ? Number(data.poleClampQty) : null;
-      mappedAttrs.ipcQty = data.ipcQty ? Number(data.ipcQty) : null;
-      mappedAttrs.extraConsumption = data.extraConsumption ? Number(data.extraConsumption) : null;
+        mappedAttrs.deadEndClampQty = data.deadEndClampQty ? Number(data.deadEndClampQty) : null;
+        mappedAttrs.suspensionClampQty = data.suspensionClampQty ? Number(data.suspensionClampQty) : null;
+        mappedAttrs.poleClampQty = data.poleClampQty ? Number(data.poleClampQty) : null;
+        mappedAttrs.ipcQty = data.ipcQty ? Number(data.ipcQty) : null;
+        mappedAttrs.extraConsumption = data.extraConsumption ? Number(data.extraConsumption) : null;
+      } else {
+        mappedAttrs.poleDbTypes = null;
+        mappedAttrs.poleDbQuantities = null;
+        mappedAttrs.deadEndClampQty = null;
+        mappedAttrs.suspensionClampQty = null;
+        mappedAttrs.poleClampQty = null;
+        mappedAttrs.ipcQty = null;
+        mappedAttrs.extraConsumption = null;
+        mappedAttrs.service_connection_qty = null;
+        mappedAttrs.serviceConnectionQty = null;
+        mappedAttrs.service_connection_quantity = null;
+      }
       mappedAttrs.assetStatus = data.assetStatus || null;
+      mappedAttrs.remarks = data.remarks || '';
+      mappedAttrs.polePhotos = polePhotos;
+      mappedAttrs.earthingPhotos = earthingPhotos;
+      mappedAttrs.staySetPhotos = staySetPhotos;
+      mappedAttrs.poleDbPhotos = isHtLine ? [] : poleDbPhotos;
     } else {
       mappedAttrs.poleType = 'Concrete';
       mappedAttrs.cableSize = data.cableSize.trim() || '100 sqmm ACSR';
@@ -1059,7 +1286,7 @@ export default function ActiveSurveyScreen() {
         const uploadedPolePhotos = await Promise.all(polePhotos.map(p => uploadSinglePhoto(p, 'POLE', nodeLabel, targetErectionId)));
         const uploadedEarthingPhotos = await Promise.all(earthingPhotos.map(p => uploadSinglePhoto(p, 'EARTHING', nodeLabel, targetErectionId)));
         const uploadedStaySetPhotos = await Promise.all(staySetPhotos.map(p => uploadSinglePhoto(p, 'STAY_SET', nodeLabel, targetErectionId)));
-        const uploadedPoleDbPhotos = await Promise.all(poleDbPhotos.map(p => uploadSinglePhoto(p, 'POLE_DB', nodeLabel, targetErectionId)));
+        const uploadedPoleDbPhotos = isHtLine ? [] : await Promise.all(poleDbPhotos.map(p => uploadSinglePhoto(p, 'POLE_DB', nodeLabel, targetErectionId)));
 
         mappedAttrs.polePhotos = uploadedPolePhotos;
         mappedAttrs.earthingPhotos = uploadedEarthingPhotos;
@@ -1123,7 +1350,7 @@ export default function ActiveSurveyScreen() {
           pole_master_id: mappedAttrs.pole_type_id,
           pole_master: mappedAttrs.pole_type_id,
           poleMaster: mappedAttrs.pole_type_id,
-          poleType: mappedAttrs.pole_type_id,
+          poleType: mappedAttrs.poleType,
           pole_qty: mappedAttrs.poleQty,
           structure_condition: data.assetStatus || null,
           earthing_used: mappedAttrs.earthingUsed,
@@ -1160,7 +1387,7 @@ export default function ActiveSurveyScreen() {
         toast.warning('Updated locally, but server update failed.');
       }
     } else {
-      const allPhotos = capturedPhotos;
+      const allPhotos = (isErectionFlow || isHtLine) ? [...polePhotos, ...earthingPhotos, ...staySetPhotos] : capturedPhotos;
       const updatedNode: SurveyNode = {
         id: targetLocalNode?.id || `node-${Date.now()}`,
         nodeType,
@@ -1171,7 +1398,7 @@ export default function ActiveSurveyScreen() {
         latitude: lat,
         longitude: lng,
         attributes: mappedAttrs,
-        imageUri: capturedPhotos[0] || null,
+        imageUri: polePhotos[0] || allPhotos[0] || null,
         imageUris: allPhotos,
         capturedAt: targetLocalNode?.capturedAt || new Date().toISOString(),
         parentLabel: targetLocalNode?.parentLabel,
@@ -1246,9 +1473,8 @@ export default function ActiveSurveyScreen() {
 
   const handleFinishSurvey = (data: SurveyNodeFormInputs) => {
     // Check if the current form has a structure with photos and GPS
-    const isCurrentNodeFilled = Boolean(
-      (polePhotos.length > 0 || (!isErectionFlow && capturedPhotos.length > 0)) && lat && lng
-    );
+    const hasPhotos = (isErectionFlow || isHtLine) ? polePhotos.length > 0 : capturedPhotos.length > 0;
+    const isCurrentNodeFilled = Boolean(hasPhotos && lat && lng);
     const hasPreviousSavedNodes = activeLine.nodes.length > 0;
 
     // If user already saved previous structures (via ADD STRUCTURE) and the current form is empty, allow finishing session without requiring dummy data for un-erected pole
@@ -1279,13 +1505,14 @@ export default function ActiveSurveyScreen() {
       return;
     }
 
-    if (isErectionFlow && polePhotos.length === 0) {
+    if ((isErectionFlow || isHtLine) && polePhotos.length === 0) {
       toast.warning('At least 1 compliance image for the Pole/Structure is mandatory.', { title: 'Pole Image required' });
       return;
     }
 
     const totalNodesCount = activeLine.nodes.length + (isEditingNode ? 0 : 1);
-    const currentLabel = data.nameLabel?.trim() || editingPoleLabel || (nodeType === 'DTR' ? 'DTR-0' : `P-${currentSeq}`);
+    const defaultFinishLabel = nodeType === 'DTR' ? 'DTR-0' : (isHtLine ? `HT-P-${currentSeq + 1}` : `P-${currentSeq}`);
+    const currentLabel = data.nameLabel?.trim() || editingPoleLabel || defaultFinishLabel;
 
     confirm({
       title: isErectionFlow ? `Finish Today's Erection Session?` : `Finish Survey Line?`,
@@ -1329,7 +1556,8 @@ export default function ActiveSurveyScreen() {
   };
 
   const onFormSubmitFinish = () => {
-    if (activeLine && activeLine.nodes.length > 0 && polePhotos.length === 0 && !isEditingNode) {
+    const hasPhotos = (isErectionFlow || isHtLine) ? polePhotos.length > 0 : capturedPhotos.length > 0;
+    if (activeLine && activeLine.nodes.length > 0 && !hasPhotos && !isEditingNode) {
       handleFinishSurvey({} as any);
       return;
     }
@@ -1478,9 +1706,13 @@ export default function ActiveSurveyScreen() {
               onSubmitAddNew={onFormSubmitAddNew}
               onSubmitFinish={onFormSubmitFinish}
               onSubmitDtrNext={onFormSubmitDtrNext}
-              canSetDtrNext={isHtPhase}
+              canSetDtrNext={!isHtLine && isHtPhase}
               structureContext={
-                isHtTapSurvey
+                isHtLine
+                  ? isHt33kv
+                    ? '33KV HT LINE // POLE'
+                    : '11KV HT LINE // POLE'
+                  : isHtTapSurvey
                   ? nodeType === 'DTR'
                     ? 'HT TO LT TRANSITION // DTR'
                     : isHtPhase

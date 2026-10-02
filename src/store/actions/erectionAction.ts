@@ -3,7 +3,8 @@ import {
   ListErectionService, 
   UpdateErectionService, 
   CompleteErectionService,
-  GetErectionPoleDetailsService
+  GetErectionPoleDetailsService,
+  UpdateSpanDistanceService
 } from '../../services/erectionService';
 import { startSurvey, setErectionList, updateErectionInList } from '../index';
 
@@ -118,7 +119,8 @@ export const fetchErectionPoleDetailsAction = (
     return GetErectionPoleDetailsService(payload)
       .then((response: any) => {
         if (response.status === 200 && response.data && !response.data.Exception) {
-          successCallback?.(response.data.Data);
+          const resData = response.data?.Data?.Data || response.data?.Data?.data || response.data?.Data || response.data?.data || response.data;
+          successCallback?.(resData);
         } else {
           const errorMsg = response.data?.Message || 'Failed to fetch pole details';
           errorCallback?.(errorMsg);
@@ -131,3 +133,39 @@ export const fetchErectionPoleDetailsAction = (
       });
   };
 };
+
+export const updateSpanDistanceAction = (
+  payload: {
+    drawing_no?: string;
+    erection_id?: number;
+    survey_id?: number | string;
+    node_id?: number | string;
+    name_label?: string;
+    node_name?: string;
+    parent_label?: string;
+    parent_node?: string;
+    span_distance?: string | number;
+    distance?: string | number;
+  },
+  successCallback?: (data: any) => void,
+  errorCallback?: (error: any) => void
+) => {
+  return () => {
+    return UpdateSpanDistanceService(payload)
+      .then((response: any) => {
+        if (response.status === 200 && response.data && !response.data.Exception) {
+          const resData = response.data?.Data?.Data || response.data?.Data?.data || response.data?.Data || response.data?.data || response.data;
+          successCallback?.(resData);
+        } else {
+          const errorMsg = response.data?.Message || 'Failed to update span distance';
+          errorCallback?.(errorMsg);
+        }
+      })
+      .catch((error: any) => {
+        console.log('Axios update span distance error:', error?.message || error);
+        const errorMsg = error.response?.data?.Message || error.message || 'Network error or server unreachable';
+        errorCallback?.(errorMsg);
+      });
+  };
+};
+

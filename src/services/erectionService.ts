@@ -50,3 +50,23 @@ export const UploadErectionImageService = (formData: FormData) => {
   });
 };
 
+export const GetSignedUrlService = (docIdOrKey: string) => {
+  const url = `${apiPrefix}s3/sign/`;
+  return serviceClient.post(url, { doc_id: docIdOrKey });
+};
+
+export const UpdateSpanDistanceService = (data: {
+  node_id?: number | string;
+  name_label?: string;
+  node_name?: string;
+  parent_label?: string;
+  parent_node?: string;
+  span_distance?: string | number;
+  distance?: string | number;
+  drawing_no?: string;
+  erection_id?: number;
+  survey_id?: number | string;
+}) => {
+  const url = `${apiPrefix}erection/span/update/`;
+  return serviceClient.post(url, data);
+};

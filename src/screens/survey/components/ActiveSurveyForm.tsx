@@ -401,6 +401,36 @@ const formStyles = StyleSheet.create({
   },
 });
 
+export const checkIsHt11kv = (typeVal: any, rawTypes: any): boolean => {
+  if (!typeVal) return false;
+  const str = String(typeVal).toUpperCase();
+  if (str === 'HT_11KV' || str === '11_KV' || str === '11KV' || str.includes('11KV') || str.includes('11_KV') || str === '11 KV') return true;
+  if (Array.isArray(rawTypes)) {
+    const item = rawTypes.find((d: any) => String(d.domain_code) === String(typeVal) || String(d.domain_value).toUpperCase() === str);
+    if (item) {
+      const v = String(item.domain_value || '').toUpperCase();
+      const desc = String(item.domain_desc || '').toUpperCase();
+      return v.includes('11') || desc.includes('11');
+    }
+  }
+  return false;
+};
+
+export const checkIsHt33kv = (typeVal: any, rawTypes: any): boolean => {
+  if (!typeVal) return false;
+  const str = String(typeVal).toUpperCase();
+  if (str === 'HT_33KV' || str === '33_KV' || str === '33KV' || str.includes('33KV') || str.includes('33_KV') || str === '33 KV') return true;
+  if (Array.isArray(rawTypes)) {
+    const item = rawTypes.find((d: any) => String(d.domain_code) === String(typeVal) || String(d.domain_value).toUpperCase() === str);
+    if (item) {
+      const v = String(item.domain_value || '').toUpperCase();
+      const desc = String(item.domain_desc || '').toUpperCase();
+      return v.includes('33') || desc.includes('33');
+    }
+  }
+  return false;
+};
+
 interface ActiveSurveyFormProps {
   control: any;
   errors: any;
@@ -491,14 +521,19 @@ export default function ActiveSurveyForm({
   const rawStart = domains?.['lt_starting_point'];
   const dtrCodeVal = Array.isArray(rawStart) ? rawStart.find((d: any) => d.domain_value === 'DTR')?.domain_code : undefined;
 
+  const isHt11kv = checkIsHt11kv(lineType, rawWork);
+  const isHt33kv = checkIsHt33kv(lineType, rawWork);
+  const isHtLine = Boolean(isHt11kv || isHt33kv);
+
   const isNewLtFromDtr = workflowType === 'ERECTION' &&
+    !isHtLine &&
     (lineType === 'LT_440V' || lineType === lt440vCode) &&
     (ltStartingPoint === 'DTR' || ltStartingPoint === dtrCodeVal);
 
   const selectedEarthing = useWatch({ control, name: 'earthingUsed' });
   const selectedStaySet = useWatch({ control, name: 'staySetUsed' });
   const assetStatus = useWatch({ control, name: 'assetStatus' });
-  const showLtAccessories = nodeType === 'DTR' || (nodeType === 'POLE' && lineSection === 'LT');
+  const showLtAccessories = !isHtLine && (nodeType === 'DTR' || (nodeType === 'POLE' && lineSection === 'LT'));
 
   const getPoleDbLabel = (code: string) => {
     const rawArr = domains?.['pole_db'];
@@ -529,15 +564,14 @@ export default function ActiveSurveyForm({
     if (arr.length > 0) {
       return arr.map((d: any) => ({
         label: d.domain_desc || d.domain_value,
-        value: d.domain_code,
+        value: Number(d.domain_code),
       }));
     }
-    const poleList = Array.isArray(poles) ? poles : [];
-    return poleList.map((p: any) => ({
-      label: p.pole_name,
-      value: p.id,
-    }));
-  }, [domains, poles]);
+    return [
+      { label: 'Concrete Pole', value: 1 },
+      { label: 'Non-Concrete Pole', value: 2 },
+    ];
+  }, [domains]);
 
   const poleMasterOptions = useMemo(() => {
     const poleList = Array.isArray(poles) ? poles : [];
@@ -586,7 +620,7 @@ export default function ActiveSurveyForm({
     photos.forEach((photo, idx) => {
       slots.push(
         <View key={`${category}-photo-${idx}`} style={formStyles.slotCard}>
-          <Image source={{ uri: photo }} style={formStyles.slotThumbnail} />
+          <Image source={{ uri: photo }} style={formStyles.slotThumbnail} resizeMode="cover" />
           <TouchableOpacity
             style={formStyles.slotDeleteBtn}
             onPress={() => onDelete && onDelete(idx)}
@@ -639,10 +673,11 @@ export default function ActiveSurveyForm({
     );
   };
 
-  if (isErectionFlow) {
+  if (isErectionFlow || isHtLine) {
     const poleTypeVal = useWatch({ control, name: 'poleType' });
     const assetStatusVal = useWatch({ control, name: 'assetStatus' });
-    const isConcrete = String(poleTypeVal) === '1';
+    const rawPoleTypes = domains?.['pole_type'];
+    const isConcrete = String(poleTypeVal) === '1' || (Array.isArray(rawPoleTypes) && rawPoleTypes.some((d: any) => (String(d.domain_code) === String(poleTypeVal) || d.domain_value === poleTypeVal) && String(d.domain_value || d.domain_desc || '').toUpperCase().includes('CONCRETE')));
     
     const requiredPolePhotos = nodeType === 'POLE' 
       ? (isConcrete ? 4 : 2)
@@ -1041,7 +1076,7 @@ export default function ActiveSurveyForm({
           </View>
 
           {/* SECTION 4: POLE DB ATTACHMENT */}
-          {showLtAccessories ? (
+          {!isHtLine && showLtAccessories ? (
             <View style={[formStyles.sectionCard, { borderLeftColor: THEMES.POLE_DB.accent }]}>
               <View style={formStyles.sectionHeaderContainer}>
                 <Text style={[formStyles.sectionHeaderTitle, { color: THEMES.POLE_DB.text }]}>📦 DISTRIBUTION BOX (DB)</Text>
@@ -1181,149 +1216,177 @@ export default function ActiveSurveyForm({
             </View>
           ) : null}
 
-          {/* SECTION 5: ACCESSORIES & SITE DETAILS */}
-          <View style={[formStyles.sectionCard, { borderLeftColor: THEMES.HARNESS.accent }]}>
-            <View style={formStyles.sectionHeaderContainer}>
-              <Text style={[formStyles.sectionHeaderTitle, { color: THEMES.HARNESS.text }]}>🔩 HARNESSING & SITE REMARKS</Text>
-            </View>
-
-            <View style={formStyles.gridRow}>
-              <View style={formStyles.gridCol}>
-                <Text style={formStyles.label}>DEAD END CLAMP QTY</Text>
-                <Controller
-                  control={control}
-                  name="deadEndClampQty"
-                  render={({ field: { onChange, onBlur, value } }) => (
-                    <TextInput
-                      style={formStyles.input}
-                      keyboardType="numeric"
-                      value={value}
-                      onChangeText={onChange}
-                      onBlur={onBlur}
-                      placeholder="0"
-                      placeholderTextColor="rgba(30, 41, 59, 0.35)"
-                    />
-                  )}
-                />
+          {/* SECTION 4 / REMARKS CARD FOR HT LINES, OR SECTION 5 ACCESSORIES FOR LT LINES */}
+          {isHtLine ? (
+            <View style={[formStyles.sectionCard, { borderLeftColor: THEMES.HARNESS.accent }]}>
+              <View style={formStyles.sectionHeaderContainer}>
+                <Text style={[formStyles.sectionHeaderTitle, { color: THEMES.HARNESS.text }]}>📝 SITE REMARKS</Text>
+                <Text style={formStyles.sectionHeaderHelper}>Add any remarks, sag observations or terrain notes.</Text>
               </View>
-              <View style={formStyles.gridCol}>
-                <Text style={formStyles.label}>SUSPENSION CLAMP QTY</Text>
+              <View style={formStyles.formGroup}>
+                <Text style={formStyles.label}>SITE REMARKS</Text>
                 <Controller
                   control={control}
-                  name="suspensionClampQty"
+                  name="remarks"
                   render={({ field: { onChange, onBlur, value } }) => (
                     <TextInput
-                      style={formStyles.input}
-                      keyboardType="numeric"
+                      style={[formStyles.input, formStyles.remarksTextArea]}
                       value={value}
                       onChangeText={onChange}
                       onBlur={onBlur}
-                      placeholder="0"
+                      placeholder="Weather, terrain features, sag observations..."
                       placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                      multiline
+                      numberOfLines={3}
                     />
                   )}
                 />
               </View>
             </View>
+          ) : (
+            <View style={[formStyles.sectionCard, { borderLeftColor: THEMES.HARNESS.accent }]}>
+              <View style={formStyles.sectionHeaderContainer}>
+                <Text style={[formStyles.sectionHeaderTitle, { color: THEMES.HARNESS.text }]}>🔩 HARNESSING & SITE REMARKS</Text>
+              </View>
 
-            <View style={formStyles.gridRow}>
-              <View style={formStyles.gridCol}>
-                <Text style={formStyles.label}>POLE CLAMP QTY</Text>
-                <Controller
-                  control={control}
-                  name="poleClampQty"
-                  render={({ field: { onChange, onBlur, value } }) => (
-                    <TextInput
-                      style={formStyles.input}
-                      keyboardType="numeric"
-                      value={value}
-                      onChangeText={onChange}
-                      onBlur={onBlur}
-                      placeholder="0"
-                      placeholderTextColor="rgba(30, 41, 59, 0.35)"
-                    />
-                  )}
-                />
-              </View>
-              <View style={formStyles.gridCol}>
-                <Text style={formStyles.label}>IPC QTY</Text>
-                <Controller
-                  control={control}
-                  name="ipcQty"
-                  render={({ field: { onChange, onBlur, value } }) => (
-                    <TextInput
-                      style={formStyles.input}
-                      keyboardType="numeric"
-                      value={value}
-                      onChangeText={onChange}
-                      onBlur={onBlur}
-                      placeholder="0"
-                      placeholderTextColor="rgba(30, 41, 59, 0.35)"
-                    />
-                  )}
-                />
-              </View>
-            </View>
-
-            <View style={formStyles.gridRow}>
-              <View style={formStyles.gridCol}>
-                <Text style={formStyles.label}>NO. OF SERVICE CONN</Text>
-                <Controller
-                  control={control}
-                  name="serviceConnectionQty"
-                  render={({ field: { onChange, onBlur, value } }) => (
-                    <TextInput
-                      style={formStyles.input}
-                      keyboardType="numeric"
-                      value={value}
-                      onChangeText={onChange}
-                      onBlur={onBlur}
-                      placeholder="0"
-                      placeholderTextColor="rgba(30, 41, 59, 0.35)"
-                    />
-                  )}
-                />
-              </View>
-              <View style={formStyles.gridCol}>
-                <Text style={formStyles.label}>EXTRA CONSUMPTION (M)</Text>
-                <Controller
-                  control={control}
-                  name="extraConsumption"
-                  render={({ field: { onChange, onBlur, value } }) => (
-                    <TextInput
-                      style={formStyles.input}
-                      keyboardType="numeric"
-                      value={value}
-                      onChangeText={onChange}
-                      onBlur={onBlur}
-                      placeholder="0"
-                      placeholderTextColor="rgba(30, 41, 59, 0.35)"
-                    />
-                  )}
-                />
-              </View>
-            </View>
-
-            <View style={formStyles.formGroup}>
-              <Text style={formStyles.label}>SITE REMARKS</Text>
-              <Controller
-                control={control}
-                name="remarks"
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    style={[formStyles.input, formStyles.remarksTextArea]}
-                    value={value}
-                    onChangeText={onChange}
-                    onBlur={onBlur}
-                    placeholder="Weather, terrain features, sag observations..."
-                    placeholderTextColor="rgba(30, 41, 59, 0.35)"
-                    multiline
-                    numberOfLines={3}
+              <View style={formStyles.gridRow}>
+                <View style={formStyles.gridCol}>
+                  <Text style={formStyles.label}>DEAD END CLAMP QTY</Text>
+                  <Controller
+                    control={control}
+                    name="deadEndClampQty"
+                    render={({ field: { onChange, onBlur, value } }) => (
+                      <TextInput
+                        style={formStyles.input}
+                        keyboardType="numeric"
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        placeholder="0"
+                        placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                      />
+                    )}
                   />
-                )}
-              />
+                </View>
+                <View style={formStyles.gridCol}>
+                  <Text style={formStyles.label}>SUSPENSION CLAMP QTY</Text>
+                  <Controller
+                    control={control}
+                    name="suspensionClampQty"
+                    render={({ field: { onChange, onBlur, value } }) => (
+                      <TextInput
+                        style={formStyles.input}
+                        keyboardType="numeric"
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        placeholder="0"
+                        placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                      />
+                    )}
+                  />
+                </View>
+              </View>
+
+              <View style={formStyles.gridRow}>
+                <View style={formStyles.gridCol}>
+                  <Text style={formStyles.label}>POLE CLAMP QTY</Text>
+                  <Controller
+                    control={control}
+                    name="poleClampQty"
+                    render={({ field: { onChange, onBlur, value } }) => (
+                      <TextInput
+                        style={formStyles.input}
+                        keyboardType="numeric"
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        placeholder="0"
+                        placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                      />
+                    )}
+                  />
+                </View>
+                <View style={formStyles.gridCol}>
+                  <Text style={formStyles.label}>IPC QTY</Text>
+                  <Controller
+                    control={control}
+                    name="ipcQty"
+                    render={({ field: { onChange, onBlur, value } }) => (
+                      <TextInput
+                        style={formStyles.input}
+                        keyboardType="numeric"
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        placeholder="0"
+                        placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                      />
+                    )}
+                  />
+                </View>
+              </View>
+
+              <View style={formStyles.gridRow}>
+                <View style={formStyles.gridCol}>
+                  <Text style={formStyles.label}>NO. OF SERVICE CONN</Text>
+                  <Controller
+                    control={control}
+                    name="serviceConnectionQty"
+                    render={({ field: { onChange, onBlur, value } }) => (
+                      <TextInput
+                        style={formStyles.input}
+                        keyboardType="numeric"
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        placeholder="0"
+                        placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                      />
+                    )}
+                  />
+                </View>
+                <View style={formStyles.gridCol}>
+                  <Text style={formStyles.label}>EXTRA CONSUMPTION (M)</Text>
+                  <Controller
+                    control={control}
+                    name="extraConsumption"
+                    render={({ field: { onChange, onBlur, value } }) => (
+                      <TextInput
+                        style={formStyles.input}
+                        keyboardType="numeric"
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        placeholder="0"
+                        placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                      />
+                    )}
+                  />
+                </View>
+              </View>
+
+              <View style={formStyles.formGroup}>
+                <Text style={formStyles.label}>SITE REMARKS</Text>
+                <Controller
+                  control={control}
+                  name="remarks"
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <TextInput
+                      style={[formStyles.input, formStyles.remarksTextArea]}
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      placeholder="Weather, terrain features, sag observations..."
+                      placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                      multiline
+                      numberOfLines={3}
+                    />
+                  )}
+                />
+              </View>
             </View>
-          </View>
+          )}
 
           {/* PRIMARY ACTIONS */}
           {isEditingNode ? (
@@ -1353,7 +1416,9 @@ export default function ActiveSurveyForm({
                 onPress={onSubmitFinish} 
                 activeOpacity={0.8}
               >
-                <Text style={styles.finishSurveyBtnText}>FINISH ERECTION</Text>
+                <Text style={styles.finishSurveyBtnText}>
+                  {workflowType === 'ERECTION' ? 'FINISH ERECTION' : (workflowType === 'SURVEY' ? 'FINISH SURVEY' : 'FINISH WORK')}
+                </Text>
                 <Text style={styles.btnSubtext}>Complete session & verify</Text>
               </TouchableOpacity>
             </>
@@ -1365,13 +1430,15 @@ export default function ActiveSurveyForm({
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.finishSurveyBtn} onPress={onSubmitFinish} activeOpacity={0.8}>
-                <Text style={styles.finishSurveyBtnText}>FINISH ERECTION</Text>
+                <Text style={styles.finishSurveyBtnText}>
+                  {workflowType === 'ERECTION' ? 'FINISH ERECTION' : (workflowType === 'SURVEY' ? 'FINISH SURVEY' : 'FINISH WORK')}
+                </Text>
                 <Text style={styles.btnSubtext}>Submit line for verification</Text>
               </TouchableOpacity>
             </View>
           )}
 
-          {canSetDtrNext && onSubmitDtrNext && (
+          {!isHtLine && canSetDtrNext && onSubmitDtrNext && (
             <TouchableOpacity style={styles.dtrNextBtn} onPress={onSubmitDtrNext} activeOpacity={0.8}>
               <View style={styles.dtrNextMark}>
                 <Text style={styles.dtrNextMarkText}>D</Text>
@@ -2141,7 +2208,7 @@ export default function ActiveSurveyForm({
           </TouchableOpacity>
         </View>
       )}
-      {canSetDtrNext && onSubmitDtrNext && (
+      {!isHtLine && canSetDtrNext && onSubmitDtrNext && (
         <TouchableOpacity style={styles.dtrNextBtn} onPress={onSubmitDtrNext} activeOpacity={0.8}>
           <View style={styles.dtrNextMark}>
             <Text style={styles.dtrNextMarkText}>D</Text>

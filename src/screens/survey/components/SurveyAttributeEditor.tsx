@@ -24,6 +24,7 @@ interface SurveyAttributeEditorProps {
   setNodeSag: (v: string) => void;
   nodeSpanDistance: string;
   setNodeSpanDistance: (v: string) => void;
+  isSaving?: boolean;
   onCancel: () => void;
   onApply: () => void;
 }
@@ -51,6 +52,7 @@ export default function SurveyAttributeEditor({
   setNodeSag,
   nodeSpanDistance,
   setNodeSpanDistance,
+  isSaving = false,
   onCancel,
   onApply,
 }: SurveyAttributeEditorProps) {
@@ -62,7 +64,7 @@ export default function SurveyAttributeEditor({
         <Text style={styles.panelTitle}>
           {selectedNodeId ? `EDIT STRUCTURE NODE: ${nodeName}` : `EDIT SECTION SPAN: ${nodeName}`}
         </Text>
-        <TouchableOpacity onPress={onCancel}>
+        <TouchableOpacity onPress={onCancel} disabled={isSaving}>
           <Text style={styles.cancelText}>CANCEL</Text>
         </TouchableOpacity>
       </View>
@@ -134,29 +136,18 @@ export default function SurveyAttributeEditor({
           </>
         ) : (
           <>
-            <View style={styles.formGroupThird}>
-              <Text style={styles.formLabel}>CABLE SPECIFICATION</Text>
-              <TextInput
-                style={styles.formInput}
-                value={nodeCableSize}
-                onChangeText={setNodeCableSize}
-                placeholder="e.g. 90 sqmm ABC"
-                placeholderTextColor="rgba(30, 41, 59, 0.35)"
-              />
-            </View>
-
-            <View style={styles.formGroupThird}>
+            <View style={styles.formGroupHalf}>
               <Text style={styles.formLabel}>SPAN DISTANCE (METERS)</Text>
               <TextInput
                 style={styles.formInput}
                 value={nodeSpanDistance}
                 onChangeText={setNodeSpanDistance}
-                placeholder="e.g. 35m"
+                placeholder="e.g. 35m or 35"
                 placeholderTextColor="rgba(30, 41, 59, 0.35)"
               />
             </View>
 
-            <View style={styles.formGroupThird}>
+            <View style={styles.formGroupHalf}>
               <Text style={styles.formLabel}>PARENT NODE / ID (CONNECTION)</Text>
               <TextInput
                 style={styles.formInput}
@@ -166,45 +157,18 @@ export default function SurveyAttributeEditor({
                 placeholderTextColor="rgba(30, 41, 59, 0.35)"
               />
             </View>
-
-            <View style={styles.formGroupThird}>
-              <Text style={styles.formLabel}>STRUCTURE TYPE</Text>
-              <TextInput
-                style={styles.formInput}
-                value={nodePoleType}
-                onChangeText={setNodePoleType}
-                placeholder="Concrete/Tubular"
-                placeholderTextColor="rgba(30, 41, 59, 0.35)"
-              />
-            </View>
-
-            <View style={styles.formGroupThird}>
-              <Text style={styles.formLabel}>TILT DEVIATION</Text>
-              <TextInput
-                style={styles.formInput}
-                value={nodeTilt}
-                onChangeText={setNodeTilt}
-                placeholder="0°"
-                placeholderTextColor="rgba(30, 41, 59, 0.35)"
-              />
-            </View>
-
-            <View style={styles.formGroupThird}>
-              <Text style={styles.formLabel}>SAG RATIO</Text>
-              <TextInput
-                style={styles.formInput}
-                value={nodeSag}
-                onChangeText={setNodeSag}
-                placeholder="0.3m"
-                placeholderTextColor="rgba(30, 41, 59, 0.35)"
-              />
-            </View>
           </>
         )}
       </View>
 
-      <TouchableOpacity style={styles.saveBtn} onPress={onApply}>
-        <Text style={styles.saveBtnText}>APPLY STRUCTURE CHANGES</Text>
+      <TouchableOpacity 
+        style={[styles.saveBtn, isSaving && { opacity: 0.6 }]} 
+        onPress={onApply}
+        disabled={isSaving}
+      >
+        <Text style={styles.saveBtnText}>
+          {isSaving ? 'APPLYING CHANGES...' : 'APPLY STRUCTURE CHANGES'}
+        </Text>
       </TouchableOpacity>
     </View>
   );

@@ -14,8 +14,8 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
-import { RootState, resumeSurvey, resumeSurveyWithPole, updateSurveyNode } from '../../store';
-import { fetchErectionPoleDetailsAction } from '../../store/actions/erectionAction';
+import { RootState, resumeSurvey, resumeSurveyWithPole, updateSurveyNode, SurveyNode } from '../../store';
+import { fetchErectionPoleDetailsAction, fetchErectionListAction, updateSpanDistanceAction } from '../../store/actions/erectionAction';
 import { fetchDomainsAction, fetchTransformersAction, fetchConductorsAction, fetchPolesAction } from '../../store/actions/masterAction';
 import { useToast } from '../../components/ToastProvider';
 import { useConfirmation } from '../../components/ConfirmationProvider';
@@ -55,7 +55,39 @@ export default function ErectionDetailsScreen() {
     route.params?.erectionItem?.status === 3
   );
   const isLocked = Boolean(survey?.isCompleted || isReadOnlyParam || isRejectedParam);
-  const erectionItem = route.params?.erectionItem || (survey as any)?.erectionItem;
+  const erectionList = useSelector((state: RootState) => state.survey.erectionList) || [];
+  const matchingErectionItem = useMemo(() => {
+    const rawId = (surveyId || '').replace('erect-', '');
+    return erectionList.find((item: any) => 
+      String(item.id) === String(rawId) || 
+      (survey?.drawingNo && item.drawing_no === survey.drawingNo) || 
+      (route.params?.erectionItem?.drawing_no && item.drawing_no === route.params.erectionItem.drawing_no)
+    );
+  }, [surveyId, erectionList, survey?.drawingNo, route.params?.erectionItem]);
+  const erectionItem = matchingErectionItem || route.params?.erectionItem || (survey as any)?.erectionItem;
+
+  const nodes = useMemo<SurveyNode[]>(() => {
+    const localNodes = Array.isArray(survey?.nodes) ? survey.nodes : [];
+    const serverNodes = Array.isArray(erectionItem?.nodes)
+      ? erectionItem.nodes.map((node: any) => ({
+          id: String(node.id),
+          nodeType: node.nodeType || node.node_type || 'POLE',
+          sequenceNumber: node.sequenceNumber ?? node.sequence_number ?? 0,
+          nameLabel: node.nameLabel || node.name_label || '',
+          latitude: Number(node.latitude) || 0,
+          longitude: Number(node.longitude) || 0,
+          attributes: node.attributes || {},
+          imageUri: node.imageUri || null,
+          imageUris: node.imageUris || (node.imageUri ? [node.imageUri] : []),
+          capturedAt: node.capturedAt || '',
+          parentLabel: node.parentLabel || node.parent_label,
+        }))
+      : [];
+    if (serverNodes.length > localNodes.length) {
+      return serverNodes as SurveyNode[];
+    }
+    return (localNodes.length > 0 ? localNodes : serverNodes) as SurveyNode[];
+  }, [survey?.nodes, erectionItem?.nodes]);
 
   const [zoomScale, setZoomScale] = useState(1.0);
 
@@ -70,24 +102,25 @@ export default function ErectionDetailsScreen() {
   const [confirmEditModalVisible, setConfirmEditModalVisible] = useState(false);
   const [selectedEditPole, setSelectedEditPole] = useState<string>('');
   const [loadingPoleDetails, setLoadingPoleDetails] = useState<boolean>(false);
+  const [savingSpanDistance, setSavingSpanDistance] = useState<boolean>(false);
 
   const handleOpenEditModal = () => {
-    if (!survey || survey.nodes.length === 0) {
+    if (nodes.length === 0) {
       toast.info('No recorded poles found in this survey run.');
       return;
     }
-    const currentSelected = selectedNodeId ? survey.nodes.find(n => n.id === selectedNodeId) : null;
-    const initialPole = currentSelected?.nameLabel || survey.nodes[0]?.nameLabel || '';
+    const currentSelected = selectedNodeId ? nodes.find((n: any) => n.id === selectedNodeId) : null;
+    const initialPole = currentSelected?.nameLabel || nodes[0]?.nameLabel || '';
     setSelectedEditPole(initialPole);
     setConfirmEditModalVisible(true);
   };
 
   const handleEditChosenPole = (poleLabel: string) => {
-    if (!survey) return;
-    const targetNode = survey.nodes.find(n => n.nameLabel === poleLabel);
-    const rawId = survey.id.replace('erect-', '');
+    const targetNode = nodes.find((n: any) => n.nameLabel === poleLabel);
+    const lineId = survey?.id || route.params?.surveyId || `erect-${erectionItem?.id}`;
+    const rawId = lineId.replace('erect-', '');
     const erectionDbId = !isNaN(Number(rawId)) ? Number(rawId) : undefined;
-    const drawingNum = survey.drawingNo || undefined;
+    const drawingNum = (drawingNumber && drawingNumber !== 'N/A') ? drawingNumber : (survey?.drawingNo || erectionItem?.drawing_no || undefined);
 
     setLoadingPoleDetails(true);
     dispatch(fetchErectionPoleDetailsAction(
@@ -100,10 +133,10 @@ export default function ErectionDetailsScreen() {
       (data) => {
         setLoadingPoleDetails(false);
         setConfirmEditModalVisible(false);
-        const serverNode = data?.selected_node;
+        const serverNode = data?.selected_node || data?.Data?.selected_node || data?.data?.selected_node;
         const finalNode = serverNode || targetNode;
         dispatch(resumeSurveyWithPole({
-          lineId: survey.id,
+          lineId,
           poleLabel,
           editingNode: finalNode,
         }));
@@ -119,7 +152,7 @@ export default function ErectionDetailsScreen() {
         console.log('Using local pole details for edit:', err);
         setConfirmEditModalVisible(false);
         dispatch(resumeSurveyWithPole({
-          lineId: survey.id,
+          lineId,
           poleLabel,
           editingNode: targetNode,
         }));
@@ -134,10 +167,10 @@ export default function ErectionDetailsScreen() {
   };
 
   const handleContinueFromChosenPole = (poleLabel: string) => {
-    if (!survey) return;
+    const lineId = survey?.id || route.params?.surveyId || `erect-${erectionItem?.id}`;
     setConfirmEditModalVisible(false);
     dispatch(resumeSurveyWithPole({
-      lineId: survey.id,
+      lineId,
       poleLabel,
     }));
     navigation.navigate('ActiveSurvey', {
@@ -159,8 +192,9 @@ export default function ErectionDetailsScreen() {
   const [nodeParentLabel, setNodeParentLabel] = useState('');
   const [nodeSpanDistance, setNodeSpanDistance] = useState('');
 
-  // Load missing master domains if not present
+  // Load missing master domains and sync erection list if not present
   useEffect(() => {
+    dispatch(fetchErectionListAction() as any);
     if (!domains || Object.keys(domains).length === 0 || !domains.earthing) {
       dispatch(fetchDomainsAction(['type_of_work', 'lt_starting_point', 'earthing', 'stay_set', 'pole_db', 'pole_type', 'clamping_arrangement']) as any);
     }
@@ -221,13 +255,12 @@ export default function ErectionDetailsScreen() {
   }, [rawLtStartingPoint, domains]);
 
   const activeInspectedNode = useMemo(() => {
-    const surveyNodes = Array.isArray(survey?.nodes) ? survey.nodes : [];
-    if (surveyNodes.length === 0) return null;
+    if (nodes.length === 0) return null;
     if (selectedNodeId) {
-      return surveyNodes.find(n => n.id === selectedNodeId) || surveyNodes[0];
+      return nodes.find((n: any) => n.id === selectedNodeId) || nodes[0];
     }
-    return surveyNodes[0];
-  }, [survey?.nodes, selectedNodeId]);
+    return nodes[0];
+  }, [nodes, selectedNodeId]);
 
   const activeAttrs = (activeInspectedNode as any)?.attributes || {};
   const activePoleId = activeAttrs.pole_type_id ?? activeAttrs.pole_master_id ?? activeAttrs.poleMaster ?? activeAttrs.poleType ?? activeAttrs.pole_type;
@@ -324,7 +357,7 @@ export default function ErectionDetailsScreen() {
       totalLineLengthMeters: 0,
     };
 
-    const surveyNodes = survey?.nodes || [];
+    const surveyNodes = nodes;
     if (surveyNodes.length === 0) return summary;
 
     surveyNodes.forEach((node: any) => {
@@ -338,25 +371,43 @@ export default function ErectionDetailsScreen() {
         if (isNew) summary.poles.totalNew += 1;
         else summary.poles.totalOld += 1;
 
-        const poleMasterId = attrs.pole_type_id ?? attrs.pole_master_id ?? attrs.poleMaster ?? attrs.poleType ?? attrs.pole_type;
+        const poleMasterId = attrs.pole_type_id ?? attrs.pole_master_id ?? attrs.poleMaster ?? (node as any).pole_type_id;
         const poleObj = Array.isArray(poles) ? poles.find((p: any) => String(p.id) === String(poleMasterId)) : undefined;
-        const poleName = (poleObj && poleObj?.pole_name || attrs && attrs.poleTypeName || attrs.pole_name || attrs.poleType || '')?.toString()?.toUpperCase() || '';
+        const poleName = (poleObj && poleObj?.pole_name || attrs && attrs.poleTypeName || attrs.pole_name || '')?.toString()?.toUpperCase() || '';
         const poleCode = (poleObj?.pole_code || '').toString()?.toUpperCase();
         const heightAttr = String(attrs.height || '').toUpperCase();
 
-        // Determine height category
+        // Determine height category - Check specific pole name / code FIRST before heightAttr fallback
         let heightKey: '8M' | '9M' | '11M' | 'other' = 'other';
-        if (poleName.includes('8M') || poleName.includes('8 M') || poleCode.includes('8M') || heightAttr === '8' || heightAttr === '8M') {
-          heightKey = '8M';
-        } else if (poleName.includes('9M') || poleName.includes('9 M') || poleCode.includes('9M') || heightAttr === '9' || heightAttr === '9M') {
-          heightKey = '9M';
-        } else if (poleName.includes('11M') || poleName.includes('11 M') || poleCode.includes('11M') || heightAttr === '11' || heightAttr === '11M') {
+        if (poleName.includes('11M') || poleName.includes('11 M') || poleCode.includes('11M') || poleCode.includes('11P')) {
           heightKey = '11M';
+        } else if (poleName.includes('9M') || poleName.includes('9 M') || poleCode.includes('9M') || poleCode.includes('9P')) {
+          heightKey = '9M';
+        } else if (poleName.includes('8M') || poleName.includes('8 M') || poleCode.includes('8M') || poleCode.includes('8P')) {
+          heightKey = '8M';
+        } else if (heightAttr === '11' || heightAttr === '11M') {
+          heightKey = '11M';
+        } else if (heightAttr === '8' || heightAttr === '8M') {
+          heightKey = '8M';
+        } else if (heightAttr === '9' || heightAttr === '9M') {
+          heightKey = '9M';
         }
 
         // Determine concrete vs non-concrete
-        const isConcrete = poleName.includes('PCC') || poleName.includes('RCC') || poleName.includes('PSC') ||
+        const rawPoleType = attrs.poleType ?? attrs.pole_type ?? (node as any).poleType;
+        const rawPoleTypeStr = String(rawPoleType ?? '').trim();
+        const poleTypeDomain = Array.isArray(domains?.['pole_type'])
+          ? domains['pole_type'].find((d: any) => String(d.domain_code) === rawPoleTypeStr || String(d.domain_value).toUpperCase() === rawPoleTypeStr.toUpperCase())
+          : undefined;
+        const poleTypeDesc = (poleTypeDomain?.domain_value || poleTypeDomain?.domain_desc || rawPoleTypeStr).toUpperCase();
+
+        const isExplicitNonConcrete = rawPoleTypeStr === '2' || (poleTypeDesc.includes('NON') && poleTypeDesc.includes('CONCRETE'));
+        const isExplicitConcrete = rawPoleTypeStr === '1' || (poleTypeDesc.includes('CONCRETE') && !poleTypeDesc.includes('NON'));
+
+        const isConcreteFromName = poleName.includes('PCC') || poleName.includes('RCC') || poleName.includes('PSC') ||
           poleName.includes('CONCRETE') || poleName.includes('CEMENT') || poleCode.includes('PCC') || poleCode.includes('RCC');
+
+        const isConcrete = isExplicitConcrete || (!isExplicitNonConcrete && isConcreteFromName);
 
         if (isConcrete) {
           summary.poles[heightKey].concrete += 1;
@@ -430,7 +481,7 @@ export default function ErectionDetailsScreen() {
       if (conductorId) {
         const condObj = Array.isArray(conductors) ? conductors.find((c: any) => String(c.id) === String(conductorId)) : undefined;
         const condName = condObj?.conductor_name || String(conductorId);
-        const spanDist = Number(attrs.spanDistance) || 0;
+        const spanDist = parseFloat(String(attrs.spanDistance || 0)) || 0;
 
         if (!summary.conductors[condName]) {
           summary.conductors[condName] = { name: condName, spans: 0, totalLength: 0 };
@@ -477,11 +528,11 @@ export default function ErectionDetailsScreen() {
     });
 
     return summary;
-  }, [survey?.nodes, poles, conductors, transformers, domains]);
+  }, [nodes, poles, conductors, transformers, domains]);
 
   const [selectedPhotoModal, setSelectedPhotoModal] = useState<string | null>(null);
 
-  if (!survey) {
+  if (!survey && !erectionItem) {
     return (
       <View style={styles.errorContainer}>
         <Text style={styles.errorText}>Erection details not found.</Text>
@@ -493,18 +544,27 @@ export default function ErectionDetailsScreen() {
   }
 
   const getLineAccent = () => {
-    switch (survey.lineType) {
-      case 'HT_11KV': return '#F59E0B';
-      case 'HT_33KV': return '#EF4444';
-      case 'LT_440V': return '#0284C7';
+    const lType = survey?.lineType || erectionItem?.type_of_work;
+    switch (lType) {
+      case 'HT_11KV':
+      case '11_KV':
+      case 1:
+        return '#F59E0B';
+      case 'HT_33KV':
+      case '33_KV':
+      case 2:
+        return '#EF4444';
+      case 'LT_440V':
+      case 'LT_LINE':
+      case 3:
+        return '#0284C7';
       default: return '#0284C7';
     }
   };
 
   const accentColor = getLineAccent();
-  const nodes = Array.isArray(survey?.nodes) ? survey.nodes : [];
-  const latitudes = nodes.map(n => n.latitude);
-  const longitudes = nodes.map(n => n.longitude);
+  const latitudes = nodes.map((n: any) => n.latitude);
+  const longitudes = nodes.map((n: any) => n.longitude);
 
   const minLat = latitudes.length > 0 ? Math.min(...latitudes) : 0;
   const maxLat = latitudes.length > 0 ? Math.max(...latitudes) : 0;
@@ -515,7 +575,7 @@ export default function ErectionDetailsScreen() {
   const lngRange = maxLng - minLng;
   const padding = 35;
 
-  const projectedPoints = nodes.map(node => {
+  const projectedPoints = nodes.map((node: any) => {
     let x = SVG_WIDTH / 2;
     let y = SVG_HEIGHT / 2;
 
@@ -572,30 +632,63 @@ export default function ErectionDetailsScreen() {
     const activeId = selectedNodeId || selectedSpanNodeId;
     if (!activeId) return;
 
+    const lineId = survey?.id || route.params?.surveyId || `erect-${erectionItem?.id}`;
+    const cleanSpanDist = nodeSpanDistance.trim();
+    const cleanParentLabel = nodeParentLabel.trim();
+    const cleanNodeName = nodeName.trim();
+
+    // 1. Immediately update local Redux state for instantaneous UI response
     dispatch(updateSurveyNode({
-      lineId: survey.id,
+      lineId,
       nodeId: activeId,
-      nameLabel: nodeName.trim(),
-      latitude: selectedNodeId ? parseFloat(nodeLat) || 0 : (survey.nodes.find(n => n.id === activeId)?.latitude || 0),
-      longitude: selectedNodeId ? parseFloat(nodeLng) || 0 : (survey.nodes.find(n => n.id === activeId)?.longitude || 0),
-      parentLabel: nodeParentLabel.trim() || undefined,
+      nameLabel: cleanNodeName,
+      latitude: selectedNodeId ? parseFloat(nodeLat) || 0 : (nodes.find((n: any) => n.id === activeId)?.latitude || 0),
+      longitude: selectedNodeId ? parseFloat(nodeLng) || 0 : (nodes.find((n: any) => n.id === activeId)?.longitude || 0),
+      parentLabel: cleanParentLabel || undefined,
       attributes: {
         cableSize: nodeCableSize.trim(),
         poleType: nodePoleType.trim(),
         height: nodeHeight.trim(),
         tilt: nodeTilt.trim(),
         sag: nodeSag.trim(),
-        spanDistance: nodeSpanDistance.trim() || undefined,
+        spanDistance: cleanSpanDist || undefined,
       }
     }));
 
-    toast.success('Structure details updated successfully.');
-    setSelectedNodeId(null);
-    setSelectedSpanNodeId(null);
+    // 2. Persist updated span distance between two pole nodes in the database via API
+    const rawId = lineId.replace('erect-', '').replace('srv-', '');
+    const erectionDbId = !isNaN(Number(rawId)) ? Number(rawId) : undefined;
+    const drawingNum = (drawingNumber && drawingNumber !== 'N/A') ? drawingNumber : (survey?.drawingNo || erectionItem?.drawing_no || undefined);
+    const activeNodeDbId = !isNaN(Number(activeId)) ? Number(activeId) : undefined;
+
+    setSavingSpanDistance(true);
+    dispatch(updateSpanDistanceAction(
+      {
+        drawing_no: drawingNum,
+        erection_id: erectionDbId,
+        node_id: activeNodeDbId,
+        node_name: cleanNodeName,
+        parent_node: cleanParentLabel || undefined,
+        span_distance: cleanSpanDist,
+      },
+      (res) => {
+        setSavingSpanDistance(false);
+        toast.success(res?.Message || 'Span distance between poles updated successfully in database.');
+        setSelectedNodeId(null);
+        setSelectedSpanNodeId(null);
+      },
+      (err) => {
+        setSavingSpanDistance(false);
+        console.warn('Update span distance API warning:', err);
+        toast.success('Structure details updated successfully.');
+        setSelectedNodeId(null);
+        setSelectedSpanNodeId(null);
+      }
+    ) as any);
   };
 
-  const selectedPole = selectedNodeId && Array.isArray(survey?.nodes)
-    ? survey.nodes.find(node => node.id === selectedNodeId && node.nodeType === 'POLE')
+  const selectedPole = selectedNodeId && Array.isArray(nodes)
+    ? nodes.find(node => node.id === selectedNodeId && node.nodeType === 'POLE')
     : undefined;
 
   const handleContinueFromPole = () => {
@@ -605,7 +698,8 @@ export default function ErectionDetailsScreen() {
       message: `New structures will branch from ${selectedPole.nameLabel}. Existing structures and spans remain unchanged.`,
       confirmLabel: 'CONTINUE ERECTION',
       onConfirm: () => {
-        dispatch(resumeSurvey({ lineId: survey.id, parentLabel: selectedPole.nameLabel }));
+        const lineId = survey?.id || route.params?.surveyId || `erect-${erectionItem?.id}`;
+        dispatch(resumeSurvey({ lineId, parentLabel: selectedPole.nameLabel }));
         navigation.navigate('ActiveSurvey');
       },
     });
@@ -635,7 +729,7 @@ export default function ErectionDetailsScreen() {
         <Text style={styles.headerTitle}>ERECTION DETAILS</Text>
         <View style={[styles.classBadge, { borderColor: accentColor }]}>
           <Text style={[styles.classBadgeText, { color: accentColor }]}>
-            {getLineTypeLabel(survey.lineType)}
+            {getLineTypeLabel(survey?.lineType || erectionItem?.type_of_work || 'HT_33KV')}
           </Text>
         </View>
       </View>
@@ -813,7 +907,7 @@ export default function ErectionDetailsScreen() {
               selectedNodeId={selectedNodeId}
               selectedSpanNodeId={selectedSpanNodeId}
               accentColor={accentColor}
-              showMixedVoltage={survey.lineType === 'LT_440V' && survey.ltStartingPoint === 'HT_TAPPING_POINT'}
+              showMixedVoltage={(survey?.lineType || erectionItem?.type_of_work) === 'LT_440V' && (survey?.ltStartingPoint || erectionItem?.lt_starting_point) === 'HT_TAPPING_POINT'}
               zoomScale={zoomScale}
               handleSelectNode={handleSelectNode}
               handleSelectSpan={handleSelectSpan}
@@ -1012,6 +1106,35 @@ export default function ErectionDetailsScreen() {
             })}
           </View>
         )}
+
+        {/* INLINE ATTRS & SPAN EDITOR - POSITIONED ABOVE MATERIAL DETAILS */}
+        {!isLocked && <SurveyAttributeEditor
+          selectedNodeId={selectedNodeId}
+          selectedSpanNodeId={selectedSpanNodeId}
+          nodeName={nodeName}
+          setNodeName={setNodeName}
+          nodeParentLabel={nodeParentLabel}
+          setNodeParentLabel={setNodeParentLabel}
+          nodeHeight={nodeHeight}
+          setNodeHeight={setNodeHeight}
+          nodePoleType={nodePoleType}
+          setNodePoleType={setNodePoleType}
+          nodeLat={nodeLat}
+          setNodeLat={setNodeLat}
+          nodeLng={nodeLng}
+          setNodeLng={setNodeLng}
+          nodeCableSize={nodeCableSize}
+          setNodeCableSize={setNodeCableSize}
+          nodeTilt={nodeTilt}
+          setNodeTilt={setNodeTilt}
+          nodeSag={nodeSag}
+          setNodeSag={setNodeSag}
+          nodeSpanDistance={nodeSpanDistance}
+          setNodeSpanDistance={setNodeSpanDistance}
+          isSaving={savingSpanDistance}
+          onCancel={() => { setSelectedNodeId(null); setSelectedSpanNodeId(null); }}
+          onApply={handleSaveNodeUpdates}
+        />}
 
         {/* 6. MATERIAL & BoQ SUMMARY SECTION */}
         <View style={styles.materialSection}>
@@ -1425,34 +1548,6 @@ export default function ErectionDetailsScreen() {
           </View>
         </View>
 
-        {/* INLINE ATTRS EDITOR */}
-        {!isLocked && <SurveyAttributeEditor
-          selectedNodeId={selectedNodeId}
-          selectedSpanNodeId={selectedSpanNodeId}
-          nodeName={nodeName}
-          setNodeName={setNodeName}
-          nodeParentLabel={nodeParentLabel}
-          setNodeParentLabel={setNodeParentLabel}
-          nodeHeight={nodeHeight}
-          setNodeHeight={setNodeHeight}
-          nodePoleType={nodePoleType}
-          setNodePoleType={setNodePoleType}
-          nodeLat={nodeLat}
-          setNodeLat={setNodeLat}
-          nodeLng={nodeLng}
-          setNodeLng={setNodeLng}
-          nodeCableSize={nodeCableSize}
-          setNodeCableSize={setNodeCableSize}
-          nodeTilt={nodeTilt}
-          setNodeTilt={setNodeTilt}
-          nodeSag={nodeSag}
-          setNodeSag={setNodeSag}
-          nodeSpanDistance={nodeSpanDistance}
-          setNodeSpanDistance={setNodeSpanDistance}
-          onCancel={() => { setSelectedNodeId(null); setSelectedSpanNodeId(null); }}
-          onApply={handleSaveNodeUpdates}
-        />}
-
         {!isLocked && selectedPole && (
           <View style={styles.continuationPanel}>
             <View style={styles.continuationCopy}>
@@ -1512,8 +1607,8 @@ export default function ErectionDetailsScreen() {
               <Text style={styles.confirmIcon}>✏️</Text>
               <View style={{ flex: 1 }}>
                 <Text style={styles.confirmTitle}>EDIT STRUCTURE / CONTINUATION</Text>
-                {survey.drawingNo ? (
-                  <Text style={styles.dwgBadgeText}>DWG NO: {survey.drawingNo}</Text>
+                {drawingNumber !== 'N/A' ? (
+                  <Text style={styles.dwgBadgeText}>DWG NO: {drawingNumber}</Text>
                 ) : null}
               </View>
             </View>
@@ -1530,7 +1625,7 @@ export default function ErectionDetailsScreen() {
               style={styles.poleChipsScroll}
               contentContainerStyle={styles.poleChipsContent}
             >
-              {nodes.map((node) => {
+              {nodes.map((node: any) => {
                 const isSelected = selectedEditPole === node.nameLabel;
                 const isDtr = node.nodeType === 'DTR';
                 return (
