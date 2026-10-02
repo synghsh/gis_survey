@@ -21,17 +21,36 @@ export const userLoginAction = (
           if (token) {
             await AsyncStorage.setItem('token', token);
           }
+
+          const roleMapping: Record<number, string> = {
+            1: 'Survey Administrator',
+            2: 'Super Administrator',
+          };
+          const designationMapping: Record<number, string> = {
+            1: 'Field Surveyor',
+            2: 'Senior GIS Engineer',
+          };
           
           const loginPayload = {
             token: token || null,
             user_id: userDetails.id || null,
             first_name: userDetails.first_name || '',
+            middle_name: userDetails.middle_name || '',
             last_name: userDetails.last_name || '',
             username: userDetails.username || '',
             phone: userDetails.phone || '',
             email: userDetails.email || '',
-            role_name: userDetails.role_name || '',
-            designation_name: userDetails.designation_name || '',
+            role_id: userDetails.role_id || null,
+            role_name: userDetails.role_name || (userDetails.role_id ? roleMapping[userDetails.role_id] : '') || 'Field Surveyor',
+            designation_id: userDetails.designation_id || null,
+            designation_name: userDetails.designation_name || (userDetails.designation_id ? designationMapping[userDetails.designation_id] : '') || 'GIS Field Engineer',
+            address: userDetails.address || '',
+            district: userDetails.district || '',
+            state: userDetails.state || '',
+            pin: userDetails.pin || '',
+            joining_date: userDetails.joining_date || null,
+            user_type: userDetails.user_type || null,
+            level: userDetails.level || null,
           };
           
           dispatch(login(loginPayload));

@@ -56,7 +56,7 @@ export interface SurveyLine {
 }
 
 // Slice 1: Authentication & Profile State
-interface AuthState {
+export interface AuthState {
   isLoggedIn: boolean;
   surveyorName: string;
   surveyorId: string;
@@ -66,12 +66,22 @@ interface AuthState {
   token: string | null;
   userId: number | null;
   firstName: string;
+  middleName: string;
   lastName: string;
   username: string;
   phone: string;
   email: string;
   roleName: string;
+  roleId: number | null;
   designationName: string;
+  designationId: number | null;
+  address: string;
+  district: string;
+  state: string;
+  pin: string;
+  joiningDate: string | null;
+  userType: number | null;
+  level: number | null;
 }
 
 const initialAuthState: AuthState = {
@@ -83,12 +93,22 @@ const initialAuthState: AuthState = {
   token: null,
   userId: null,
   firstName: '',
+  middleName: '',
   lastName: '',
   username: '',
   phone: '',
   email: '',
   roleName: '',
+  roleId: null,
   designationName: '',
+  designationId: null,
+  address: '',
+  district: '',
+  state: '',
+  pin: '',
+  joiningDate: null,
+  userType: null,
+  level: null,
 };
 
 const authSlice = createSlice({
@@ -98,31 +118,56 @@ const authSlice = createSlice({
     login: (
       state,
       action: PayloadAction<{
-        token: string;
-        user_id: number;
+        token: string | null;
+        user_id: number | null;
         first_name: string;
+        middle_name?: string;
         last_name: string;
         username: string;
         phone: string;
         email: string;
         role_name: string;
+        role_id?: number | null;
         designation_name: string;
+        designation_id?: number | null;
+        address?: string;
+        district?: string;
+        state?: string;
+        pin?: string;
+        joining_date?: string | null;
+        user_type?: number | null;
+        level?: number | null;
       }>
     ) => {
       state.isLoggedIn = true;
-      state.token = action.payload.token;
-      state.userId = action.payload.user_id;
-      state.firstName = action.payload.first_name;
-      state.lastName = action.payload.last_name;
-      state.username = action.payload.username;
-      state.phone = action.payload.phone;
-      state.email = action.payload.email;
-      state.roleName = action.payload.role_name;
-      state.designationName = action.payload.designation_name;
-      // Map to legacy fields
-      state.surveyorName = `${action.payload.first_name} ${action.payload.last_name}`.trim();
-      state.surveyorId = `SRV-${action.payload.user_id}`;
-      state.division = action.payload.role_name || 'Central Division';
+      state.token = action.payload.token || null;
+      state.userId = action.payload.user_id || null;
+      state.firstName = action.payload.first_name || '';
+      state.middleName = action.payload.middle_name || '';
+      state.lastName = action.payload.last_name || '';
+      state.username = action.payload.username || '';
+      state.phone = action.payload.phone || '';
+      state.email = action.payload.email || '';
+      state.roleName = action.payload.role_name || '';
+      state.roleId = action.payload.role_id ?? null;
+      state.designationName = action.payload.designation_name || '';
+      state.designationId = action.payload.designation_id ?? null;
+      state.address = action.payload.address || '';
+      state.district = action.payload.district || '';
+      state.state = action.payload.state || '';
+      state.pin = action.payload.pin || '';
+      state.joiningDate = action.payload.joining_date || null;
+      state.userType = action.payload.user_type ?? null;
+      state.level = action.payload.level ?? null;
+
+      // Full display name & ID
+      const full = [action.payload.first_name, action.payload.middle_name, action.payload.last_name]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+      state.surveyorName = full || action.payload.username || 'GIS Surveyor';
+      state.surveyorId = `SRV-${String(action.payload.user_id || '001').padStart(3, '0')}`;
+      state.division = action.payload.district ? `${action.payload.district} Grid Division` : (action.payload.role_name || 'Central Division');
       state.profileImage = null;
     },
     logout: (state) => {
@@ -134,12 +179,22 @@ const authSlice = createSlice({
       state.token = null;
       state.userId = null;
       state.firstName = '';
+      state.middleName = '';
       state.lastName = '';
       state.username = '';
       state.phone = '';
       state.email = '';
       state.roleName = '';
+      state.roleId = null;
       state.designationName = '';
+      state.designationId = null;
+      state.address = '';
+      state.district = '';
+      state.state = '';
+      state.pin = '';
+      state.joiningDate = null;
+      state.userType = null;
+      state.level = null;
     },
     updateProfileImage: (state, action: PayloadAction<string>) => {
       state.profileImage = action.payload;
@@ -157,12 +212,22 @@ const authSlice = createSlice({
         state.token = action.payload.token ?? null;
         state.userId = action.payload.userId ?? null;
         state.firstName = action.payload.firstName ?? '';
+        state.middleName = action.payload.middleName ?? '';
         state.lastName = action.payload.lastName ?? '';
         state.username = action.payload.username ?? '';
         state.phone = action.payload.phone ?? '';
         state.email = action.payload.email ?? '';
         state.roleName = action.payload.roleName ?? '';
+        state.roleId = action.payload.roleId ?? null;
         state.designationName = action.payload.designationName ?? '';
+        state.designationId = action.payload.designationId ?? null;
+        state.address = action.payload.address ?? '';
+        state.district = action.payload.district ?? '';
+        state.state = action.payload.state ?? '';
+        state.pin = action.payload.pin ?? '';
+        state.joiningDate = action.payload.joiningDate ?? null;
+        state.userType = action.payload.userType ?? null;
+        state.level = action.payload.level ?? null;
       }
     },
   },
@@ -600,21 +665,45 @@ export const loadPersistedState = async () => {
         };
       }
       
+      const roleMapping: Record<number, string> = {
+        1: 'Survey Administrator',
+        2: 'Super Administrator',
+      };
+      const designationMapping: Record<number, string> = {
+        1: 'Field Surveyor',
+        2: 'Senior GIS Engineer',
+      };
+
+      const fullName = [userDetails.first_name, userDetails.middle_name, userDetails.last_name]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+
       state.auth = {
         isLoggedIn: true,
         token: token,
         userId: userDetails.id || null,
         firstName: userDetails.first_name || '',
+        middleName: userDetails.middle_name || '',
         lastName: userDetails.last_name || '',
         username: userDetails.username || '',
         phone: userDetails.phone || '',
         email: userDetails.email || '',
-        roleName: userDetails.role_name || '',
-        designationName: userDetails.designation_name || '',
-        surveyorName: `${userDetails.first_name || ''} ${userDetails.last_name || ''}`.trim(),
-        surveyorId: `SRV-${userDetails.id || ''}`,
-        division: userDetails.role_name || 'Central Division',
-        profileImage: null
+        roleId: userDetails.role_id || null,
+        roleName: userDetails.role_name || (userDetails.role_id ? roleMapping[userDetails.role_id] : '') || 'Field Surveyor',
+        designationId: userDetails.designation_id || null,
+        designationName: userDetails.designation_name || (userDetails.designation_id ? designationMapping[userDetails.designation_id] : '') || 'GIS Field Engineer',
+        address: userDetails.address || '',
+        district: userDetails.district || '',
+        state: userDetails.state || '',
+        pin: userDetails.pin || '',
+        joiningDate: userDetails.joining_date || null,
+        userType: userDetails.user_type || null,
+        level: userDetails.level || null,
+        surveyorName: fullName || userDetails.username || 'GIS Surveyor',
+        surveyorId: `SRV-${String(userDetails.id || '001').padStart(3, '0')}`,
+        division: userDetails.district ? `${userDetails.district} Grid Division` : (userDetails.role_name || 'Central Division'),
+        profileImage: state?.auth?.profileImage || null
       };
     }
     return state;
