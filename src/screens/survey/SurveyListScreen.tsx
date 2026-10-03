@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -7,138 +7,162 @@ import {
   ScrollView,
   TextInput,
   Modal,
-  Dimensions,
+  ImageBackground,
+  Alert,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
-import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
-import { RootState, startSurvey, completeSurveyLine, SurveyLine } from '../../store';
+import Svg, {
+  Defs,
+  LinearGradient,
+  Stop,
+  Rect,
+  Path,
+  Circle,
+  Line,
+} from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  RootState,
+  startSurvey,
+  resumeSurvey,
+  completeSurveyLine,
+  SurveyLine,
+} from '../../store';
 import { useToast } from '../../components/ToastProvider';
 import { useConfirmation } from '../../components/ConfirmationProvider';
 import { getLineTypeLabel } from '../../utils/surveyLabels';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-type LtStartingPoint = NonNullable<SurveyLine['ltStartingPoint']>;
-
-const LT_STARTING_POINTS: ReadonlyArray<{
-  value: LtStartingPoint;
-  title: string;
-  description: string;
-}> = [
-  {
-    value: 'HT_TAPPING_POINT',
-    title: 'Tapping point from an HT line',
-    description: 'Begin where the LT network branches from an HT line.',
-  },
-  {
-    value: 'DTR',
-    title: 'Starting from DTR',
-    description: 'Begin the run directly at the distribution transformer.',
-  },
-  {
-    value: 'EXISTING_LT_LINE',
-    title: 'Starting from existing LT line',
-    description: 'Continue mapping from an existing low-tension line.',
-  },
-];
-
 export default function SurveyListScreen() {
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const dispatch = useDispatch();
-  const historyList = useSelector((state: RootState) => state.survey.historyList);
   const toast = useToast();
   const { confirm } = useConfirmation();
-  
+
+  const historyList = useSelector((state: RootState) => state.survey.historyList) || [];
+
+  const [searchQuery, setSearchQuery] = useState('');
   const [voltageFilter, setVoltageFilter] = useState<'ALL' | 'HT_11KV' | 'HT_33KV' | 'LT_440V'>('ALL');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'SYNCED'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'COMPLETED' | 'SYNCED'>('ALL');
+  const [showFilterModal, setShowFilterModal] = useState(false);
 
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [contractor, setContractor] = useState('');
-  const [lineType, setLineType] = useState<'HT_11KV' | 'HT_33KV' | 'LT_440V'>('HT_11KV');
-  const [remarks, setRemarks] = useState('');
-  const [isChoosingLtStart, setIsChoosingLtStart] = useState(false);
-  const [ltStartingPoint, setLtStartingPoint] = useState<LtStartingPoint | null>(null);
-
-  const handleStartNewSurvey = () => {
-    if (!contractor.trim()) {
-      toast.warning('Please enter the contractor firm name.', { title: 'Missing field' });
-      return;
+  // Resume or start survey line in active mapping mode
+  const handleContinueSurvey = (item: SurveyLine) => {
+    if (item.nodes && item.nodes.length > 0) {
+      const lastNode = item.nodes[item.nodes.length - 1];
+      dispatch(resumeSurvey({ lineId: item.id, parentLabel: lastNode.nameLabel }));
+      navigation.navigate('ActiveSurvey');
+    } else {
+      dispatch(
+        startSurvey({
+          id: item.id,
+          workflowType: 'SURVEY',
+          lineType: item.lineType,
+          ltStartingPoint: item.ltStartingPoint,
+          contractorName: item.contractorName,
+          remarks: item.remarks,
+          stateName: item.stateName,
+          district: item.district,
+          block: item.block,
+          village: item.village,
+          location: item.location,
+          feederName: item.feederName,
+          dtrCode: item.dtrCode,
+          drawingNo: item.drawingNo,
+        })
+      );
+      navigation.navigate('ActiveSurvey');
     }
-
-    if (lineType === 'LT_440V') {
-      setIsChoosingLtStart(true);
-      return;
-    }
-
-    launchSurvey();
   };
 
-  const launchSurvey = (startingPoint?: LtStartingPoint) => {
-    const uniqueId = `srv-${Date.now().toString(36)}`;
-    dispatch(
-      startSurvey({
-        id: uniqueId,
-        lineType,
-        ltStartingPoint: startingPoint,
-        contractorName: contractor.trim(),
-        remarks: remarks.trim(),
-      })
-    );
-    setContractor('');
-    setRemarks('');
-    setLineType('HT_11KV');
-    setLtStartingPoint(null);
-    setIsChoosingLtStart(false);
-    setShowAddModal(false);
-    navigation.navigate('ActiveSurvey');
-  };
-
-  const handleConfirmLtStartingPoint = () => {
-    if (!ltStartingPoint) {
-      toast.warning('Choose where this LT line survey starts.', { title: 'Starting point required' });
-      return;
-    }
-    launchSurvey(ltStartingPoint);
-  };
-
-  const closeAddModal = () => {
-    setShowAddModal(false);
-    setIsChoosingLtStart(false);
-    setLtStartingPoint(null);
-  };
-
+  // Complete Survey Line Confirmation
   const handleCompleteLine = (line: SurveyLine) => {
     if (line.isCompleted) {
       toast.info('This survey line is already completed and permanently locked.');
       return;
     }
-    confirm({
-      title: 'Complete Survey Line?',
-      message: `${line.contractorName}\n${getLineTypeLabel(line.lineType)} • ${line.nodes.length} structures\n${line.village || line.location || 'Location not specified'}\n\nThis permanently locks editing and continuation.`,
-      confirmLabel: 'COMPLETE & LOCK',
-      tone: 'destructive',
-      onConfirm: () => {
-        dispatch(completeSurveyLine(line.id));
-        toast.success('Survey completed and locked. No further editing is allowed.', { title: 'Line completed' });
-      },
-    });
+
+    const locDesc = [line.village, line.block, line.district].filter(Boolean).join(', ') || line.location || 'Location not specified';
+
+    if (confirm) {
+      confirm({
+        title: 'Complete Survey Line?',
+        message: `${line.contractorName || 'Survey Run'}\n${getLineTypeLabel(line.lineType)} • ${line.nodes.length} structures\n${locDesc}\n\nThis permanently locks editing and continuation.`,
+        confirmLabel: 'COMPLETE & LOCK',
+        tone: 'destructive',
+        onConfirm: () => {
+          dispatch(completeSurveyLine(line.id));
+          toast.success('Survey completed and locked. No further editing is allowed.', { title: 'Line completed' });
+        },
+      });
+      return;
+    }
+
+    Alert.alert(
+      'Confirm Completion',
+      'Are you sure you want to mark this survey line as completed? This action is irreversible and the survey details will become read-only.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Complete',
+          style: 'destructive',
+          onPress: () => {
+            dispatch(completeSurveyLine(line.id));
+            toast.success('Survey completed and locked.');
+          },
+        },
+      ],
+      { cancelable: true }
+    );
   };
 
-  const filteredLines = historyList.filter((line: SurveyLine) => {
-    if (line.workflowType === 'ERECTION') return false;
-    const matchesVoltage = voltageFilter === 'ALL' || line.lineType === voltageFilter;
-    const matchesStatus = statusFilter === 'ALL' || line.status === statusFilter;
-    return matchesVoltage && matchesStatus;
-  });
+  // List Filters mapping
+  const filteredLines = useMemo(() => {
+    return (historyList || []).filter((line: SurveyLine) => {
+      // Exclude erection workflow items
+      if (line.workflowType === 'ERECTION') return false;
+
+      // Voltage filter
+      const matchesVoltage =
+        voltageFilter === 'ALL' ||
+        line.lineType === voltageFilter ||
+        String(line.lineType).toUpperCase().includes(voltageFilter.replace('HT_', '').replace('_', ''));
+
+      // Status filter
+      const isCompleted = Boolean(line.isCompleted);
+      const matchesStatus =
+        statusFilter === 'ALL' ||
+        (statusFilter === 'COMPLETED' && isCompleted) ||
+        (statusFilter === 'PENDING' && !isCompleted && line.status === 'PENDING') ||
+        (statusFilter === 'SYNCED' && !isCompleted && line.status === 'SYNCED');
+
+      // Search query
+      if (!searchQuery.trim()) return matchesVoltage && matchesStatus;
+      const q = searchQuery.trim().toLowerCase();
+      const matchesSearch = [
+        line.contractorName,
+        line.drawingNo,
+        line.location,
+        line.village,
+        line.block,
+        line.district,
+        line.feederName,
+        line.dtrCode,
+        line.id,
+        line.remarks,
+      ].some((val) => String(val || '').toLowerCase().includes(q));
+
+      return matchesVoltage && matchesStatus && matchesSearch;
+    });
+  }, [historyList, voltageFilter, statusFilter, searchQuery]);
 
   const getLineAccent = (type: string | number) => {
-    switch (type) {
-      case 'HT_11KV': return '#F59E0B'; // Amber
-      case 'HT_33KV': return '#EF4444'; // Red
-      case 'LT_440V': return '#0284C7'; // Sky Blue
-      default: return '#0284C7';
-    }
+    const str = String(type || '').toUpperCase();
+    if (str.includes('11KV')) return '#F59E0B'; // Amber
+    if (str.includes('33KV')) return '#EF4444'; // Red
+    if (str.includes('LT') || str.includes('440V')) return '#0284C7'; // Sky Blue
+    return '#0284C7';
   };
 
   return (
@@ -150,131 +174,314 @@ export default function SurveyListScreen() {
             <LinearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
               <Stop offset="0%" stopColor="#FFFFFF" />
               <Stop offset="60%" stopColor="#F0F9FF" />
-              <Stop offset="100%" stopColor="#E0F2FE" />
+              <Stop offset="100%" stopColor="#EFF7FF" />
             </LinearGradient>
           </Defs>
           <Rect width="100%" height="100%" fill="url(#bgGradient)" />
         </Svg>
       </View>
 
-      {/* 2. MAIN SCROLL CONTAINER */}
       <View style={styles.mainWrapper}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>SURVEY RUNS</Text>
-        </View>
-
-        <View style={styles.filtersContainer}>
-          <Text style={styles.filterTitle}>VOLTAGE CLASS</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtersScroll}>
-            {([
-              { label: 'ALL CLASS', value: 'ALL' },
-              { label: '11KV HT', value: 'HT_11KV' },
-              { label: '33KV HT', value: 'HT_33KV' },
-              { label: 'LT LINE', value: 'LT_440V' }
-            ] as const).map((opt) => (
-              <TouchableOpacity
-                key={opt.value}
-                style={[styles.filterTab, voltageFilter === opt.value && styles.filterTabActive]}
-                onPress={() => setVoltageFilter(opt.value)}
-              >
-                <Text style={[styles.filterTabText, voltageFilter === opt.value && styles.filterTabTextActive]}>
-                  {opt.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          <Text style={[styles.filterTitle, { marginTop: 12 }]}>UPLOAD STATUS</Text>
-          <View style={styles.statusFiltersRow}>
-            {([
-              { label: 'ALL STATUS', value: 'ALL' },
-              { label: 'PENDING', value: 'PENDING' },
-              { label: 'SYNCED', value: 'SYNCED' }
-            ] as const).map((opt) => (
-              <TouchableOpacity
-                key={opt.value}
-                style={[styles.statusTab, statusFilter === opt.value && styles.statusTabActive]}
-                onPress={() => setStatusFilter(opt.value)}
-              >
-                <Text style={[styles.statusTabText, statusFilter === opt.value && styles.statusTabTextActive]}>
-                  {opt.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
+        {/* 2. HERO HEADER WITH IMAGE BACKGROUND */}
+        <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <ImageBackground
+              source={require('../../../assets/erection-hero-v2.png')}
+              style={StyleSheet.absoluteFill}
+              resizeMode="stretch"
+            />
+          </View>
+          <View style={styles.heroCopy}>
+            <Text style={styles.headerTitle}>Survey</Text>
+            <Text style={styles.heroAccent}>Runs</Text>
+            <Text style={styles.heroSubtitle}>Track electrical corridors, inspect mapped nodes, and manage line surveys</Text>
           </View>
         </View>
 
+        {/* 3. SEARCH & FILTER PANEL */}
+        <View style={styles.searchPanel}>
+          <View style={styles.searchInputWrap}>
+            <Svg width={21} height={21} viewBox="0 0 24 24">
+              <Circle cx="10" cy="10" r="7" stroke="#607399" strokeWidth="2" fill="none" />
+              <Line x1="15" y1="15" x2="22" y2="22" stroke="#607399" strokeWidth="2" />
+            </Svg>
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search contractor, drawing, village..."
+              placeholderTextColor="#7383A2"
+              style={styles.searchInput}
+              accessibilityLabel="Search survey runs"
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity
+                onPress={() => setSearchQuery('')}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={styles.clearSearchBtn}
+              >
+                <Text style={styles.clearSearchText}>✕</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <TouchableOpacity
+            style={[styles.filterButton, (voltageFilter !== 'ALL' || statusFilter !== 'ALL') && styles.filterButtonActive]}
+            onPress={() => setShowFilterModal(true)}
+            accessibilityLabel="Filter survey runs"
+          >
+            <Svg width={25} height={25} viewBox="0 0 24 24" stroke="#1765E8" strokeWidth="2">
+              <Line x1="3" y1="6" x2="21" y2="6" />
+              <Line x1="3" y1="12" x2="21" y2="12" />
+              <Line x1="3" y1="18" x2="21" y2="18" />
+              <Circle cx="8" cy="6" r="2" fill="#1765E8" />
+              <Circle cx="16" cy="12" r="2" fill="#1765E8" />
+              <Circle cx="10" cy="18" r="2" fill="#1765E8" />
+            </Svg>
+          </TouchableOpacity>
+        </View>
+
+        {/* 4. FILTER DRAWER MODAL */}
+        <Modal
+          visible={showFilterModal}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowFilterModal(false)}
+        >
+          <TouchableOpacity
+            style={styles.filterModalOverlay}
+            activeOpacity={1}
+            onPress={() => setShowFilterModal(false)}
+          >
+            <View style={[styles.filterDrawer, { paddingBottom: Math.max(insets.bottom, 14) }]} onStartShouldSetResponder={() => true}>
+              <View style={styles.drawerHandle} />
+              <View style={styles.drawerHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.drawerEyebrow}>SURVEY RUNS</Text>
+                  <Text style={styles.drawerTitle}>Filter surveys</Text>
+                  <Text style={styles.drawerSubtitle}>Find the survey corridors you want to inspect.</Text>
+                </View>
+                <TouchableOpacity
+                  accessibilityLabel="Close survey filters"
+                  onPress={() => setShowFilterModal(false)}
+                  style={styles.drawerCloseBtn}
+                >
+                  <Text style={styles.drawerCloseText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView contentContainerStyle={styles.drawerContent} showsVerticalScrollIndicator={false}>
+                <Text style={styles.drawerSectionTitle}>Voltage class</Text>
+                <View style={styles.drawerOptionsGrid}>
+                  {([
+                    { label: 'ALL CLASS', value: 'ALL' },
+                    { label: '11KV HT', value: 'HT_11KV' },
+                    { label: '33KV HT', value: 'HT_33KV' },
+                    { label: 'LT LINE', value: 'LT_440V' },
+                  ] as const).map((opt) => (
+                    <TouchableOpacity
+                      key={opt.value}
+                      style={[styles.drawerFilterTab, voltageFilter === opt.value && styles.drawerFilterTabActive]}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: voltageFilter === opt.value }}
+                      onPress={() => setVoltageFilter(opt.value)}
+                    >
+                      <Text style={[styles.drawerFilterTabText, voltageFilter === opt.value && styles.drawerFilterTabTextActive]}>
+                        {opt.label}
+                      </Text>
+                      <View style={[styles.drawerRadio, voltageFilter === opt.value && styles.drawerRadioActive]}>
+                        {voltageFilter === opt.value && <View style={styles.drawerRadioDot} />}
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={[styles.drawerSectionTitle, { marginTop: 16 }]}>Survey status</Text>
+                <View style={styles.drawerOptionsGrid}>
+                  {([
+                    { label: 'ALL STATUS', value: 'ALL' },
+                    { label: 'PENDING', value: 'PENDING' },
+                    { label: 'COMPLETED', value: 'COMPLETED' },
+                    { label: 'SYNCED', value: 'SYNCED' },
+                  ] as const).map((opt) => (
+                    <TouchableOpacity
+                      key={opt.value}
+                      style={[styles.drawerFilterTab, statusFilter === opt.value && styles.drawerFilterTabActive]}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: statusFilter === opt.value }}
+                      onPress={() => setStatusFilter(opt.value)}
+                    >
+                      <Text style={[styles.drawerFilterTabText, statusFilter === opt.value && styles.drawerFilterTabTextActive]}>
+                        {opt.label}
+                      </Text>
+                      <View style={[styles.drawerRadio, statusFilter === opt.value && styles.drawerRadioActive]}>
+                        {statusFilter === opt.value && <View style={styles.drawerRadioDot} />}
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+
+              <View style={styles.drawerFooter}>
+                <Text style={styles.drawerResultText}>
+                  {filteredLines.length} matching survey{filteredLines.length === 1 ? '' : 's'}
+                </Text>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  style={styles.drawerDoneButton}
+                  onPress={() => setShowFilterModal(false)}
+                  activeOpacity={0.85}
+                >
+                  <View style={[StyleSheet.absoluteFill, { borderRadius: 13, overflow: 'hidden' }]} pointerEvents="none">
+                    <Svg width="100%" height="100%">
+                      <Defs>
+                        <LinearGradient id="filterDoneGradient" x1="0%" y1="100%" x2="100%" y2="0%">
+                          <Stop offset="0%" stopColor="#087CFF" />
+                          <Stop offset="100%" stopColor="#8A40F6" />
+                        </LinearGradient>
+                      </Defs>
+                      <Rect width="100%" height="100%" fill="url(#filterDoneGradient)" />
+                    </Svg>
+                  </View>
+                  <Text style={styles.drawerDoneText}>Show surveys</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+
+        {/* 5. SURVEY RUNS LIST */}
         <ScrollView style={styles.scrollList} contentContainerStyle={styles.scrollListContent} keyboardShouldPersistTaps="handled">
           {filteredLines.length === 0 ? (
             <View style={styles.emptyCard}>
-              <Text style={styles.emptyText}>NO SURVEYS MATCH FILTER</Text>
-              <Text style={styles.emptySubText}>Tap the floating icon in the bottom right corner to log a new survey run.</Text>
+              <Text style={styles.emptyText}>NO SURVEYS FOUND</Text>
+              <Text style={styles.emptySubText}>
+                {searchQuery.trim() || voltageFilter !== 'ALL' || statusFilter !== 'ALL'
+                  ? 'Try another search or adjust your filters.'
+                  : 'Tap the + button to configure and start a new survey corridor.'}
+              </Text>
             </View>
           ) : (
-            filteredLines.map((item: SurveyLine) => {
+            filteredLines.map((item: SurveyLine, index: number) => {
               const accent = getLineAccent(item.lineType);
-              const isSynced = item.status === 'SYNCED';
               const isCompleted = Boolean(item.isCompleted);
+              const isSynced = item.status === 'SYNCED';
+              const isRejected = item.status === 'REJECTED';
+              const statusLabel = isCompleted ? 'COMPLETED' : (isRejected ? 'REJECTED' : (isSynced ? 'SYNCED' : 'PENDING'));
+              const statusColor = isCompleted ? '#475569' : (isRejected ? '#DC2626' : (isSynced ? '#059669' : '#D97706'));
+              const statusBg = isCompleted
+                ? 'rgba(71, 85, 105, 0.08)'
+                : isRejected
+                ? 'rgba(220, 38, 38, 0.08)'
+                : isSynced
+                ? 'rgba(5, 150, 105, 0.08)'
+                : 'rgba(217, 119, 6, 0.08)';
+              const cardBorderColor = ['#8470FF', '#FFB13D', '#29ACF5', '#A348F5'][index % 4];
+              const iconBg = ['#7774FF', '#FFAA28', '#24A5FA', '#A348F5'][index % 4];
+
               return (
-                <TouchableOpacity 
-                  key={item.id} 
-                  style={styles.surveyCard}
+                <TouchableOpacity
+                  key={item.id}
+                  style={[styles.surveyCard, { borderLeftColor: cardBorderColor }]}
+                  activeOpacity={0.88}
                   onPress={() => navigation.navigate('SurveyDetails', { surveyId: item.id })}
-                  activeOpacity={0.75}
                 >
                   <View style={styles.cardHeader}>
-                    <View>
-                      <Text style={styles.contractorName}>{item.contractorName}</Text>
-                      <Text style={styles.timestampText}>
-                        📅 {new Date(item.startedAt).toLocaleDateString()} // {new Date(item.startedAt).toLocaleTimeString()}
+                    <View style={[styles.projectIcon, { backgroundColor: iconBg }]}>
+                      {/* Electrical transmission tower / pole icon */}
+                      <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <Path d="M12 2v20M5 7h14M7 12h10M9 17h6" />
+                      </Svg>
+                    </View>
+                    <View style={{ flex: 1, paddingRight: 6 }}>
+                      <Text style={styles.contractorName} numberOfLines={2}>
+                        {item.contractorName || 'Unnamed Survey'}
+                      </Text>
+                      <Text style={styles.cardMetaText}>
+                        {item.drawingNo ? `Drawing No.: ${item.drawingNo}` : `Run ID: ${item.id}`}
+                        {item.feederName ? ` • FDR: ${item.feederName}` : ''}
+                        {item.dtrCode ? ` • DTR: ${item.dtrCode}` : ''}
                       </Text>
                     </View>
+                  </View>
+
+                  <View style={styles.badgeRow}>
                     <View style={[styles.classBadge, { borderColor: accent }]}>
                       <Text style={[styles.classBadgeText, { color: accent }]}>
                         {getLineTypeLabel(item.lineType)}
                       </Text>
                     </View>
-                  </View>
-                  {item.remarks ? (
-                    <Text style={styles.remarksText}>&gt; {item.remarks}</Text>
-                  ) : null}
-                  <View style={styles.cardFooter}>
-                    <Text style={styles.nodesCount}>🗺️ {item.nodes.length} nodes mapped</Text>
-                    <View style={[styles.statusBadge, {
-                      borderColor: isCompleted ? '#475569' : isSynced ? '#059669' : '#D97706',
-                      backgroundColor: isCompleted ? 'rgba(71, 85, 105, 0.08)' : isSynced ? 'rgba(5, 150, 105, 0.05)' : 'rgba(217, 119, 6, 0.05)'
-                    }]}>
-                      <Text style={[styles.statusBadgeText, { color: isCompleted ? '#475569' : isSynced ? '#059669' : '#D97706' }]}>
-                        {isCompleted ? 'COMPLETED' : item.status}
+
+                    <View style={[styles.statusBadge, { borderColor: statusColor, backgroundColor: statusBg }]}>
+                      <Text style={[styles.statusBadgeText, { color: statusColor }]}>
+                        {statusLabel}
+                      </Text>
+                    </View>
+
+                    <View style={styles.nodesBadge}>
+                      <Text style={styles.nodesBadgeText}>
+                        🗺️ {item.nodes?.length || 0} {(item.nodes?.length || 0) === 1 ? 'node' : 'nodes'}
                       </Text>
                     </View>
                   </View>
-                  <View style={styles.cardActions}>
+
+                  <Text style={styles.cardLocationText}>
+                    📍 {[item.village, item.block, item.district].filter(Boolean).join(', ') || item.location || 'Location not specified'}
+                  </Text>
+
+                  {item.remarks ? (
+                    <Text style={styles.cardRemarksText} numberOfLines={1}>
+                      💬 {item.remarks}
+                    </Text>
+                  ) : null}
+
+                  <Text style={styles.cardTimestampText}>
+                    📅 Started: {new Date(item.startedAt).toLocaleDateString()} {new Date(item.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {item.completedAt ? ` • Done: ${new Date(item.completedAt).toLocaleDateString()}` : ''}
+                  </Text>
+
+                  {!isCompleted ? (
+                    <View style={styles.buttonsRow}>
+                      <TouchableOpacity
+                        style={styles.compactBtnEdit}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          navigation.navigate('SurveyDetails', { surveyId: item.id, editMode: true });
+                        }}
+                      >
+                        <Text style={styles.compactBtnTextEdit}>{"\u270E"}  Edit</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.compactBtnUpdate}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          handleContinueSurvey(item);
+                        }}
+                      >
+                        <Text style={styles.compactBtnTextUpdate}>{"\u21BB"}  Continue</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.compactBtnComplete}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          handleCompleteLine(item);
+                        }}
+                      >
+                        <Text style={styles.compactBtnTextComplete}>{"\u2713"}  Complete</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
                     <TouchableOpacity
-                      style={[styles.editAction, isCompleted && styles.actionDisabled]}
-                      disabled={isCompleted}
-                      onPress={event => {
-                        event.stopPropagation();
-                        navigation.navigate('SurveyDetails', { surveyId: item.id, editMode: true });
+                      style={styles.compactBtnView}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        navigation.navigate('SurveyDetails', { surveyId: item.id });
                       }}
                     >
-                      <Text style={[styles.editActionText, isCompleted && styles.actionDisabledText]}>
-                        {isCompleted ? 'EDIT LOCKED' : 'EDIT'}
-                      </Text>
+                      <Text style={styles.compactBtnTextView}>VIEW DETAILS</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.completeAction, isCompleted && styles.actionDisabled]}
-                      disabled={isCompleted}
-                      onPress={event => {
-                        event.stopPropagation();
-                        handleCompleteLine(item);
-                      }}
-                    >
-                      <Text style={[styles.completeActionText, isCompleted && styles.actionDisabledText]}>
-                        {isCompleted ? 'LOCKED' : 'COMPLETE'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
+                  )}
                 </TouchableOpacity>
               );
             })
@@ -282,121 +489,26 @@ export default function SurveyListScreen() {
         </ScrollView>
       </View>
 
-      {/* FLOATING ACTION BUTTON */}
-      <TouchableOpacity 
-        style={styles.fab} 
+      {/* 6. FLOATING ACTION BUTTON */}
+      <TouchableOpacity
+        style={styles.fab}
         onPress={() => navigation.navigate('SurveySetup')}
-        activeOpacity={0.8}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel="Create new survey run"
       >
-        <Text style={styles.fabIcon}>+</Text>
+        <Svg width={46} height={46} viewBox="0 0 58 58">
+          <Defs>
+            <LinearGradient id="surveyAddGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <Stop offset="0" stopColor="#26BBFF" />
+              <Stop offset="0.55" stopColor="#6262FF" />
+              <Stop offset="1" stopColor="#A42AF3" />
+            </LinearGradient>
+          </Defs>
+          <Circle cx="29" cy="29" r="29" fill="url(#surveyAddGradient)" />
+          <Path d="M29 18V40M18 29H40" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
+        </Svg>
       </TouchableOpacity>
-
-      {/* NEW RUN DIALOG POPUP */}
-      <Modal
-        visible={showAddModal}
-        transparent
-        animationType="slide"
-        onRequestClose={closeAddModal}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {isChoosingLtStart ? 'SELECT STARTING POINT' : 'NEW SURVEY RUN'}
-              </Text>
-              <TouchableOpacity onPress={closeAddModal}>
-                <Text style={styles.modalCloseText}>CLOSE</Text>
-              </TouchableOpacity>
-            </View>
-
-            {isChoosingLtStart ? (
-              <View style={styles.startingPointStep}>
-                <Text style={styles.stepContext}>LT LINE SURVEY</Text>
-                <Text style={styles.stepPrompt}>Where does this line start?</Text>
-
-                {LT_STARTING_POINTS.map((option) => {
-                  const isSelected = ltStartingPoint === option.value;
-                  return (
-                    <TouchableOpacity
-                      key={option.value}
-                      activeOpacity={0.75}
-                      onPress={() => setLtStartingPoint(option.value)}
-                      style={[styles.startingPointOption, isSelected && styles.startingPointOptionSelected]}
-                    >
-                      <View style={[styles.radioOuter, isSelected && styles.radioOuterSelected]}>
-                        {isSelected && <View style={styles.radioInner} />}
-                      </View>
-                      <View style={styles.startingPointCopy}>
-                        <Text style={[styles.startingPointTitle, isSelected && styles.startingPointTitleSelected]}>
-                          {option.title}
-                        </Text>
-                        <Text style={styles.startingPointDescription}>{option.description}</Text>
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
-
-                <View style={styles.stepActions}>
-                  <TouchableOpacity style={styles.backButton} onPress={() => setIsChoosingLtStart(false)}>
-                    <Text style={styles.backButtonText}>BACK</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.continueButton} onPress={handleConfirmLtStartingPoint}>
-                    <Text style={styles.launchSurveyText}>CONTINUE SURVEY</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ) : (
-              <ScrollView style={styles.modalForm} keyboardShouldPersistTaps="handled">
-              <Text style={styles.formLabel}>CONTRACTOR FIRM NAME</Text>
-              <TextInput
-                style={styles.formInput}
-                placeholder="e.g. L&T Power Transmission"
-                placeholderTextColor="rgba(30, 41, 59, 0.35)"
-                value={contractor}
-                onChangeText={setContractor}
-              />
-
-              <Text style={styles.formLabel}>VOLTAGE/CABLE CLASS</Text>
-              <View style={styles.pillsRow}>
-                {([
-                  { label: '11KV HT', value: 'HT_11KV', color: '#F59E0B' },
-                  { label: '33KV HT', value: 'HT_33KV', color: '#EF4444' },
-                  { label: 'LT LINE', value: 'LT_440V', color: '#0284C7' }
-                ] as const).map((opt) => (
-                  <TouchableOpacity
-                    key={opt.value}
-                    style={[
-                      styles.pillButton,
-                      lineType === opt.value && { borderColor: opt.color, backgroundColor: 'rgba(2, 132, 199, 0.05)' }
-                    ]}
-                    onPress={() => setLineType(opt.value)}
-                  >
-                    <Text style={[styles.pillButtonText, lineType === opt.value && { color: opt.color, fontWeight: 'bold' }]}>
-                      {opt.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <Text style={styles.formLabel}>SITE DESCRIPTION / REMARKS</Text>
-              <TextInput
-                style={[styles.formInput, styles.formTextArea]}
-                placeholder="Observed alignment, conductor weight class..."
-                placeholderTextColor="rgba(30, 41, 59, 0.35)"
-                value={remarks}
-                onChangeText={setRemarks}
-                multiline
-                numberOfLines={3}
-              />
-
-              <TouchableOpacity style={styles.launchSurveyBtn} onPress={handleStartNewSurvey}>
-                <Text style={styles.launchSurveyText}>START LINE SURVEY</Text>
-              </TouchableOpacity>
-              </ScrollView>
-            )}
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -404,118 +516,261 @@ export default function SurveyListScreen() {
 const styles = StyleSheet.create({
   outerContainer: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#EFF7FF',
   },
   mainWrapper: {
     flex: 1,
     zIndex: 10,
   },
   header: {
+    minHeight: 150,
+    paddingHorizontal: 18,
+    paddingBottom: 22,
     flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderColor: 'rgba(2, 132, 199, 0.08)',
-    borderBottomWidth: 1.2,
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 16,
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    overflow: 'hidden',
   },
-  brandingWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(2, 132, 199, 0.06)',
-    borderColor: 'rgba(2, 132, 199, 0.18)',
-    borderWidth: 1.2,
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  brandingIcon: {
-    fontSize: 14,
-    marginRight: 6,
-  },
-  brandingText: {
-    color: '#0284C7',
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1.5,
+  heroCopy: {
+    flex: 1,
+    maxWidth: 220,
+    paddingRight: 12,
   },
   headerTitle: {
-    color: '#0F172A',
-    fontSize: 16,
-    fontWeight: 'bold',
-    letterSpacing: 2,
-  },
-  headerPlaceholder: {
-    width: 90,
-  },
-  filtersContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 14,
-    borderBottomWidth: 1.2,
-    borderBottomColor: 'rgba(2, 132, 199, 0.08)',
-  },
-  filterTitle: {
-    color: '#64748B',
-    fontSize: 8.5,
+    color: '#FFFFFF',
+    fontSize: 25,
+    lineHeight: 28,
     fontWeight: '800',
-    letterSpacing: 1.5,
-    marginBottom: 8,
+    letterSpacing: -0.7,
   },
-  filtersScroll: {
+  heroAccent: {
+    color: '#9EDBFF',
+    fontSize: 25,
+    lineHeight: 28,
+    fontWeight: '800',
+    letterSpacing: -0.7,
+  },
+  heroSubtitle: {
+    color: '#EAF3FF',
+    fontSize: 10.5,
+    lineHeight: 14,
+    marginTop: 5,
+    maxWidth: 195,
+  },
+  searchPanel: {
     flexDirection: 'row',
-  },
-  filterTab: {
-    borderColor: 'rgba(2, 132, 199, 0.15)',
-    borderWidth: 1.2,
-    borderRadius: 14,
+    gap: 8,
     paddingHorizontal: 12,
-    paddingVertical: 5,
-    marginRight: 8,
+    paddingTop: 10,
+    paddingBottom: 8,
+    marginTop: -16,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    backgroundColor: '#EFF7FF',
+  },
+  searchInputWrap: {
+    flex: 1,
+    minHeight: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20,
     backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#DAE6FA',
   },
-  filterTabActive: {
-    borderColor: '#0284C7',
-    backgroundColor: 'rgba(2, 132, 199, 0.06)',
+  searchInput: {
+    flex: 1,
+    fontSize: 11,
+    color: '#233A60',
+    paddingVertical: 8,
   },
-  filterTabText: {
-    color: '#64748B',
-    fontSize: 10,
+  clearSearchBtn: {
+    padding: 4,
+  },
+  clearSearchText: {
+    color: '#8A99B5',
+    fontSize: 12,
     fontWeight: '700',
   },
-  filterTabTextActive: {
-    color: '#0284C7',
-  },
-  statusFiltersRow: {
-    flexDirection: 'row',
-  },
-  statusTab: {
-    borderColor: 'rgba(2, 132, 199, 0.15)',
-    borderWidth: 1.2,
+  filterButton: {
+    width: 40,
+    height: 40,
     borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#B8C9FF',
+    backgroundColor: '#E4EEFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterButtonActive: {
+    backgroundColor: '#C4D8FF',
+    borderColor: '#1765E8',
+  },
+  filterModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(14, 27, 62, 0.45)',
+    justifyContent: 'flex-end',
+  },
+  filterDrawer: {
+    width: '100%',
+    maxHeight: '85%',
+    backgroundColor: '#F7FAFF',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderWidth: 1,
+    borderColor: '#DCDFFA',
+    paddingTop: 10,
+    paddingHorizontal: 20,
+    shadowColor: '#243D70',
+    shadowOffset: { width: 0, height: -5 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 18,
+  },
+  drawerHandle: {
+    width: 38,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#CED8EF',
+    alignSelf: 'center',
+  },
+  drawerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: 10,
+    paddingBottom: 18,
+  },
+  drawerEyebrow: {
+    color: '#8264BA',
+    fontSize: 8,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+    marginBottom: 4,
+  },
+  drawerTitle: {
+    color: '#14234F',
+    fontSize: 22,
+    lineHeight: 28,
+    fontWeight: '800',
+    letterSpacing: -0.4,
+  },
+  drawerSubtitle: {
+    color: '#7A89A8',
+    fontSize: 11,
+    marginTop: 4,
+  },
+  drawerCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#EEEAFE',
+    borderWidth: 1,
+    borderColor: '#DFD5F8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  drawerCloseText: {
+    color: '#7051AB',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  drawerContent: {
+    paddingBottom: 12,
+  },
+  drawerSectionTitle: {
+    color: '#30436B',
+    fontSize: 12,
+    fontWeight: '800',
+    marginBottom: 9,
+  },
+  drawerOptionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  drawerFilterTab: {
+    width: '48%',
+    minHeight: 44,
+    paddingVertical: 10,
     paddingHorizontal: 12,
-    paddingVertical: 5,
-    marginRight: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#DDE6F7',
     backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 6,
   },
-  statusTabActive: {
-    borderColor: '#0284C7',
-    backgroundColor: 'rgba(2, 132, 199, 0.06)',
+  drawerFilterTabActive: {
+    borderColor: '#9864F2',
+    backgroundColor: '#F1EBFF',
+    shadowColor: '#8456DA',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  statusTabText: {
-    color: '#64748B',
+  drawerFilterTabText: {
+    color: '#627397',
+    fontSize: 10.5,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
+  drawerFilterTabTextActive: {
+    color: '#7041CB',
+    fontWeight: '800',
+  },
+  drawerRadio: {
+    width: 17,
+    height: 17,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderColor: '#C3CFE5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  drawerRadioActive: {
+    borderColor: '#8450DD',
+  },
+  drawerRadioDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#8450DD',
+  },
+  drawerFooter: {
+    borderTopWidth: 1,
+    borderTopColor: '#E3E8F5',
+    paddingTop: 12,
+  },
+  drawerResultText: {
+    color: '#7182A3',
     fontSize: 10,
-    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 10,
   },
-  statusTabTextActive: {
-    color: '#0284C7',
+  drawerDoneButton: {
+    minHeight: 44,
+    borderRadius: 13,
+    backgroundColor: '#7045E8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  drawerDoneText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
   scrollList: {
     flex: 1,
   },
   scrollListContent: {
-    padding: 20,
+    paddingHorizontal: 12,
+    paddingTop: 4,
     paddingBottom: 90,
   },
   emptyCard: {
@@ -542,328 +797,189 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   surveyCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
-    borderColor: 'rgba(255, 255, 255, 0.7)',
-    borderWidth: 1.5,
+    backgroundColor: '#FBFDFF',
+    borderWidth: 1,
+    borderColor: '#E5EDFA',
+    borderLeftWidth: 3,
     borderRadius: 16,
-    marginBottom: 16,
-    padding: 16,
-    shadowColor: '#0284C7',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 3,
+    marginBottom: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    shadowColor: '#3974AF',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.09,
+    shadowRadius: 6,
+    elevation: 2,
   },
   cardHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  projectIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 9,
   },
   contractorName: {
-    color: '#0F172A',
-    fontSize: 14,
-    fontWeight: 'bold',
+    color: '#101E52',
+    fontSize: 13,
+    lineHeight: 17,
+    fontWeight: '800',
   },
-  timestampText: {
-    color: '#64748B',
-    fontSize: 9,
-    marginTop: 2,
+  cardMetaText: {
+    color: '#607399',
+    fontSize: 10,
+    lineHeight: 14,
+    marginTop: 1,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 7,
+    flexWrap: 'wrap',
+    gap: 6,
   },
   classBadge: {
-    borderWidth: 1.2,
-    borderRadius: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    borderWidth: 0,
+    borderRadius: 12,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    backgroundColor: '#EDF5FF',
+    shadowColor: '#4075BA',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    elevation: 2,
   },
   classBadgeText: {
-    fontSize: 8.5,
-    fontWeight: 'bold',
-    letterSpacing: 0.5,
-  },
-  remarksText: {
-    color: '#D97706',
-    fontSize: 10.5,
-    marginTop: 12,
-    fontFamily: 'System',
-    fontWeight: '700',
-  },
-  cardFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderTopWidth: 1.2,
-    borderTopColor: 'rgba(2, 132, 199, 0.08)',
-    paddingTop: 10,
-    marginTop: 12,
-  },
-  nodesCount: {
-    color: '#0F172A',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
   },
   statusBadge: {
-    borderWidth: 1.2,
-    borderRadius: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    borderWidth: 0,
+    borderRadius: 12,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    shadowColor: '#A47A32',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   statusBadgeText: {
-    fontSize: 8.5,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  nodesBadge: {
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: '#F0F4FA',
+  },
+  nodesBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#405273',
+  },
+  cardLocationText: {
+    color: '#465B80',
+    fontSize: 10,
+    lineHeight: 14,
+    marginTop: 7,
+  },
+  cardRemarksText: {
+    color: '#EF850C',
+    fontSize: 10,
+    lineHeight: 14,
+    marginTop: 3,
+    fontWeight: '600',
+  },
+  cardTimestampText: {
+    color: '#607399',
+    fontSize: 10,
+    lineHeight: 14,
+    marginTop: 3,
+  },
+  buttonsRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 9,
+  },
+  compactBtnEdit: {
+    flex: 1,
+    minHeight: 34,
+    borderWidth: 1,
+    borderColor: '#9873FF',
+    borderRadius: 12,
+    backgroundColor: '#FBF9FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  compactBtnTextEdit: {
+    color: '#783DFA',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  compactBtnUpdate: {
+    flex: 1,
+    minHeight: 34,
+    borderRadius: 12,
+    backgroundColor: '#087CFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  compactBtnTextUpdate: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  compactBtnComplete: {
+    flex: 1,
+    minHeight: 34,
+    borderRadius: 12,
+    backgroundColor: '#FF4038',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  compactBtnTextComplete: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  compactBtnView: {
+    minHeight: 34,
+    borderRadius: 12,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#C5DDFB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+  },
+  compactBtnTextView: {
+    color: '#0284C7',
+    fontSize: 10,
     fontWeight: 'bold',
-    letterSpacing: 0.5,
   },
   fab: {
     position: 'absolute',
-    bottom: 24,
-    right: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#0284C7',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#0284C7',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 8,
-    zIndex: 100,
-  },
-  fabIcon: {
-    color: '#FFFFFF',
-    fontSize: 28,
-    fontWeight: '300',
-    marginTop: -2,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.45)',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  modalCard: {
-    maxHeight: '80%',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderColor: 'rgba(255, 255, 255, 0.8)',
-    borderWidth: 1.5,
-    borderRadius: 20,
-    padding: 24,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
-    elevation: 8,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomColor: 'rgba(2, 132, 199, 0.08)',
-    borderBottomWidth: 1.2,
-    paddingBottom: 12,
-    marginBottom: 20,
-  },
-  modalTitle: {
-    color: '#0F172A',
-    fontSize: 14,
-    fontWeight: '800',
-    letterSpacing: 2,
-  },
-  modalCloseText: {
-    color: '#EF4444',
-    fontSize: 11,
-    fontWeight: 'bold',
-    letterSpacing: 1,
-  },
-  modalForm: {
-    flexGrow: 0,
-  },
-  formLabel: {
-    color: '#64748B',
-    fontSize: 8.5,
-    fontWeight: '800',
-    letterSpacing: 1.5,
-    marginBottom: 6,
-    marginTop: 14,
-  },
-  formInput: {
-    backgroundColor: '#FFFFFF',
-    borderColor: 'rgba(2, 132, 199, 0.15)',
-    borderWidth: 1.2,
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    color: '#1E293B',
-    fontSize: 13,
-  },
-  formTextArea: {
-    height: 60,
-    textAlignVertical: 'top',
-  },
-  pillsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  pillButton: {
-    flex: 1,
-    marginHorizontal: 3,
-    borderColor: 'rgba(2, 132, 199, 0.15)',
-    borderWidth: 1.2,
-    borderRadius: 8,
-    paddingVertical: 8,
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-  },
-  pillButtonText: {
-    color: '#64748B',
-    fontSize: 10.5,
-  },
-  launchSurveyBtn: {
-    backgroundColor: '#0284C7',
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginTop: 24,
-    marginBottom: 10,
-    shadowColor: '#0284C7',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  launchSurveyText: {
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-    fontSize: 12,
-    letterSpacing: 1.5,
-  },
-  cardActions: {
-    flexDirection: 'row',
-    marginTop: 12,
-  },
-  editAction: {
-    flex: 1,
-    minHeight: 38,
+    bottom: 20,
+    right: 18,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.2,
-    borderColor: '#0284C7',
-    borderRadius: 8,
-    backgroundColor: 'rgba(2, 132, 199, 0.06)',
-    marginRight: 6,
-  },
-  completeAction: {
-    flex: 1,
-    minHeight: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.2,
-    borderColor: '#059669',
-    borderRadius: 8,
-    backgroundColor: 'rgba(5, 150, 105, 0.06)',
-    marginLeft: 6,
-  },
-  editActionText: { color: '#0284C7', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
-  completeActionText: { color: '#047857', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
-  actionDisabled: { borderColor: '#CBD5E1', backgroundColor: '#F1F5F9', opacity: 0.75 },
-  actionDisabledText: { color: '#94A3B8' },
-  startingPointStep: {
-    paddingTop: 2,
-  },
-  stepContext: {
-    color: '#0284C7',
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 1.5,
-  },
-  stepPrompt: {
-    color: '#0F172A',
-    fontSize: 18,
-    fontWeight: '700',
-    marginTop: 5,
-    marginBottom: 16,
-  },
-  startingPointOption: {
-    minHeight: 72,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1.2,
-    borderColor: 'rgba(2, 132, 199, 0.15)',
-    borderRadius: 8,
-    backgroundColor: '#FFFFFF',
-    padding: 13,
-    marginBottom: 10,
-  },
-  startingPointOptionSelected: {
-    borderColor: '#0284C7',
-    backgroundColor: 'rgba(2, 132, 199, 0.06)',
-  },
-  radioOuter: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    borderColor: '#94A3B8',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  radioOuterSelected: {
-    borderColor: '#0284C7',
-  },
-  radioInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#0284C7',
-  },
-  startingPointCopy: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  startingPointTitle: {
-    color: '#334155',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  startingPointTitleSelected: {
-    color: '#0369A1',
-  },
-  startingPointDescription: {
-    color: '#64748B',
-    fontSize: 10.5,
-    lineHeight: 15,
-    marginTop: 3,
-  },
-  stepActions: {
-    flexDirection: 'row',
-    marginTop: 12,
-    marginBottom: 4,
-  },
-  backButton: {
-    minWidth: 86,
-    borderWidth: 1.2,
-    borderColor: 'rgba(2, 132, 199, 0.25)',
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-  backButtonText: {
-    color: '#475569',
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1,
-  },
-  continueButton: {
-    flex: 1,
-    backgroundColor: '#0284C7',
-    borderRadius: 8,
-    paddingVertical: 13,
-    alignItems: 'center',
-    shadowColor: '#0284C7',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 7,
-    elevation: 3,
+    shadowColor: '#943DF1',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.4,
+    shadowRadius: 9,
+    zIndex: 20,
+    elevation: 12,
   },
 });

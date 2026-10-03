@@ -70,3 +70,25 @@ export const UpdateSpanDistanceService = (data: {
   const url = `${apiPrefix}erection/span/update/`;
   return serviceClient.post(url, data);
 };
+
+export const SaveSurveyNodeService = (data: any) => {
+  const url = `${apiPrefix}survey/node/save/`;
+  return serviceClient.post(url, data);
+};
+
+export const UpdateSurveyNodeService = (data: any) => {
+  const url = `${apiPrefix}survey/node/update/`;
+  return serviceClient.post(url, data);
+};
+
+export const GetSurveyPoleDetailsService = (data: { survey_id?: number | string; survey_line_id?: number | string; pole_no?: string; name_label?: string; node_id?: number }) => {
+  const url = `${apiPrefix}survey/pole/details/`;
+  return serviceClient.post(url, data);
+};
+
+export const GetSurveyDetailService = (data: { id?: number | string; survey_line_id?: number | string }) => {
+  const url = `${apiPrefix}survey/detail/`;
+  return serviceClient.post(url, data);
+};
+
+

@@ -19,7 +19,7 @@ interface DropdownProps {
   required?: boolean;
 }
 
-export default function Dropdown({ appearance = 'default', label, placeholder, options, value, onChange, onSelect, disabled = false }: DropdownProps) {
+export default function Dropdown({ appearance = 'default', label, placeholder, options, value, onChange, onSelect, disabled = false, required = false }: DropdownProps) {
   const [open, setOpen] = useState(false);
   const selectedLabel = options.find(option => 
     option.value === value || (value != null && value !== '' && String(option.value) === String(value))
@@ -27,7 +27,9 @@ export default function Dropdown({ appearance = 'default', label, placeholder, o
 
   return (
     <View style={[styles.field, appearance === 'erection' && styles.erectionField]}>
-      <Text style={[styles.label, appearance === 'erection' && styles.erectionLabel]}>{label}</Text>
+      <Text style={[styles.label, appearance === 'erection' && styles.erectionLabel]}>
+        {label}{required ? <Text style={{ color: '#EF4444' }}> *</Text> : null}
+      </Text>
       <TouchableOpacity
         accessibilityRole="button"
         accessibilityState={{ disabled, expanded: open }}

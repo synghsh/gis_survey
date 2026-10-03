@@ -318,6 +318,11 @@ const surveySlice = createSlice({
         status: 'PENDING',
       };
     },
+    updateActiveLineId: (state, action: PayloadAction<string>) => {
+      if (state.activeLine) {
+        state.activeLine.id = action.payload;
+      }
+    },
     addNode: (state, action: PayloadAction<SurveyNode>) => {
       if (state.activeLine) {
         state.activeLine.nodes.push(action.payload);
@@ -623,6 +628,7 @@ export type AppDispatch = typeof store.dispatch;
 export const { login, logout, updateProfileImage, updateToken, hydrateAuth } = authSlice.actions;
 export const { 
   startSurvey, 
+  updateActiveLineId,
   resumeSurvey, 
   resumeSurveyWithPole,
   updateActiveNode,

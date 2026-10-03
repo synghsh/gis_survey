@@ -1,14 +1,55 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, TextInput, Image, Modal, Pressable, ScrollView, ImageBackground } from 'react-native';
 import { Controller, useWatch } from 'react-hook-form';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import Dropdown from '../../../components/Dropdown';
 
 function PoleFieldIcon({ name }: { name: string }) {
-  const quantity = /Qty|Quantity|Consumption/.test(name);
-  const palette = name.includes('earth') ? ['#E5FAF3', '#08A777'] : name.includes('stay') ? ['#FFF2E8', '#F58725'] : name === 'conductor' ? ['#E5FAF3', '#08A777'] : name === 'poleMaster' ? ['#FFF2E8', '#F58725'] : quantity || name === 'nameLabel' ? ['#E8F5FF', '#0087F4'] : ['#F1EBFF', '#9047ED'];
-  const path = quantity || name === 'nameLabel' ? 'M8 3L5 21M17 3L14 21M3 9H21M2 16H20' : name === 'remarks' ? 'M4 3H21V19H10L4 23ZM8 8H17M8 12H17M8 16H13' : name === 'conductor' || name === 'earthingUsed' ? 'M12 3C0 3 0 21 12 21C24 21 24 3 12 3ZM12 6C4 6 4 18 12 18C20 18 20 6 12 6Z' : name === 'assetStatus' ? 'M2 11L12 3L22 11M5 9V22H19V9M10 22V15H15V22' : 'M12 2L4 23M12 2L20 23M2 23H22M8 9H16M6 15H18M5 7H19M8 9L18 15L4 23M16 9L6 15L20 23';
-  return <View style={[formStyles.fieldIcon, { backgroundColor: palette[0] }]}><Svg width={20} height={23} viewBox="0 0 24 26" fill="none" stroke={palette[1]} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><Path d={path} /></Svg></View>;
+  const isEarth = name.toLowerCase().includes('earth');
+  const isStay = name.toLowerCase().includes('stay');
+  const isConductor = name.toLowerCase().includes('conductor') || name.toLowerCase().includes('cable');
+  const isQty = /qty|quantity|count/i.test(name);
+  const isPole = name === 'poleMaster' || name === 'poleType';
+  const isCondition = name === 'structureCondition' || name === 'assetStatus';
+  const isPhase = name === 'conductorPhaseNo';
+  const isRemarks = name === 'remarks';
+
+  let palette = ['#E8F5FF', '#0087F4'];
+  let path = 'M8 3L5 21M17 3L14 21M3 9H21M2 16H20';
+
+  if (isEarth) {
+    palette = ['#E5FAF3', '#08A777'];
+    path = 'M12 3V15M6 15H18M8 18H16M10 21H14';
+  } else if (isStay) {
+    palette = ['#FFF2E8', '#F58725'];
+    path = 'M12 2L4 22H20L12 2ZM12 8V16M12 16H16';
+  } else if (isPhase) {
+    palette = ['#F3E8FF', '#9333EA'];
+    path = 'M13 2L3 14H12L11 22L21 10H12L13 2Z';
+  } else if (isConductor) {
+    palette = ['#E0F2FE', '#0284C7'];
+    path = 'M4 8C8 8 8 16 12 16C16 16 16 8 20 8M4 12C8 12 8 20 12 20C16 20 16 12 20 12';
+  } else if (isPole) {
+    palette = ['#FEF3C7', '#D97706'];
+    path = 'M12 2L4 23M12 2L20 23M2 23H22M8 9H16M6 15H18';
+  } else if (isCondition) {
+    palette = ['#EEF2FF', '#4F46E5'];
+    path = 'M12 22S4 16.5 4 9A8 8 0 0 1 20 9C20 16.5 12 22 12 22ZM9 9L11 11L15 7';
+  } else if (isRemarks) {
+    palette = ['#F1F5F9', '#475569'];
+    path = 'M4 4H20V16H8L4 20V4ZM8 8H16M8 12H13';
+  } else if (isQty) {
+    palette = ['#EFF6FF', '#2563EB'];
+    path = 'M7 4V20M17 4V20M4 9H20M4 15H20';
+  }
+
+  return (
+    <View style={[formStyles.fieldIcon, { backgroundColor: palette[0] }]}>
+      <Svg width={20} height={23} viewBox="0 0 24 24" fill="none" stroke={palette[1]} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+        <Path d={path} />
+      </Svg>
+    </View>
+  );
 }
 function ComplianceCameraIcon() {
   return <Svg width={21} height={21} viewBox="0 0 24 24"><Path d="M3 7H7L9 4H15L17 7H21V20H3Z" fill="#078AF4" /><Circle cx="12" cy="13" r="4" stroke="white" strokeWidth={1.5} fill="none" /></Svg>;
@@ -142,6 +183,8 @@ const formStyles = StyleSheet.create({
   sectionHeaderTitle: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.2, },
   sectionHeaderHelper: { fontSize: 8.5, color: '#6480A7', marginTop: 3, lineHeight: 12, fontWeight: '500', },
   formGroup: { width: '48%', paddingLeft: 29, marginBottom: 11, },
+  cleanFormGroup: { width: '48%', marginBottom: 11, },
+  cleanFormGroupFull: { width: '100%', marginBottom: 11, },
   label: { color: '#607BA3', fontSize: 9, fontWeight: '600', marginBottom: 4, },
   input: { minHeight: 36, backgroundColor: '#FCFEFF', borderColor: '#D5E3F6', borderWidth: 1, borderRadius: 7, paddingVertical: 7, paddingHorizontal: 8, color: '#253754', fontSize: 11, fontWeight: '500', },
   inputError: {
@@ -259,6 +302,41 @@ const formStyles = StyleSheet.create({
     backgroundColor: 'rgba(15, 23, 42, 0.50)',
     justifyContent: 'flex-end',
   },
+  checkboxTouchable: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#D8E6F5',
+    borderRadius: 8,
+  },
+  checkboxBox: {
+    width: 20,
+    height: 20,
+    borderRadius: 5,
+    borderWidth: 1.6,
+    borderColor: '#94A3B8',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+    backgroundColor: '#FFFFFF',
+  },
+  checkboxBoxSelected: {
+    borderColor: '#0284C7',
+    backgroundColor: '#0284C7',
+  },
+  checkmark: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  checkboxLabelText: {
+    color: '#1E293B',
+    fontSize: 12,
+    fontWeight: '600',
+  },
 });
 
 export const checkIsHt11kv = (typeVal: any, rawTypes: any): boolean => {
@@ -308,7 +386,11 @@ interface ActiveSurveyFormProps {
   onDeleteStaySetPhoto?: (index: number) => void;
   poleDbPhotos?: string[];
   onDeletePoleDbPhoto?: (index: number) => void;
-  onTakePhoto?: (category: 'POLE' | 'EARTHING' | 'STAY_SET' | 'POLE_DB') => void;
+  existingConductorPhotos?: string[];
+  onDeleteExistingConductorPhoto?: (index: number) => void;
+  commonPhotos?: string[];
+  onDeleteCommonPhoto?: (index: number) => void;
+  onTakePhoto?: (category: 'POLE' | 'EARTHING' | 'STAY_SET' | 'POLE_DB' | 'EXISTING_CONDUCTOR' | 'COMMON') => void;
   lineSection?: 'HT' | 'LT';
   acquiringGps: boolean;
   onAcquireGps: () => void;
@@ -331,11 +413,15 @@ interface ActiveSurveyFormProps {
   spanDistance?: number | null;
   onUpdatePole?: () => void;
   onContinueFromPole?: () => void;
+  clearErrors?: (name?: any) => void;
+  setValue?: any;
 }
 
 export default function ActiveSurveyForm({
   control,
+  setValue,
   errors,
+  clearErrors,
   nodeType,
   lat,
   lng,
@@ -350,6 +436,10 @@ export default function ActiveSurveyForm({
   onDeleteStaySetPhoto,
   poleDbPhotos = [],
   onDeletePoleDbPhoto,
+  existingConductorPhotos = [],
+  onDeleteExistingConductorPhoto,
+  commonPhotos = [],
+  onDeleteCommonPhoto,
   onTakePhoto,
   lineSection,
   acquiringGps,
@@ -393,7 +483,37 @@ export default function ActiveSurveyForm({
   const selectedEarthing = useWatch({ control, name: 'earthingUsed' });
   const selectedStaySet = useWatch({ control, name: 'staySetUsed' });
   const assetStatus = useWatch({ control, name: 'assetStatus' });
+  const watchNewPoleRequired = useWatch({ control, name: 'newPoleRequired' });
+  const watchExistDtr = useWatch({ control, name: 'existingDtrCapacity' });
+  const watchNewDtr = useWatch({ control, name: 'newDtrCapacity' });
+
+  const [captureDtr, setCaptureDtr] = useState<boolean>(() => {
+    return Boolean(
+      (watchExistDtr && watchExistDtr !== 'NONE' && watchExistDtr !== '') ||
+      (watchNewDtr && watchNewDtr !== 'NONE' && watchNewDtr !== '') ||
+      nodeType === 'DTR'
+    );
+  });
+
+  useEffect(() => {
+    if (nodeType === 'DTR') {
+      setCaptureDtr(true);
+    }
+  }, [nodeType]);
+
+  useEffect(() => {
+    if ((watchExistDtr && watchExistDtr !== 'NONE' && watchExistDtr !== '') || (watchNewDtr && watchNewDtr !== 'NONE' && watchNewDtr !== '')) {
+      setCaptureDtr(true);
+    }
+  }, [watchExistDtr, watchNewDtr]);
+
   const showLtAccessories = !isHtLine && (nodeType === 'DTR' || (nodeType === 'POLE' && lineSection === 'LT'));
+
+  useEffect(() => {
+    if (watchNewPoleRequired && clearErrors) {
+      clearErrors('structureCondition');
+    }
+  }, [watchNewPoleRequired, clearErrors]);
 
   const getPoleDbLabel = (code: string) => {
     const rawArr = domains?.['pole_db'];
@@ -402,14 +522,6 @@ export default function ActiveSurveyForm({
     return found ? (found.domain_desc || found.domain_value) : code;
   };
 
-  const transformerOptions = useMemo(() => {
-    const list = Array.isArray(transformers) ? transformers : [];
-    return list.map((t: any) => ({
-      label: t.transformer_name,
-      value: t.id,
-    }));
-  }, [transformers]);
-
   const conductorOptions = useMemo(() => {
     const list = Array.isArray(conductors) ? conductors : [];
     return list.map((c: any) => ({
@@ -417,6 +529,28 @@ export default function ActiveSurveyForm({
       value: c.id,
     }));
   }, [conductors]);
+
+  const transformerOptions = useMemo(() => {
+    const list = Array.isArray(transformers) ? transformers : [];
+    return list.map((t: any) => ({
+      label: t.transformer_name || `${t.capacity_kva} KVA`,
+      value: t.id,
+    }));
+  }, [transformers]);
+
+  const existingDtrOptions = useMemo(() => {
+    return [
+      { label: 'None / No Existing DTR', value: 'NONE' },
+      ...transformerOptions,
+    ];
+  }, [transformerOptions]);
+
+  const newDtrOptions = useMemo(() => {
+    return [
+      { label: 'None / Not Applicable', value: 'NONE' },
+      ...transformerOptions,
+    ];
+  }, [transformerOptions]);
 
   const poleOptions = useMemo(() => {
     const rawArr = domains?.['pole_type'];
@@ -467,10 +601,56 @@ export default function ActiveSurveyForm({
       value: d.domain_code,
     }));
   }, [domains]);
+
+  const existingConductorOptions = useMemo(() => {
+    return [
+      { label: 'None / No Existing Cable', value: 'NONE' },
+      ...conductorOptions,
+    ];
+  }, [conductorOptions]);
+
+  const staySetWithNoneOptions = useMemo(() => {
+    return [
+      { label: 'None / Not Applicable', value: 'NONE' },
+      ...staySetOptions,
+    ];
+  }, [staySetOptions]);
+
+  const earthingWithNoneOptions = useMemo(() => {
+    return [
+      { label: 'None / No Earthing', value: 'NONE' },
+      ...earthingOptions,
+    ];
+  }, [earthingOptions]);
+
+  const structureConditionOptions = useMemo(() => {
+    const rawArr = domains?.['structure_condition'];
+    const arr = Array.isArray(rawArr) ? rawArr : [];
+    return arr.map((d: any) => ({
+      label: d.domain_desc || d.domain_value,
+      value: d.domain_code,
+    }));
+  }, [domains]);
+
+  const phaseOptions = useMemo(() => {
+    const rawArr = domains?.['cond_phase'];
+    const arr = Array.isArray(rawArr) ? rawArr : [];
+    return arr.map((d: any) => ({
+      label: d.domain_desc || d.domain_value,
+      value: d.domain_code,
+    }));
+  }, [domains]);
+
+  const earthingRequiredOptions = [
+    { label: 'Yes - Required', value: 'YES' },
+    { label: 'No - Not Required', value: 'NO' },
+    { label: 'Existing Adequate', value: 'EXISTING_ADEQUATE' },
+  ];
+
   const isErectionFlow = workflowType === 'ERECTION';
 
   const renderPhotoSlots = (
-    category: 'POLE' | 'EARTHING' | 'STAY_SET' | 'POLE_DB',
+    category: 'POLE' | 'EARTHING' | 'STAY_SET' | 'POLE_DB' | 'EXISTING_CONDUCTOR' | 'COMMON',
     photos: string[],
     onDelete: ((idx: number) => void) | undefined,
     requiredCount: number,
@@ -519,7 +699,9 @@ export default function ActiveSurveyForm({
           activeOpacity={0.7}
         >
           <Text style={[formStyles.slotCameraIcon, { color: colorTheme.text }]}>➕</Text>
-          <Text style={[formStyles.slotLabel, { color: colorTheme.text }]}>ADD EXTRA</Text>
+          <Text style={[formStyles.slotLabel, { color: colorTheme.text }]}>
+            {photos.length === 0 ? 'ADD PHOTO' : 'ADD EXTRA'}
+          </Text>
         </TouchableOpacity>
       );
     }
@@ -532,6 +714,651 @@ export default function ActiveSurveyForm({
       </View>
     );
   };
+
+  if (workflowType === 'SURVEY') {
+    const existingConductorVal = useWatch({ control, name: 'existingConductor' });
+    const hasExistingConductor = Boolean(
+      existingConductorVal &&
+      existingConductorVal !== 'NONE' &&
+      existingConductorVal !== ''
+    );
+    const newPoleRequired = useWatch({ control, name: 'newPoleRequired' });
+
+    return (
+      <View style={formStyles.detailsContainer}>
+        {/* GPS Sticky Telemetry Card */}
+        <View style={formStyles.gpsStickyCard}>
+          <View style={[StyleSheet.absoluteFill, { borderRadius: 12, overflow: 'hidden', opacity: 0.12 }]} pointerEvents="none">
+            <ImageBackground source={require('../../../../assets/erection-project-banner.png')} style={StyleSheet.absoluteFill} resizeMode="stretch" />
+          </View>
+          <View style={formStyles.gpsCardLeft}>
+            <Text style={formStyles.gpsStickyTitle}>📡 LOCATION TELEMETRY</Text>
+            <View style={formStyles.gpsCoordsRow}>
+              <Text style={formStyles.gpsCoordVal}>LAT: {lat ? lat.toFixed(6) : 'ACQUIRING...'}</Text>
+              <Text style={formStyles.gpsCoordSpacer}>|</Text>
+              <Text style={formStyles.gpsCoordVal}>LNG: {lng ? lng.toFixed(6) : 'ACQUIRING...'}</Text>
+            </View>
+            <Text style={formStyles.gpsStickyAccuracy}>ACCURACY: {gpsAccuracy}</Text>
+          </View>
+          <TouchableOpacity 
+            style={[formStyles.gpsRecalBtn, acquiringGps && { opacity: 0.6 }]} 
+            onPress={onAcquireGps} 
+            disabled={acquiringGps}
+          >
+            <Text style={formStyles.gpsRecalText}>{acquiringGps ? 'SIGNAL...' : 'RE-SYNC GPS'}</Text>
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+          
+          {structureContext && (
+            <View style={[formStyles.contextBadge, nodeType === 'DTR' ? formStyles.contextBadgeDtr : null]}>
+              <Text style={formStyles.contextBadgeText}>{structureContext}</Text>
+            </View>
+          )}
+
+          {isEditingNode && (
+            <View style={formStyles.editingBanner}>
+              <View style={[StyleSheet.absoluteFill, { borderRadius: 12, overflow: 'hidden' }]} pointerEvents="none">
+                <ImageBackground source={require('../../../../assets/pole-edit-banner.png')} style={StyleSheet.absoluteFill} resizeMode="stretch" />
+              </View>
+              <Text style={formStyles.editingBannerBadge}>✏️ EDITING STRUCTURE</Text>
+              <Text style={formStyles.editingBannerPole}>{editingPoleLabel || 'Selected Structure'}</Text>
+              <Text style={formStyles.editingBannerHelp}>
+                Modifying saved structure data. Update below or continue the line branching from this structure.
+              </Text>
+            </View>
+          )}
+
+          {!isEditingNode && continuationParentLabel && (
+            <View style={formStyles.continuationBanner}>
+              <Text style={formStyles.continuationBannerBadge}>🔗 GPS CONNECTING LINE ACTIVE</Text>
+              <Text style={formStyles.continuationBannerParent}>Branching From: {continuationParentLabel}</Text>
+              <Text style={formStyles.continuationBannerHelp}>
+                Line is actively continuing from {continuationParentLabel}
+                {spanDistance != null ? ` • GPS Span Distance: ~${spanDistance.toFixed(1)}m` : ''}
+              </Text>
+            </View>
+          )}
+
+          {/* SECTION 1: POLE IDENTIFICATION & CONDITION */}
+          <View style={[formStyles.sectionCard, { borderLeftColor: THEMES.POLE.accent }]}>
+            <View style={[formStyles.sectionHeaderContainer, { backgroundColor: THEMES.POLE.bg }]}>
+              <View style={[formStyles.sectionNumber, { backgroundColor: THEMES.POLE.accent }]}>
+                <Text style={formStyles.sectionNumberText}>1</Text>
+              </View>
+              <Text style={[formStyles.sectionHeaderTitle, { color: THEMES.POLE.text }]}>POLE IDENTIFICATION & CONDITION</Text>
+              <Text style={formStyles.sectionHeaderHelper}>
+                Inspect structural condition, enter pole number, and select pole master specification if new pole is required
+              </Text>
+            </View>
+
+            {/* 1. Pole No. TextInput (Mandatory) */}
+            <View style={formStyles.cleanFormGroup}>
+              <Text style={formStyles.label}>
+                POLE NO. <Text style={{ color: '#EF4444' }}>*</Text>
+              </Text>
+              <Controller
+                control={control}
+                name="nameLabel"
+                rules={{ required: 'Pole identifier is required' }}
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={[formStyles.input, errors.nameLabel && formStyles.inputError]}
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    placeholder="e.g. P-1"
+                    placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                  />
+                )}
+              />
+              {errors.nameLabel && <Text style={formStyles.errorFeedback}>{errors.nameLabel.message}</Text>}
+            </View>
+
+            {/* 2. Structure Condition Dropdown (Mandatory only if New Pole is NOT checked) */}
+            <View style={formStyles.cleanFormGroup}>
+              <Controller
+                control={control}
+                name="structureCondition"
+                rules={!newPoleRequired ? { required: 'Structure Condition is required' } : undefined}
+                render={({ field: { onChange, value } }) => (
+                  <Dropdown
+                    appearance="erection"
+                    label="STRUCTURE CONDITION"
+                    required={!newPoleRequired}
+                    placeholder="Select Structure Condition"
+                    options={structureConditionOptions}
+                    value={value}
+                    onChange={onChange}
+                  />
+                )}
+              />
+              {!newPoleRequired && errors.structureCondition && (
+                <Text style={formStyles.errorFeedback}>{errors.structureCondition.message}</Text>
+              )}
+            </View>
+
+            {/* 3. Checkbox: New Pole required ? */}
+            <View style={formStyles.cleanFormGroupFull}>
+              <Controller
+                control={control}
+                name="newPoleRequired"
+                render={({ field: { onChange, value } }) => (
+                  <TouchableOpacity
+                    style={formStyles.checkboxTouchable}
+                    onPress={() => {
+                      const nextVal = !value;
+                      onChange(nextVal);
+                      if (nextVal && clearErrors) {
+                        clearErrors('structureCondition');
+                      }
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[formStyles.checkboxBox, Boolean(value) && formStyles.checkboxBoxSelected]}>
+                      {Boolean(value) ? <Text style={formStyles.checkmark}>✓</Text> : null}
+                    </View>
+                    <Text style={formStyles.checkboxLabelText}>New Pole required ?</Text>
+                  </TouchableOpacity>
+                )}
+              />
+            </View>
+
+            {/* 4. Pole Master Dropdown & Pole Qty (Shown only when New Pole required is checked) */}
+            {Boolean(newPoleRequired) && (
+              <>
+                <View style={formStyles.cleanFormGroup}>
+                  <Controller
+                    control={control}
+                    name="poleMaster"
+                    rules={{ required: 'Pole Master is required' }}
+                    render={({ field: { onChange, value } }) => (
+                      <Dropdown
+                        appearance="erection"
+                        label="POLE MASTER"
+                        required
+                        placeholder="Select Pole Master"
+                        options={poleMasterOptions}
+                        value={value}
+                        onChange={onChange}
+                      />
+                    )}
+                  />
+                  {errors.poleMaster && <Text style={formStyles.errorFeedback}>{errors.poleMaster.message}</Text>}
+                </View>
+
+                <View style={formStyles.cleanFormGroup}>
+                  <Text style={formStyles.label}>
+                    POLE QTY <Text style={{ color: '#EF4444' }}>*</Text>
+                  </Text>
+                  <Controller
+                    control={control}
+                    name="poleQty"
+                    rules={{ required: 'Pole Quantity is required' }}
+                    render={({ field: { onChange, onBlur, value } }) => (
+                      <TextInput
+                        style={[formStyles.input, errors.poleQty && formStyles.inputError]}
+                        value={value != null ? String(value) : ''}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        placeholder="e.g. 1"
+                        placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                        keyboardType="numeric"
+                      />
+                    )}
+                  />
+                  {errors.poleQty && <Text style={formStyles.errorFeedback}>{errors.poleQty.message}</Text>}
+                </View>
+              </>
+            )}
+          </View>
+
+          {/* SECTION 2: CONDUCTOR & CABLE SPECIFICATIONS */}
+          <View style={[formStyles.sectionCard, { borderLeftColor: THEMES.HARNESS.accent }]}>
+            <View style={[formStyles.sectionHeaderContainer, { backgroundColor: THEMES.HARNESS.bg }]}>
+              <View style={[formStyles.sectionNumber, { backgroundColor: THEMES.HARNESS.accent }]}>
+                <Text style={formStyles.sectionNumberText}>2</Text>
+              </View>
+              <Text style={[formStyles.sectionHeaderTitle, { color: THEMES.HARNESS.text }]}>CONDUCTOR & CABLE SPECIFICATIONS</Text>
+              <Text style={formStyles.sectionHeaderHelper}>
+                Existing overhead conductor/cable, phase details, and proposed cable installation
+              </Text>
+            </View>
+
+            {/* 3. Existing Conductor / Cable (Optional) */}
+            <View style={[formStyles.cleanFormGroup, !hasExistingConductor && formStyles.cleanFormGroupFull]}>
+              <Controller
+                control={control}
+                name="existingConductor"
+                render={({ field: { onChange, value } }) => (
+                  <Dropdown
+                    appearance="erection"
+                    label="EXISTING CONDUCTOR / CABLE"
+                    placeholder="Select Existing Conductor"
+                    options={existingConductorOptions}
+                    value={value}
+                    onChange={onChange}
+                  />
+                )}
+              />
+            </View>
+
+            {/* 4. Conductor Phase No (Conditional when existing conductor selected) */}
+            {hasExistingConductor && (
+              <View style={formStyles.cleanFormGroup}>
+                <Controller
+                  control={control}
+                  name="conductorPhaseNo"
+                  render={({ field: { onChange, value } }) => (
+                    <Dropdown
+                      appearance="erection"
+                      label="CONDUCTOR PHASE NO."
+                      placeholder="Select Phase"
+                      options={phaseOptions}
+                      value={value}
+                      onChange={onChange}
+                    />
+                  )}
+                />
+              </View>
+            )}
+
+            {/* Mandatory photo upload slot when Existing Conductor is selected */}
+            {hasExistingConductor && (
+              <View style={formStyles.cleanFormGroupFull}>
+                <Text style={formStyles.label}>
+                  EXISTING CONDUCTOR / CABLE PHOTO <Text style={{ color: '#EF4444' }}>*</Text>
+                </Text>
+                <Text style={{ fontSize: 8.5, color: '#64748B', marginBottom: 6 }}>
+                  At least 1 photo of existing conductor / cable is mandatory
+                </Text>
+                {renderPhotoSlots(
+                  'EXISTING_CONDUCTOR',
+                  existingConductorPhotos || [],
+                  onDeleteExistingConductorPhoto,
+                  1,
+                  THEMES.HARNESS
+                )}
+              </View>
+            )}
+
+            {/* 5. Proposed Cable / Conductor (Optional) */}
+            <View style={formStyles.cleanFormGroupFull}>
+              <Controller
+                control={control}
+                name="proposedConductor"
+                render={({ field: { onChange, value } }) => (
+                  <Dropdown
+                    appearance="erection"
+                    label="PROPOSED CABLE / CONDUCTOR"
+                    placeholder="Select Proposed Cable / Conductor"
+                    options={conductorOptions}
+                    value={value}
+                    onChange={onChange}
+                  />
+                )}
+              />
+            </View>
+          </View>
+
+          {/* SECTION 3: DISTRIBUTION TRANSFORMER (DTR) SPECIFICATIONS */}
+          <View style={[formStyles.sectionCard, { borderLeftColor: '#8B5CF6' }]}>
+            <View style={[formStyles.sectionHeaderContainer, { backgroundColor: '#F5F3FF' }]}>
+              <View style={[formStyles.sectionNumber, { backgroundColor: '#8B5CF6' }]}>
+                <Text style={formStyles.sectionNumberText}>3</Text>
+              </View>
+              <Text style={[formStyles.sectionHeaderTitle, { color: '#7C3AED' }]}>DTR / TRANSFORMER SPECIFICATIONS</Text>
+              <Text style={formStyles.sectionHeaderHelper}>
+                Capture transformer capacity ratings if this structure has a DTR mounted
+              </Text>
+            </View>
+
+            {/* Checkbox to choose whether to capture DTR details when on a pole */}
+            {nodeType !== 'DTR' && (
+              <View style={[formStyles.cleanFormGroup, { marginBottom: captureDtr ? 16 : 4 }]}>
+                <TouchableOpacity
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    backgroundColor: captureDtr ? '#F5F3FF' : '#F9FAFB',
+                    padding: 12,
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor: captureDtr ? '#8B5CF6' : '#E5E7EB',
+                  }}
+                  onPress={() => {
+                    const nextVal = !captureDtr;
+                    setCaptureDtr(nextVal);
+                    if (!nextVal) {
+                      setValue('existingDtrCapacity', '');
+                      setValue('newDtrCapacity', '');
+                    }
+                  }}
+                >
+                  <View style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: 4,
+                    borderWidth: 2,
+                    borderColor: captureDtr ? '#8B5CF6' : '#9CA3AF',
+                    backgroundColor: captureDtr ? '#8B5CF6' : '#FFFFFF',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginRight: 10,
+                  }}>
+                    {captureDtr && <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '700' }}>✓</Text>}
+                  </View>
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: captureDtr ? '#7C3AED' : '#374151' }}>
+                    Capture DTR / Transformer details on this structure?
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {(nodeType === 'DTR' || captureDtr) && (
+              <>
+                {/* Existing DTR Capacity (Optional) */}
+                <View style={formStyles.cleanFormGroup}>
+                  <Controller
+                    control={control}
+                    name="existingDtrCapacity"
+                    render={({ field: { onChange, value } }) => (
+                      <Dropdown
+                        appearance="erection"
+                        label="EXISTING DTR CAPACITY"
+                        placeholder="Select Existing DTR"
+                        options={existingDtrOptions}
+                        value={value}
+                        onChange={onChange}
+                      />
+                    )}
+                  />
+                </View>
+
+                {/* New DTR Capacity (Optional) */}
+                <View style={formStyles.cleanFormGroup}>
+                  <Controller
+                    control={control}
+                    name="newDtrCapacity"
+                    render={({ field: { onChange, value } }) => (
+                      <Dropdown
+                        appearance="erection"
+                        label="NEW DTR CAPACITY"
+                        placeholder="Select New DTR"
+                        options={newDtrOptions}
+                        value={value}
+                        onChange={onChange}
+                      />
+                    )}
+                  />
+                </View>
+              </>
+            )}
+          </View>
+
+          {/* SECTION 4: EARTHING SPECIFICATIONS */}
+          <View style={[formStyles.sectionCard, { borderLeftColor: THEMES.EARTHING.accent }]}>
+            <View style={[formStyles.sectionHeaderContainer, { backgroundColor: THEMES.EARTHING.bg }]}>
+              <View style={[formStyles.sectionNumber, { backgroundColor: THEMES.EARTHING.accent }]}>
+                <Text style={formStyles.sectionNumberText}>4</Text>
+              </View>
+              <Text style={[formStyles.sectionHeaderTitle, { color: THEMES.EARTHING.text }]}>EARTHING SPECIFICATIONS</Text>
+              <Text style={formStyles.sectionHeaderHelper}>
+                Select earthing type and indicate whether new earthing is required
+              </Text>
+            </View>
+
+            {/* 7. Earthing Type (Optional) */}
+            <View style={formStyles.cleanFormGroup}>
+              <Controller
+                control={control}
+                name="earthingType"
+                render={({ field: { onChange, value } }) => (
+                  <Dropdown
+                    appearance="erection"
+                    label="EARTHING TYPE"
+                    placeholder="Select Earthing Type"
+                    options={earthingWithNoneOptions}
+                    value={value}
+                    onChange={onChange}
+                  />
+                )}
+              />
+            </View>
+
+            {/* 8. Earthing Required (Optional) */}
+            <View style={formStyles.cleanFormGroup}>
+              <Controller
+                control={control}
+                name="earthingRequired"
+                render={({ field: { onChange, value } }) => (
+                  <Dropdown
+                    appearance="erection"
+                    label="EARTHING REQUIRED"
+                    placeholder="Select Requirement"
+                    options={earthingRequiredOptions}
+                    value={value}
+                    onChange={onChange}
+                  />
+                )}
+              />
+            </View>
+          </View>
+
+          {/* SECTION 5: STAY SET CONFIGURATION */}
+          <View style={[formStyles.sectionCard, { borderLeftColor: THEMES.STAY_SET.accent }]}>
+            <View style={[formStyles.sectionHeaderContainer, { backgroundColor: THEMES.STAY_SET.bg }]}>
+              <View style={[formStyles.sectionNumber, { backgroundColor: THEMES.STAY_SET.accent }]}>
+                <Text style={formStyles.sectionNumberText}>5</Text>
+              </View>
+              <Text style={[formStyles.sectionHeaderTitle, { color: THEMES.STAY_SET.text }]}>STAY SET SUPPORT</Text>
+              <Text style={formStyles.sectionHeaderHelper}>
+                Existing guy wire stays and proposed new stay set installation requirements
+              </Text>
+            </View>
+
+            {/* 9. Stay Set - Existing (Optional) */}
+            <View style={formStyles.cleanFormGroup}>
+              <Controller
+                control={control}
+                name="existingStaySet"
+                render={({ field: { onChange, value } }) => (
+                  <Dropdown
+                    appearance="erection"
+                    label="STAY SET - EXISTING"
+                    placeholder="Select Existing Stay"
+                    options={staySetWithNoneOptions}
+                    value={value}
+                    onChange={onChange}
+                  />
+                )}
+              />
+            </View>
+
+            {/* 10. Existing Stay Set Qty (Optional) */}
+            <View style={formStyles.cleanFormGroup}>
+              <Text style={formStyles.label}>EXISTING STAY SET QTY</Text>
+              <Controller
+                control={control}
+                name="existingStaySetQty"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={[formStyles.input, errors.existingStaySetQty && formStyles.inputError]}
+                    keyboardType="numeric"
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    placeholder="e.g. 1"
+                    placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                  />
+                )}
+              />
+            </View>
+
+            {/* 11. Stay Set - Proposed (Optional) */}
+            <View style={formStyles.cleanFormGroup}>
+              <Controller
+                control={control}
+                name="proposedStaySet"
+                render={({ field: { onChange, value } }) => (
+                  <Dropdown
+                    appearance="erection"
+                    label="STAY SET - PROPOSED"
+                    placeholder="Select Proposed Stay"
+                    options={staySetWithNoneOptions}
+                    value={value}
+                    onChange={onChange}
+                  />
+                )}
+              />
+            </View>
+
+            {/* 12. New Stay Set Qty (Optional) */}
+            <View style={formStyles.cleanFormGroup}>
+              <Text style={formStyles.label}>NEW STAY SET QTY</Text>
+              <Controller
+                control={control}
+                name="newStaySetQty"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={[formStyles.input, errors.newStaySetQty && formStyles.inputError]}
+                    keyboardType="numeric"
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    placeholder="e.g. 1"
+                    placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                  />
+                )}
+              />
+            </View>
+          </View>
+
+          {/* SECTION 6: SITE & STRUCTURE PHOTOS (COMMON, OPTIONAL) */}
+          <View style={[formStyles.sectionCard, { borderLeftColor: '#0284C7' }]}>
+            <View style={[formStyles.sectionHeaderContainer, { backgroundColor: '#F0F9FF' }]}>
+              <View style={[formStyles.sectionNumber, { backgroundColor: '#0284C7' }]}>
+                <Text style={formStyles.sectionNumberText}>6</Text>
+              </View>
+              <Text style={[formStyles.sectionHeaderTitle, { color: '#0284C7' }]}>SITE & STRUCTURE PHOTOS</Text>
+              <Text style={formStyles.sectionHeaderHelper}>
+                Common photo upload section for pole, site, and surrounding captures (Optional - multiple photos allowed)
+              </Text>
+            </View>
+
+            <View style={formStyles.cleanFormGroupFull}>
+              {renderPhotoSlots(
+                'COMMON',
+                commonPhotos || [],
+                onDeleteCommonPhoto,
+                0,
+                THEMES.POLE
+              )}
+            </View>
+          </View>
+
+          {/* SECTION 7: SITE OBSERVATIONS & REMARKS */}
+          <View style={[formStyles.sectionCard, { borderLeftColor: '#4F46E5' }]}>
+            <View style={[formStyles.sectionHeaderContainer, { backgroundColor: '#EEF2FF' }]}>
+              <View style={[formStyles.sectionNumber, { backgroundColor: '#4F46E5' }]}>
+                <Text style={formStyles.sectionNumberText}>7</Text>
+              </View>
+              <Text style={[formStyles.sectionHeaderTitle, { color: '#4F46E5' }]}>SITE OBSERVATIONS & REMARKS</Text>
+              <Text style={formStyles.sectionHeaderHelper}>
+                Surveyor field observations, geographical obstacles, and site notes
+              </Text>
+            </View>
+
+            {/* 13. Site Remarks (Optional) */}
+            <View style={formStyles.cleanFormGroupFull}>
+              <Text style={formStyles.label}>SITE REMARKS</Text>
+              <Controller
+                control={control}
+                name="remarks"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={[formStyles.input, { minHeight: 64, textAlignVertical: 'top' }]}
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    placeholder="Enter site observations, landmarks, or notes..."
+                    placeholderTextColor="rgba(30, 41, 59, 0.35)"
+                    multiline
+                    numberOfLines={3}
+                  />
+                )}
+              />
+            </View>
+          </View>
+
+          {/* PRIMARY ACTIONS - EXACTLY LIKE ERECTION */}
+          {isEditingNode ? (
+            <>
+              <View style={styles.primaryActionsRow}>
+                <TouchableOpacity 
+                  style={formStyles.updatePoleBtn} 
+                  onPress={onUpdatePole} 
+                  activeOpacity={0.8}
+                >
+                  <Text style={formStyles.updatePoleBtnText}>UPDATE POLE</Text>
+                  <Text style={[styles.btnSubtext, { color: '#559BDD' }]}>Save changes to database</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={formStyles.continueLineBtn} 
+                  onPress={onContinueFromPole} 
+                  activeOpacity={0.8}
+                >
+                  <Text style={formStyles.continueLineBtnText}>CONTINUE LINE ➔</Text>
+                  <Text style={[styles.btnSubtext, { color: '#CCFBF1' }]}>Extend line from this pole</Text>
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity 
+                style={[styles.finishSurveyBtn, { marginLeft: 0, marginTop: 10, backgroundColor: '#E6FAF3', borderColor: '#1AC6A0', borderWidth: 1 }]}
+                onPress={onSubmitFinish} 
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.finishSurveyBtnText, { color: '#078C72' }]}>
+                  FINISH SURVEY
+                </Text>
+                <Text style={[styles.btnSubtext, { color: '#659DAD' }]}>Complete session & verify</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <View style={styles.primaryActionsRow}>
+              <TouchableOpacity style={styles.addNewBtn} onPress={onSubmitAddNew} activeOpacity={0.8}>
+                <Text style={styles.addNewBtnText}>ADD STRUCTURE</Text>
+                <Text style={styles.btnSubtext}>Saves current & moves to next node</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={[styles.finishSurveyBtn, { backgroundColor: '#E6FAF3', borderWidth: 1, borderColor: '#1AC6A0' }]} onPress={onSubmitFinish} activeOpacity={0.8}>
+                <Text style={[styles.finishSurveyBtnText, { color: '#078C72' }]}>
+                  FINISH SURVEY
+                </Text>
+                <Text style={[styles.btnSubtext, { color: '#659DAD' }]}>Submit line for verification</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {!isHtLine && canSetDtrNext && onSubmitDtrNext && (
+            <TouchableOpacity style={styles.dtrNextBtn} onPress={onSubmitDtrNext} activeOpacity={0.8}>
+              <View style={styles.dtrNextMark}>
+                <Text style={styles.dtrNextMarkText}>D</Text>
+              </View>
+              <View style={styles.dtrNextCopy}>
+                <Text style={styles.dtrNextTitle}>SAVE & CAPTURE DTR NEXT</Text>
+                <Text style={styles.dtrNextSubtitle}>Ends the HT pole section and starts LT distribution</Text>
+              </View>
+              <Text style={styles.dtrNextArrow}>&gt;</Text>
+            </TouchableOpacity>
+          )}
+
+        </ScrollView>
+      </View>
+    );
+  }
 
   if (isErectionFlow || isHtLine) {
     const poleTypeVal = useWatch({ control, name: 'poleType' });
